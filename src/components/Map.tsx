@@ -4,6 +4,7 @@ import { MapEngine, MapEngineProps } from './MapEngine';
 import { MapErrorBoundary, MapErrorFallback } from './MapErrorBoundary';
 
 export { MapEngine, MapErrorBoundary, MapErrorFallback };
+export type { MapEngineProps };
 
 export function Map(props: MapEngineProps) {
   useEffect(() => {

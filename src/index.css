@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+#map,
+.leaflet-container {
+  pointer-events: auto !important;
+  touch-action: pan-x pan-y !important;
+}
+
 .safety-fade-layer {
   transition: opacity 220ms ease, fill-opacity 220ms ease;
 }

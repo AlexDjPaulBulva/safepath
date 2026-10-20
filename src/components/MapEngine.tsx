@@ -27,22 +27,34 @@ function MapController({
   routeA,
   routeB,
   routeC,
+  startPoint,
+  endPoint,
+  setStartPoint,
+  setEndPoint,
   onBoundsChange,
   onMapClick,
   onMapDoubleClick,
-  onMapRightClick
+  onMapRightClick,
+  onRouteProximityChange,
+  onSelectRoute,
+  onToast
 }: { 
   center: [number, number] | null;
   selectedRoute: 'A' | 'B' | 'C';
   routeA?: RouteResult | null;
   routeB?: RouteResult | null;
   routeC?: RouteResult | null;
+  startPoint?: {lat: number, lng: number; name?: string} | null;
+  endPoint?: {lat: number, lng: number; name?: string} | null;
+  setStartPoint?: (point: {lat: number, lng: number; name?: string} | null) => void;
+  setEndPoint?: (point: {lat: number, lng: number; name?: string} | null) => void;
   onBoundsChange: (bounds: L.LatLngBounds, zoom: number) => void;
   onMapClick?: (lat: number, lng: number, name?: string) => void;
   onMapDoubleClick?: (lat: number, lng: number) => void;
   onMapRightClick?: (lat: number, lng: number) => void;
   onRouteProximityChange?: (point: [number, number] | null) => void;
   onSelectRoute?: (route: 'A' | 'B' | 'C') => void;
+  onToast?: (message: string) => void;
 }) {
   const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -61,9 +73,25 @@ function MapController({
     },
     click(e) {
       try {
+        if (!e.latlng) return;
+        const { lat, lng } = e.latlng;
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
         if (onMapClick) {
-          const { lat, lng } = e.latlng;
-          if (Number.isFinite(lat) && Number.isFinite(lng)) onMapClick(lat, lng);
+          onMapClick(lat, lng);
+        } else if (setStartPoint) {
+          if (!startPoint) {
+            setStartPoint({ lat, lng });
+            onToast?.('Start nastaven. Nyní klepněte na cíl.');
+          } else if (!endPoint) {
+            setEndPoint?.({ lat, lng });
+            onToast?.('Cíl nastaven. Počítám bezpečnou trasu...');
+          } else {
+            // Třetí klik nastaví nový start a resetuje trasu
+            setStartPoint({ lat, lng });
+            setEndPoint?.(null);
+            onToast?.('Start nastaven. Nyní klepněte na cíl.');
+          }
         }
       } catch (err) {
         console.error("Chyba při zpracování kliknutí na mapu:", err);
@@ -111,8 +139,11 @@ export interface MapEngineProps {
   routeB?: RouteResult | null;
   routeC?: RouteResult | null;
   selectedRoute: 'A' | 'B' | 'C';
-  startPoint?: {lat: number, lng: number} | null;
-  endPoint?: {lat: number, lng: number} | null;
+  startPoint?: {lat: number, lng: number; name?: string} | null;
+  endPoint?: {lat: number, lng: number; name?: string} | null;
+  setStartPoint?: (point: {lat: number, lng: number; name?: string} | null) => void;
+  setEndPoint?: (point: {lat: number, lng: number; name?: string} | null) => void;
+  onToast?: (message: string) => void;
   safetyNodes: SafetyFeature[]; // Lampy
   osmCameras?: OSMSurveillanceFeature[]; // Reálné OSM kamery
   safeHavens?: SafeHavenFeature[];
@@ -142,6 +173,9 @@ export function MapEngine({
   selectedRoute,
   startPoint,
   endPoint,
+  setStartPoint,
+  setEndPoint,
+  onToast,
   safetyNodes, 
   osmCameras = [], 
   safeHavens = [],
@@ -553,7 +587,7 @@ export function MapEngine({
     : null;
 
   return (
-    <div className="w-full h-full relative z-0">
+    <div id="map-engine-root" className="w-full h-full relative z-0 pointer-events-auto" style={{ touchAction: 'pan-x pan-y' }}>
       {isSimulating && avatarPoint && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-slate-900/90 px-6 py-3 rounded-full text-emerald-400 text-sm font-bold shadow-2xl border border-emerald-500 flex items-center space-x-3 backdrop-blur">
           <span className="animate-pulse h-3 w-3 bg-emerald-500 rounded-full"></span>
@@ -561,11 +595,13 @@ export function MapEngine({
         </div>
       )}
       <MapContainer 
+        {...({ tap: false } as any)}
         center={center || [50.0775, 14.4400]} 
         zoom={15} 
         minZoom={11}
         maxZoom={18}
-        className="h-full w-full bg-slate-900" 
+        className="h-full w-full bg-slate-900 pointer-events-auto" 
+        style={{ touchAction: 'pan-x pan-y' }}
         zoomControl={false}
         preferCanvas={true}
         doubleClickZoom={false}
@@ -576,6 +612,11 @@ export function MapEngine({
           routeA={routeA}
           routeB={routeB}
           routeC={routeC}
+          startPoint={startPoint}
+          endPoint={endPoint}
+          setStartPoint={setStartPoint}
+          setEndPoint={setEndPoint}
+          onToast={onToast}
           onRouteProximityChange={onRouteProximityChange}
           onBoundsChange={(bounds, zoom) => {
             setMapBounds(bounds);
@@ -608,11 +649,11 @@ export function MapEngine({
 
         {/* Start and End Markers */}
         {startPoint && (
-          <Marker position={[startPoint.lat, startPoint.lng]} icon={startIcon}>
+          <Marker position={[startPoint.lat, startPoint.lng]} icon={startIcon} zIndexOffset={1000}>
           </Marker>
         )}
         {endPoint && (
-          <Marker position={[endPoint.lat, endPoint.lng]} icon={endIcon}>
+          <Marker position={[endPoint.lat, endPoint.lng]} icon={endIcon} zIndexOffset={1000}>
           </Marker>
         )}
 

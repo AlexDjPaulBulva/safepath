@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sidebar } from './Sidebar';
 import { Map, MapErrorBoundary, MapErrorFallback } from './Map';
@@ -90,6 +90,19 @@ export function ParentDashboard({ isPublic = false, onLoginClick, initialProfile
   const [startPoint, setStartPoint] = useState<{lat: number, lng: number, name: string} | null>(null);
   const [endPoint, setEndPoint] = useState<{lat: number, lng: number, name: string} | null>(null);
   const [mapCenter, setMapCenter] = useState<[number, number] | null>(null);
+  
+  // Mobilní vizuální toast notifikace (Start/Cíl)
+  const [mapToast, setMapToast] = useState<{ message: string; type?: 'info' | 'success'; id: number } | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showMapToast = (message: string, type: 'info' | 'success' = 'info') => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    const id = Date.now();
+    setMapToast({ message, type, id });
+    toastTimerRef.current = setTimeout(() => {
+      setMapToast(prev => (prev?.id === id ? null : prev));
+    }, 4000);
+  };
   
   const [routeA, setRouteA] = useState<RouteResult | null>(null);
   const [routeB, setRouteB] = useState<RouteResult | null>(null);
@@ -344,24 +357,26 @@ export function ParentDashboard({ isPublic = false, onLoginClick, initialProfile
         return;
       }
 
-      if (!startPoint && !endPoint) {
+      if (!startPoint) {
         applyInstantPoint('start', lat, lng, name);
         setSelectedRoute('A');
+        showMapToast('Start nastaven. Nyní klepněte na cíl.', 'success');
         return;
-      }
-
-      if (startPoint && !endPoint) {
+      } else if (!endPoint) {
         applyInstantPoint('end', lat, lng, name);
         setSelectedRoute('A');
+        showMapToast('Cíl nastaven. Počítám bezpečnou trasu...', 'success');
         return;
+      } else {
+        // Třetí klik nastaví nový start a resetuje trasu
+        applyInstantPoint('start', lat, lng, name);
+        setEndPoint(null);
+        setRouteA(null);
+        setRouteB(null);
+        setRouteC(null);
+        setSelectedRoute('A');
+        showMapToast('Start nastaven. Nyní klepněte na cíl.', 'success');
       }
-
-      applyInstantPoint('start', lat, lng, name);
-      setEndPoint(null);
-      setRouteA(null);
-      setRouteB(null);
-      setRouteC(null);
-      setSelectedRoute('A');
     } catch (e) {
       console.error(e);
     }
@@ -571,8 +586,8 @@ export function ParentDashboard({ isPublic = false, onLoginClick, initialProfile
       </AnimatePresence>
       
       {/* Sidebar - Na mobilu fixed bottom sheet, na desktopu pevný panel vlevo */}
-      <div className="md:relative fixed bottom-0 z-20 w-full md:w-96 pointer-events-none md:pointer-events-auto flex flex-col justify-end md:h-full md:block">
-        <div className="pointer-events-auto w-full md:h-full">
+      <div className="md:relative fixed inset-x-0 bottom-0 z-20 w-full md:w-96 pointer-events-none md:pointer-events-auto flex flex-col justify-end md:h-full md:block">
+        <div className="pointer-events-none md:pointer-events-auto w-full md:h-full flex flex-col justify-end">
           <Sidebar 
             startPointName={startPoint ? startPoint.name : ''}
             endPointName={endPoint ? endPoint.name : ''}
@@ -602,8 +617,43 @@ export function ParentDashboard({ isPublic = false, onLoginClick, initialProfile
       </div>
       
       {/* Mapa - Na mobilu fixní pozadí přes celou obrazovku, na desktopu zabírá zbytek (flex-1) */}
-      <div className="fixed inset-0 md:relative md:flex-1 z-0 w-full h-full">
-        
+      <div 
+        id="map" 
+        className="fixed inset-0 md:relative md:flex-1 z-0 w-full h-full pointer-events-auto"
+        style={{ touchAction: 'pan-x pan-y' }}
+      >
+        {/* Horní lišta Toast (Mobile & Desktop) */}
+        <AnimatePresence>
+          {mapToast && (
+            <motion.div
+              initial={{ opacity: 0, y: -20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -15, scale: 0.95 }}
+              transition={{ duration: 0.25 }}
+              className="absolute top-4 left-4 right-4 md:left-1/2 md:-translate-x-1/2 md:right-auto md:w-auto z-[1100] pointer-events-none flex justify-center"
+            >
+              <div className="bg-slate-900/95 border-2 border-emerald-500/90 text-white px-5 py-2.5 rounded-2xl shadow-[0_10px_25px_rgba(0,0,0,0.6),0_0_15px_rgba(16,185,129,0.3)] backdrop-blur-md flex items-center justify-between gap-3 pointer-events-auto">
+                <div className="flex items-center gap-2.5">
+                  <span className="flex h-2.5 w-2.5 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                  </span>
+                  <span className="text-xs md:text-sm font-bold tracking-wide text-emerald-300">
+                    {mapToast.message}
+                  </span>
+                </div>
+                <button
+                  onClick={() => setMapToast(null)}
+                  className="text-slate-400 hover:text-white text-xs px-1 font-bold ml-1 transition-colors"
+                  aria-label="Zavřít oznámení"
+                >
+                  ✕
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Child Status Banner */}
         {isSimulating && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] flex flex-col items-center">
@@ -653,6 +703,9 @@ export function ParentDashboard({ isPublic = false, onLoginClick, initialProfile
             selectedRoute={selectedRoute}
             startPoint={startPoint}
             endPoint={endPoint}
+            setStartPoint={setStartPoint as any}
+            setEndPoint={setEndPoint as any}
+            onToast={showMapToast}
             safetyNodes={safetyNodes}
             osmCameras={osmCameras}
             safeHavens={safeHavens}
@@ -692,7 +745,7 @@ export function ParentDashboard({ isPublic = false, onLoginClick, initialProfile
         {/* Safe Haven FAB Button */}
         <div 
           className="fixed md:absolute right-4 md:right-6 z-[1000] transition-all"
-          style={{ bottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
+          style={{ bottom: 'calc(5.75rem + env(safe-area-inset-bottom, 0px))' }}
         >
           <SafeHavenButton
             currentLocation={simulatedLocation}

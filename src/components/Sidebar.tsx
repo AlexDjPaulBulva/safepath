@@ -250,18 +250,28 @@ export function Sidebar({
   }, [isChildMode, selectedRoute, onSelectRoute]);
 
   return (
-    <div 
-      className={`
-        bg-slate-900/95 backdrop-blur-md border-r border-slate-700/50
-        w-full md:w-96 shadow-2xl flex flex-col pointer-events-auto
-        transition-all duration-300 ease-out md:translate-y-0 md:h-full
-        ${isOpen 
-          ? 'translate-y-0 h-[85vh] max-h-[85vh] rounded-t-3xl border-t md:border-t-0 md:rounded-none' 
-          : 'translate-y-[calc(100%-5rem)] h-[85vh] max-h-[85vh] rounded-t-2xl border-t md:border-t-0 md:rounded-none'
-        }
-      `}
-      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
-    >
+    <>
+      {/* Mobile Backdrop when bottom sheet is expanded */}
+      {isOpen && (
+        <div 
+          onClick={() => setIsOpen(false)}
+          className="fixed inset-0 bg-slate-950/60 backdrop-blur-[2px] z-10 md:hidden pointer-events-auto transition-opacity"
+          aria-hidden="true"
+        />
+      )}
+
+      <aside 
+        className={`
+          bg-slate-900/95 backdrop-blur-md border-r border-slate-700/50
+          w-full md:w-96 shadow-2xl flex flex-col pointer-events-auto relative z-20
+          transition-all duration-300 ease-out md:translate-y-0 md:h-full
+          ${isOpen 
+            ? 'translate-y-0 h-[85vh] max-h-[85vh] rounded-t-3xl border-t border-slate-700/70 md:border-t-0 md:rounded-none' 
+            : 'translate-y-0 h-[5.25rem] max-h-[5.25rem] overflow-hidden rounded-t-2xl border-t border-slate-700/70 md:border-t-0 md:rounded-none'
+          }
+        `}
+        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      >
       {/* Mobile Handle / Drawer Peek Bar */}
       <div 
         className="md:hidden flex flex-col justify-center px-4 py-2 border-b border-slate-700/60 bg-slate-900/95 cursor-pointer active:bg-slate-800 transition-colors select-none rounded-t-2xl"
@@ -456,6 +466,7 @@ export function Sidebar({
           </div>
         )}
       </div>
-    </div>
+    </aside>
+    </>
   );
 }
