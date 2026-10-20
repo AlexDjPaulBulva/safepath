@@ -39,6 +39,11 @@ export default function SafePathApp() {
   }
 
   return (
-    <ParentDashboard isPublic={true} initialProfiles={initialProfiles} />
+    <ParentDashboard 
+      isPublic={true} 
+      initialProfiles={initialProfiles} 
+      onBackToMenu={() => setAppMode('login')} 
+      onLoginClick={() => setAppMode('login')} 
+    />
   );
 }

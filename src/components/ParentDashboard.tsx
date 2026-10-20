@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sidebar } from './Sidebar';
 import { Map, MapErrorBoundary, MapErrorFallback } from './Map';
+import { Header } from './Header';
+import { ModeSelectionModal } from './ModeSelectionModal';
 import { OpenDataService, SafetyFeature } from '../lib/opendata';
 import { generateParentArguments, RouteComparison } from '../lib/nlp-generator';
 import { fetchOSRMRoute, RouteResult, RouteSegment, getPointAlongRoute } from '../lib/routing';
@@ -25,7 +27,17 @@ const modeLayerConfig: Record<string, { cameras: boolean; lights: boolean; haven
   child: { cameras: true, lights: true, havens: true, incidents: true, zones: false, localDataOnly: true },
 };
 
-export function ParentDashboard({ isPublic = false, onLoginClick, initialProfiles = ['parent'] }: { isPublic?: boolean, onLoginClick?: () => void, initialProfiles?: string[] }) {
+export function ParentDashboard({ 
+  isPublic = false, 
+  onLoginClick, 
+  onBackToMenu,
+  initialProfiles = ['parent'] 
+}: { 
+  isPublic?: boolean; 
+  onLoginClick?: () => void; 
+  onBackToMenu?: () => void; 
+  initialProfiles?: string[]; 
+}) {
 
   const activeMode = useAppStore((state) => state.activeMode);
   const setActiveMode = useAppStore((state) => state.setActiveMode);
@@ -202,6 +214,7 @@ export function ParentDashboard({ isPublic = false, onLoginClick, initialProfile
   // Simulace a Profil
   const [activeProfiles, setActiveProfiles] = useState<string[]>(initialProfiles);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showModeSelectionModal, setShowModeSelectionModal] = useState(false);
   const [tempProfiles, setTempProfiles] = useState<string[]>(initialProfiles);
   const [isSimulating, setIsSimulating] = useState(false);
   const [simulationProgress, setSimulationProgress] = useState(0);
@@ -742,7 +755,7 @@ export function ParentDashboard({ isPublic = false, onLoginClick, initialProfile
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -15, scale: 0.95 }}
               transition={{ duration: 0.25 }}
-              className="absolute top-4 left-4 right-4 md:left-1/2 md:-translate-x-1/2 md:right-auto md:w-auto z-[1100] pointer-events-none flex justify-center"
+              className="absolute top-16 left-4 right-4 md:top-4 md:left-1/2 md:-translate-x-1/2 md:right-auto md:w-auto z-[1100] pointer-events-none flex justify-center"
             >
               <div className="bg-slate-900/95 border-2 border-emerald-500/90 text-white px-5 py-2.5 rounded-2xl shadow-[0_10px_25px_rgba(0,0,0,0.6),0_0_15px_rgba(16,185,129,0.3)] backdrop-blur-md flex items-center justify-between gap-3 pointer-events-auto">
                 <div className="flex items-center gap-2.5">
@@ -787,15 +800,20 @@ export function ParentDashboard({ isPublic = false, onLoginClick, initialProfile
           </div>
         )}
 
-        <button 
-          onClick={() => { setTempProfiles(activeProfiles); setShowProfileModal(true); }}
-          className="absolute top-4 right-4 z-[1000] bg-slate-800/90 backdrop-blur hover:bg-slate-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg transition-all border border-slate-600 flex items-center gap-2"
-        >
-          {activeProfiles.length === 1 && activeProfiles.includes('parent') && '👨‍👧 Režim: Malé děti'}
-          {activeProfiles.length === 1 && activeProfiles.includes('night_girl') && '🌙 Režim: Dívky 14+'}
-          {activeProfiles.length > 1 && `🔄 Režim: Kombinovaný (${activeProfiles.length})`}
-          <span className="ml-2 text-xs text-slate-400">▼ Změnit</span>
-        </button>
+        {/* Záhlaví a přepínač režimů: Mobilní šipka Zpět / Desktopová lišta */}
+        <Header 
+          activeProfiles={activeProfiles}
+          onOpenModeModal={() => { setTempProfiles(activeProfiles); setShowProfileModal(true); }}
+          onBackToMenu={() => {
+            if (onBackToMenu) {
+              onBackToMenu();
+            } else if (onLoginClick) {
+              onLoginClick();
+            } else {
+              setShowModeSelectionModal(true);
+            }
+          }}
+        />
 
         {isRoutingLoading && startPoint && endPoint && (
            <div className={`absolute right-4 z-50 bg-slate-900/80 px-4 py-2 rounded-full text-emerald-400 text-xs font-bold animate-pulse border border-emerald-500 ${isPublic ? 'top-20' : 'top-4'}`}>
@@ -905,8 +923,8 @@ export function ParentDashboard({ isPublic = false, onLoginClick, initialProfile
           />
         </div>
 
-        {/* Intervenční Testovací Panel */}
-        <div className="absolute top-16 right-4 z-[1000] flex flex-col items-end">
+        {/* Intervenční Testovací Panel (Pouze na desktopu) */}
+        <div className="hidden md:flex absolute top-16 right-4 z-[1000] flex-col items-end">
           <button
             onClick={() => setShowTestControls(!showTestControls)}
             className="bg-slate-800/90 hover:bg-slate-700 text-xs text-slate-300 hover:text-white px-3 py-1.5 rounded-xl border border-slate-600 backdrop-blur shadow-md flex items-center gap-1.5 font-semibold transition-all"
@@ -978,6 +996,40 @@ export function ParentDashboard({ isPublic = false, onLoginClick, initialProfile
           deviationSeconds={geofence.deviationSeconds}
           onResetDeviation={geofence.resetGeofence}
         />
+
+        {/* ÚVODNÍ MODAL VÝBĚRU REŽIMŮ (HLAVNÍ MENU) */}
+        <AnimatePresence>
+          {showModeSelectionModal && (
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[10001] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+            >
+              <div className="relative w-full max-w-lg my-auto">
+                <button
+                  onClick={() => setShowModeSelectionModal(false)}
+                  className="absolute top-4 right-4 z-50 text-slate-400 hover:text-white px-3 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700 text-xs font-bold"
+                >
+                  ✕ Zavřít
+                </button>
+                <ModeSelectionModal
+                  onSelectMode={(mode) => {
+                    setShowModeSelectionModal(false);
+                    if (mode === 'child') {
+                      onBackToMenu?.();
+                    } else {
+                      handleSelectProfiles([mode]);
+                    }
+                  }}
+                  onSelectProfiles={(profiles) => {
+                    handleSelectProfiles(profiles);
+                  }}
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
