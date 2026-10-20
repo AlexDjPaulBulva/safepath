@@ -33,6 +33,8 @@ interface SidebarProps {
   onMetricHover: (reveal: SafetyReveal | null) => void;
   isRoutingLoading?: boolean;
   routingError?: string | null;
+  userLocation?: { lat: number; lng: number; accuracy: number } | null;
+  onRecenterGps?: () => void;
 }
 
 export function RouteSafetyBenefits() {
@@ -210,7 +212,8 @@ export function Sidebar({
   argumentsText, layers, onToggleLayer,
   timeOfDay, onChangeTime, onSelectProfile,
   safeHavens = [], isSimulating = false, onToggleSimulation, activeProfiles = ['parent'], activeMode, onMetricHover,
-  isRoutingLoading = false, routingError = null
+  isRoutingLoading = false, routingError = null,
+  userLocation = null, onRecenterGps
 }: SidebarProps) {
   // Výchozí stav na mobilu: sbaleno dole (isOpen = false), na desktopu vždy otevřeno
   const [isOpen, setIsOpen] = useState(() => {
@@ -331,13 +334,22 @@ export function Sidebar({
             iconColor="text-emerald-400"
             showCurrentLocation={true}
             onUseCurrentLocation={() => {
-              if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(async (position) => {
-                  const lat = position.coords.latitude;
-                  const lng = position.coords.longitude;
-                  const name = await reverseGeocode(lat, lng);
-                  onSelectStart(lat, lng, name);
-                });
+              if (userLocation) {
+                onSelectStart(userLocation.lat, userLocation.lng, 'Moje aktuální poloha');
+                onRecenterGps?.();
+              } else if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                  (position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    onSelectStart(lat, lng, 'Moje aktuální poloha');
+                    onRecenterGps?.();
+                  },
+                  () => {
+                    // Fallback na reverzní geokódování pokud se nezdaří
+                  },
+                  { enableHighAccuracy: true, timeout: 10000, maximumAge: 2000 }
+                );
               }
             }}
           />

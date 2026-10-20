@@ -91,6 +91,11 @@ export function ParentDashboard({ isPublic = false, onLoginClick, initialProfile
   const [endPoint, setEndPoint] = useState<{lat: number, lng: number, name: string} | null>(null);
   const [mapCenter, setMapCenter] = useState<[number, number] | null>(null);
   
+  // Živé GPS sledování polohy uživatele (Google Maps styl)
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
+  const [isTrackingLocation, setIsTrackingLocation] = useState<boolean>(false);
+  const [recenterTrigger, setRecenterTrigger] = useState<{ coords: [number, number]; timestamp: number } | null>(null);
+
   // Mobilní vizuální toast notifikace (Start/Cíl)
   const [mapToast, setMapToast] = useState<{ message: string; type?: 'info' | 'success'; id: number } | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -102,6 +107,85 @@ export function ParentDashboard({ isPublic = false, onLoginClick, initialProfile
     toastTimerRef.current = setTimeout(() => {
       setMapToast(prev => (prev?.id === id ? null : prev));
     }, 4000);
+  };
+
+  // Aktivní sledování GPS v reálném čase s ochranou proti zbytečnému re-routování (40m guard)
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+
+    let hasCenteredInitially = false;
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const { latitude: lat, longitude: lng, accuracy } = position.coords;
+        const newLoc = { lat, lng, accuracy: accuracy || 20 };
+        setUserLocation(newLoc);
+        setIsTrackingLocation(true);
+
+        // 1. One-Tap Routing: Nastav startPoint automaticky, pokud ještě není žádný vybrán
+        setStartPoint(prev => {
+          if (!prev) {
+            return { lat, lng, name: 'Moje aktuální poloha' };
+          }
+          // 2. Rerouting guard: Pokud navigujeme od GPS a uživatel se posunul o > 40 m
+          if (prev.name === 'Moje aktuální poloha') {
+            const dist = getDistance(prev.lat, prev.lng, lat, lng);
+            if (dist > 40) {
+              return { lat, lng, name: 'Moje aktuální poloha' };
+            }
+          }
+          return prev;
+        });
+
+        // Úvodní vycentrování na uživatele při prvním zachycení signálu
+        if (!hasCenteredInitially) {
+          hasCenteredInitially = true;
+          setMapCenter([lat, lng]);
+        }
+      },
+      (err) => {
+        console.warn('Geolocation watch error:', err);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 2000 }
+    );
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, []);
+
+  const handleRecenterGps = () => {
+    if (userLocation) {
+      setRecenterTrigger({ coords: [userLocation.lat, userLocation.lng], timestamp: Date.now() });
+      showMapToast('Zaměřeno na vaši aktuální polohu', 'info');
+      if (!startPoint) {
+        setStartPoint({ lat: userLocation.lat, lng: userLocation.lng, name: 'Moje aktuální poloha' });
+      }
+    } else {
+      if (!navigator.geolocation) {
+        showMapToast('Váš prohlížeč nepodporuje geolokaci GPS.', 'info');
+        return;
+      }
+      showMapToast('Vyhledávám GPS satelity...', 'info');
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+          const loc = { lat, lng, accuracy: accuracy || 20 };
+          setUserLocation(loc);
+          setIsTrackingLocation(true);
+          setRecenterTrigger({ coords: [lat, lng], timestamp: Date.now() });
+          if (!startPoint) {
+            setStartPoint({ lat, lng, name: 'Moje aktuální poloha' });
+          }
+          showMapToast('GPS poloha zaměřena', 'success');
+        },
+        (err) => {
+          console.warn('Geolocation error:', err);
+          showMapToast('Přístup k poloze byl zamítnut. Povolte GPS v prohlížeči.', 'info');
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 2000 }
+      );
+    }
   };
   
   const [routeA, setRouteA] = useState<RouteResult | null>(null);
@@ -368,25 +452,40 @@ export function ParentDashboard({ isPublic = false, onLoginClick, initialProfile
         return;
       }
 
-      if (!startPoint) {
+      // One-Tap Routing: Pokud máme živou polohu uživatele a startPoint ještě nebyl inicializován
+      let effectiveStart = startPoint;
+      if (!effectiveStart && userLocation) {
+        effectiveStart = { lat: userLocation.lat, lng: userLocation.lng, name: 'Moje aktuální poloha' };
+        setStartPoint(effectiveStart);
+      }
+
+      if (!effectiveStart) {
         applyInstantPoint('start', lat, lng, name);
         setSelectedRoute('A');
         showMapToast('Start nastaven. Nyní klepněte na cíl.', 'success');
         return;
       } else if (!endPoint) {
+        // Jediné klepnutí rovnou nastaví CÍL a spustí navigaci od aktuální polohy!
         applyInstantPoint('end', lat, lng, name);
         setSelectedRoute('A');
-        showMapToast('Cíl nastaven. Počítám bezpečnou trasu...', 'success');
+        showMapToast('Cíl nastaven. Počítám bezpečnou trasu z vaší polohy...', 'success');
         return;
       } else {
-        // Třetí klik nastaví nový start a resetuje trasu
-        applyInstantPoint('start', lat, lng, name);
-        setEndPoint(null);
-        setRouteA(null);
-        setRouteB(null);
-        setRouteC(null);
-        setSelectedRoute('A');
-        showMapToast('Start nastaven. Nyní klepněte na cíl.', 'success');
+        // Pokud navigujeme od GPS polohy, klepnutí do mapy změní cíl; v manuálním režimu resetuje trasu
+        if (effectiveStart.name === 'Moje aktuální poloha' && userLocation) {
+          applyInstantPoint('end', lat, lng, name);
+          setSelectedRoute('A');
+          showMapToast('Cíl aktualizován. Přepočítávám trasu...', 'success');
+        } else {
+          // Třetí klik nastaví nový start a resetuje trasu
+          applyInstantPoint('start', lat, lng, name);
+          setEndPoint(null);
+          setRouteA(null);
+          setRouteB(null);
+          setRouteC(null);
+          setSelectedRoute('A');
+          showMapToast('Start nastaven. Nyní klepněte na cíl.', 'success');
+        }
       }
     } catch (e) {
       console.error(e);
@@ -623,6 +722,8 @@ export function ParentDashboard({ isPublic = false, onLoginClick, initialProfile
             onMetricHover={setSafetyReveal}
             isRoutingLoading={isRoutingLoading}
             routingError={routingError}
+            userLocation={userLocation}
+            onRecenterGps={handleRecenterGps}
           />
         </div>
       </div>
@@ -714,6 +815,8 @@ export function ParentDashboard({ isPublic = false, onLoginClick, initialProfile
             selectedRoute={selectedRoute}
             startPoint={startPoint}
             endPoint={endPoint}
+            userLocation={userLocation}
+            recenterTrigger={recenterTrigger}
             setStartPoint={setStartPoint as any}
             setEndPoint={setEndPoint as any}
             onToast={showMapToast}
@@ -752,6 +855,41 @@ export function ParentDashboard({ isPublic = false, onLoginClick, initialProfile
             </div>
           )}
         </AnimatePresence>
+
+        {/* GPS Recenter Floating Action Button */}
+        <div 
+          className="fixed md:absolute right-4 md:right-6 z-[1000] transition-all"
+          style={{ bottom: 'calc(9.75rem + env(safe-area-inset-bottom, 0px))' }}
+        >
+          <button
+            onClick={handleRecenterGps}
+            className={`w-12 h-12 rounded-full shadow-2xl border flex items-center justify-center transition-all active:scale-90 relative ${
+              userLocation 
+                ? 'bg-slate-900/95 text-blue-400 hover:text-blue-300 border-blue-500/70 hover:border-blue-400 shadow-[0_0_15px_rgba(37,99,235,0.4)]'
+                : 'bg-slate-900/95 text-slate-400 hover:text-white border-slate-700 hover:border-slate-500'
+            }`}
+            title="Zaměřit mou polohu (GPS)"
+            aria-label="Zaměřit mou polohu"
+          >
+            <svg 
+              className="w-6 h-6" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2.2"
+            >
+              <circle cx="12" cy="12" r="7" />
+              <circle cx="12" cy="12" r="2.5" fill="currentColor" />
+              <path strokeLinecap="round" d="M12 2v3m0 14v3M2 12h3m14 0h3" />
+            </svg>
+            {userLocation && (
+              <span className="absolute top-1.5 right-1.5 flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
+              </span>
+            )}
+          </button>
+        </div>
 
         {/* Safe Haven FAB Button */}
         <div 

@@ -29,6 +29,8 @@ function MapController({
   routeC,
   startPoint,
   endPoint,
+  userLocation,
+  recenterTrigger,
   setStartPoint,
   setEndPoint,
   onBoundsChange,
@@ -46,6 +48,8 @@ function MapController({
   routeC?: RouteResult | null;
   startPoint?: {lat: number, lng: number; name?: string} | null;
   endPoint?: {lat: number, lng: number; name?: string} | null;
+  userLocation?: { lat: number; lng: number; accuracy: number } | null;
+  recenterTrigger?: { coords: [number, number]; timestamp: number } | null;
   setStartPoint?: (point: {lat: number, lng: number; name?: string} | null) => void;
   setEndPoint?: (point: {lat: number, lng: number; name?: string} | null) => void;
   onBoundsChange: (bounds: L.LatLngBounds, zoom: number) => void;
@@ -57,6 +61,7 @@ function MapController({
   onToast?: (message: string) => void;
 }) {
   const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastRecenterRef = React.useRef<number>(0);
 
   const map = useMapEvents({
     moveend: () => {
@@ -119,6 +124,14 @@ function MapController({
     }
   });
 
+  // Plynulé vycentrování mapy při stisku tlačítka zaměření GPS
+  useEffect(() => {
+    if (recenterTrigger && recenterTrigger.timestamp > lastRecenterRef.current) {
+      lastRecenterRef.current = recenterTrigger.timestamp;
+      map.flyTo(recenterTrigger.coords, 17, { animate: true, duration: 1.0 });
+    }
+  }, [recenterTrigger, map]);
+
   useEffect(() => {
     const selectedGeometry = routeA?.geometry;
     if (selectedGeometry && selectedGeometry.length > 0) {
@@ -141,6 +154,8 @@ export interface MapEngineProps {
   selectedRoute: 'A' | 'B' | 'C';
   startPoint?: {lat: number, lng: number; name?: string} | null;
   endPoint?: {lat: number, lng: number; name?: string} | null;
+  userLocation?: { lat: number; lng: number; accuracy: number } | null;
+  recenterTrigger?: { coords: [number, number]; timestamp: number } | null;
   setStartPoint?: (point: {lat: number, lng: number; name?: string} | null) => void;
   setEndPoint?: (point: {lat: number, lng: number; name?: string} | null) => void;
   onToast?: (message: string) => void;
@@ -173,6 +188,8 @@ export function MapEngine({
   selectedRoute,
   startPoint,
   endPoint,
+  userLocation,
+  recenterTrigger,
   setStartPoint,
   setEndPoint,
   onToast,
@@ -614,6 +631,8 @@ export function MapEngine({
           routeC={routeC}
           startPoint={startPoint}
           endPoint={endPoint}
+          userLocation={userLocation}
+          recenterTrigger={recenterTrigger}
           setStartPoint={setStartPoint}
           setEndPoint={setEndPoint}
           onToast={onToast}
@@ -647,8 +666,50 @@ export function MapEngine({
           }}
         />
 
+        {/* Live GPS Blue Dot (Google Maps styl) */}
+        {userLocation && (
+          <React.Fragment key="user-live-gps-dot">
+            {/* Vnější pulzující kruh přesnosti GPS */}
+            <Circle
+              center={[userLocation.lat, userLocation.lng]}
+              radius={Math.min(userLocation.accuracy || 25, 120)}
+              pathOptions={{
+                color: '#3b82f6',
+                fillColor: '#60a5fa',
+                fillOpacity: 0.15,
+                weight: 1,
+                className: 'pointer-events-none'
+              }}
+            />
+            {/* Vnější pulzující aura modrého bodu */}
+            <CircleMarker
+              center={[userLocation.lat, userLocation.lng]}
+              radius={13}
+              pathOptions={{
+                color: '#2563eb',
+                fillColor: '#3b82f6',
+                fillOpacity: 0.35,
+                weight: 0,
+                className: 'pointer-events-none animate-pulse'
+              }}
+            />
+            {/* Vnitřní modrý bod s bílým okrajem */}
+            <CircleMarker
+              center={[userLocation.lat, userLocation.lng]}
+              radius={7.5}
+              pathOptions={{
+                color: '#ffffff',
+                fillColor: '#2563eb',
+                fillOpacity: 1.0,
+                weight: 2.5,
+                className: 'pointer-events-none'
+              }}
+            />
+          </React.Fragment>
+        )}
+
         {/* Start and End Markers */}
-        {startPoint && (
+        {startPoint && startPoint.name !== 'Moje aktuální poloha' && (
           <Marker position={[startPoint.lat, startPoint.lng]} icon={startIcon} zIndexOffset={1000}>
           </Marker>
         )}
