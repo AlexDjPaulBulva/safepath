@@ -20,6 +20,7 @@ import { SafeHavenPOI } from '../data/safe-havens-poi';
 import { useRouteGeofence } from '../hooks/useRouteGeofence';
 import { useMotionAnomaly } from '../hooks/useMotionAnomaly';
 import { MotionAnomalyModals } from './MotionAnomalyModals';
+import { GeolocationPermissionModal } from './GeolocationPermissionModal';
 
 const modeLayerConfig: Record<string, { cameras: boolean; lights: boolean; havens: boolean; incidents: boolean; zones: boolean; localDataOnly: boolean }> = {
   parent: { cameras: true, lights: true, havens: true, incidents: true, zones: false, localDataOnly: true },
@@ -107,6 +108,9 @@ export function ParentDashboard({
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
   const [isTrackingLocation, setIsTrackingLocation] = useState<boolean>(false);
   const [recenterTrigger, setRecenterTrigger] = useState<{ coords: [number, number]; timestamp: number } | null>(null);
+  const [locationPermissionDenied, setLocationPermissionDenied] = useState<boolean>(false);
+  const [showPermissionModal, setShowPermissionModal] = useState<boolean>(false);
+  const [isRetryingLocation, setIsRetryingLocation] = useState<boolean>(false);
 
   // Mobilní vizuální toast notifikace (Start/Cíl)
   const [mapToast, setMapToast] = useState<{ message: string; type?: 'info' | 'success'; id: number } | null>(null);
@@ -133,6 +137,7 @@ export function ParentDashboard({
         const newLoc = { lat, lng, accuracy: accuracy || 20 };
         setUserLocation(newLoc);
         setIsTrackingLocation(true);
+        setLocationPermissionDenied(false);
 
         // 1. One-Tap Routing: Nastav startPoint automaticky, pokud ještě není žádný vybrán
         setStartPoint(prev => {
@@ -157,6 +162,9 @@ export function ParentDashboard({
       },
       (err) => {
         console.warn('Geolocation watch error:', err);
+        if (err.code === 1 || err.code === (err as any).PERMISSION_DENIED) {
+          setLocationPermissionDenied(true);
+        }
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 2000 }
     );
@@ -185,6 +193,7 @@ export function ParentDashboard({
           const loc = { lat, lng, accuracy: accuracy || 20 };
           setUserLocation(loc);
           setIsTrackingLocation(true);
+          setLocationPermissionDenied(false);
           setRecenterTrigger({ coords: [lat, lng], timestamp: Date.now() });
           if (!startPoint) {
             setStartPoint({ lat, lng, name: 'Moje aktuální poloha' });
@@ -193,11 +202,55 @@ export function ParentDashboard({
         },
         (err) => {
           console.warn('Geolocation error:', err);
-          showMapToast('Přístup k poloze byl zamítnut. Povolte GPS v prohlížeči.', 'info');
+          if (err.code === 1 || err.code === (err as any).PERMISSION_DENIED) {
+            setLocationPermissionDenied(true);
+            setShowPermissionModal(true);
+          } else {
+            showMapToast('Nepodařilo se získat GPS polohu.', 'info');
+          }
         },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 2000 }
       );
     }
+  };
+
+  const handleRetryLocation = () => {
+    if (!navigator.geolocation) {
+      showMapToast('Váš prohlížeč nepodporuje geolokaci GPS.', 'info');
+      return;
+    }
+    setIsRetryingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+        const loc = { lat, lng, accuracy: accuracy || 20 };
+        setUserLocation(loc);
+        setIsTrackingLocation(true);
+        setLocationPermissionDenied(false);
+        setShowPermissionModal(false);
+        setIsRetryingLocation(false);
+        setRecenterTrigger({ coords: [lat, lng], timestamp: Date.now() });
+        setMapCenter([lat, lng]);
+        setStartPoint(prev => {
+          if (!prev || prev.name === 'Moje aktuální poloha') {
+            return { lat, lng, name: 'Moje aktuální poloha' };
+          }
+          return prev;
+        });
+        showMapToast('GPS poloha zaměřena', 'success');
+      },
+      (err) => {
+        setIsRetryingLocation(false);
+        console.warn('Geolocation retry error:', err);
+        if (err.code === 1 || err.code === (err as any).PERMISSION_DENIED) {
+          setLocationPermissionDenied(true);
+          showMapToast('Poloha je stále zablokována. Povolte ji v nastavení prohlížeče.', 'info');
+        } else {
+          showMapToast('Nepodařilo se zaměřit signál GPS. Zkuste to prosím znovu.', 'info');
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
   };
   
   const [routeA, setRouteA] = useState<RouteResult | null>(null);
@@ -747,6 +800,61 @@ export function ParentDashboard({
         className="fixed inset-0 md:relative md:flex-1 z-0 w-full h-full pointer-events-auto"
         style={{ touchAction: 'pan-x pan-y' }}
       >
+        {/* Klikatelná karta pro odblokování GPS při PERMISSION_DENIED */}
+        <AnimatePresence>
+          {locationPermissionDenied && !userLocation && (
+            <motion.div
+              initial={{ opacity: 0, y: -20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -15, scale: 0.95 }}
+              transition={{ duration: 0.25 }}
+              className="absolute top-16 left-4 right-4 md:top-4 md:left-1/2 md:-translate-x-1/2 md:right-auto md:w-auto z-[1150] flex justify-center"
+            >
+              <div 
+                onClick={() => setShowPermissionModal(true)}
+                className="bg-slate-900/95 border-2 border-amber-500/90 hover:border-amber-400 text-white px-4 py-2.5 rounded-2xl shadow-[0_10px_25px_rgba(0,0,0,0.6),0_0_15px_rgba(245,158,11,0.3)] backdrop-blur-md flex items-center justify-between gap-3 cursor-pointer group transition-all"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="flex h-3 w-3 relative shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+                  </span>
+                  <span className="text-xs md:text-sm font-bold tracking-wide text-amber-300 group-hover:text-amber-200">
+                    Poloha je zablokována. Klepněte pro návod k odblokování.
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRetryLocation();
+                    }}
+                    disabled={isRetryingLocation}
+                    className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 hover:text-white border border-amber-500/40 text-xs font-bold transition-colors flex items-center gap-1 active:scale-95"
+                  >
+                    {isRetryingLocation ? (
+                      <span className="animate-spin text-xs">⟳</span>
+                    ) : (
+                      <span className="text-xs">⟳</span>
+                    )}
+                    <span>Zkusit znovu</span>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setLocationPermissionDenied(false);
+                    }}
+                    className="text-slate-400 hover:text-white text-xs px-1 font-bold transition-colors"
+                    aria-label="Zavřít"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Horní lišta Toast (Mobile & Desktop) */}
         <AnimatePresence>
           {mapToast && (
@@ -755,7 +863,9 @@ export function ParentDashboard({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -15, scale: 0.95 }}
               transition={{ duration: 0.25 }}
-              className="absolute top-16 left-4 right-4 md:top-4 md:left-1/2 md:-translate-x-1/2 md:right-auto md:w-auto z-[1100] pointer-events-none flex justify-center"
+              className={`absolute left-4 right-4 md:left-1/2 md:-translate-x-1/2 md:right-auto md:w-auto z-[1100] pointer-events-none flex justify-center ${
+                locationPermissionDenied && !userLocation ? 'top-32 md:top-20' : 'top-16 md:top-4'
+              }`}
             >
               <div className="bg-slate-900/95 border-2 border-emerald-500/90 text-white px-5 py-2.5 rounded-2xl shadow-[0_10px_25px_rgba(0,0,0,0.6),0_0_15px_rgba(16,185,129,0.3)] backdrop-blur-md flex items-center justify-between gap-3 pointer-events-auto">
                 <div className="flex items-center gap-2.5">
@@ -1030,6 +1140,13 @@ export function ParentDashboard({
             </motion.div>
           )}
         </AnimatePresence>
+        {/* Návod na odblokování geolokace GPS */}
+        <GeolocationPermissionModal
+          isOpen={showPermissionModal}
+          onClose={() => setShowPermissionModal(false)}
+          onRetry={handleRetryLocation}
+          isRetrying={isRetryingLocation}
+        />
       </div>
     </div>
   );
