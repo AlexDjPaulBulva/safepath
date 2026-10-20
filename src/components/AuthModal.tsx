@@ -20,16 +20,16 @@ export interface AuthModalProps {
   onSelectMode?: (mode: 'parent' | 'child') => void;
   onSelectProfiles?: (profiles: string[]) => void;
   onClose?: () => void;
-  initialTab?: 'child' | 'parent';
+  initialTab?: 'parent' | 'child';
 }
 
 export function AuthModal({
   onSelectMode,
   onSelectProfiles,
   onClose,
-  initialTab = 'child'
+  initialTab = 'parent'
 }: AuthModalProps) {
-  const [activeTab, setActiveTab] = useState<'child' | 'parent'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'parent' | 'child'>('parent');
   
   // DĚTSKÝ KÓD
   const [childCode, setChildCode] = useState<string>('');
@@ -360,19 +360,8 @@ export function AuthModal({
           <p className="text-slate-400 text-sm">Autentizace a živý dohled pro bezpečný návrat domů</p>
         </div>
 
-        {/* Hlavní přepínač záložek: DÍTĚ vs RODIČ */}
+        {/* Hlavní přepínač záložek: RODIČ vs DÍTĚ */}
         <div className="flex bg-slate-950/70 p-1.5 rounded-2xl border border-slate-700/80 mb-6 shadow-inner">
-          <button
-            onClick={() => setActiveTab('child')}
-            className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${
-              activeTab === 'child'
-                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/40'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <span className="text-lg">👶</span>
-            <span>Jsem dítě / Chráněná osoba</span>
-          </button>
           <button
             onClick={() => setActiveTab('parent')}
             className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${
@@ -381,8 +370,19 @@ export function AuthModal({
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <span className="text-lg">👨‍👧</span>
+            <span className="text-lg">👨‍👩‍👧</span>
             <span>Rodičovský dispečink</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('child')}
+            className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'child'
+                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/40'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <span className="text-lg">🐣</span>
+            <span>Jsem dítě / Chráněná osoba</span>
           </button>
         </div>
 
