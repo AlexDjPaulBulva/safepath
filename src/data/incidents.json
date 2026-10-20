@@ -1,0 +1,898 @@
+[
+  {
+    "id": "inc-klanovice-forest",
+    "title": "Klánovický les – Mimořádný násilný čin",
+    "incident_type": "vražda",
+    "severity": 10,
+    "location_name": "Klánovický les",
+    "time_of_day": "odpoledne",
+    "coordinates": [
+      50.0881,
+      14.6711
+    ],
+    "summary": "Místo tragického útoku v lesním porostu. Lokalita vyžaduje zvýšenou opatrnost zejména za snížené viditelnosti.",
+    "recommendation": "Pohybujte se pouze po frekventovaných a značených cestách."
+  },
+  {
+    "id": "inc-vinohrady-lupacova",
+    "title": "Lupáčova / Olšanské náměstí – Závažné napadení",
+    "incident_type": "násilný trestný čin",
+    "severity": 7,
+    "location_name": "Olšanské náměstí",
+    "time_of_day": "noc",
+    "coordinates": [
+      50.0827,
+      14.4552
+    ],
+    "summary": "Historicky evidované noční ozbrojené napadení s vážnými následky v blízkosti tramvajové zastávky.",
+    "recommendation": "V nočních hodinách se zdržujte v osvětlených prostorech hlavních ulic."
+  },
+  {
+    "id": "inc-andel-plzenska",
+    "title": "Plzeňská / Anděl – Násilný incident v obchodním koridoru",
+    "incident_type": "násilný trestný čin",
+    "severity": 8,
+    "location_name": "Anděl",
+    "time_of_day": "den",
+    "coordinates": [
+      50.0718,
+      14.4025
+    ],
+    "summary": "Místo dřívějšího závažného napadení nožem v nákupním centru na Smíchově. Oblast je pod trvalým dohledem MKS i ostrahy.",
+    "recommendation": "Využívejte hlavní koridory s aktivním dohledem bezpečnostních složek."
+  },
+  {
+    "id": "inc-uhrineves-okraj",
+    "title": "Praha – Uhříněves – Odlehlá lokalita",
+    "incident_type": "závažný trestný čin",
+    "severity": 10,
+    "location_name": "Uhříněves",
+    "time_of_day": "noc",
+    "coordinates": [
+      50.0319,
+      14.5936
+    ],
+    "summary": "Odlehlá okrajová oblast historicky spojená se závažnou násilnou trestnou činností.",
+    "recommendation": "Vyhněte se neosvětleným polním a účelovým komunikacím v noci."
+  },
+  {
+    "id": "inc-1000",
+    "title": "Krádež - Folimanka",
+    "incident_type": "krádež",
+    "severity": 6,
+    "location_name": "Folimanka",
+    "time_of_day": "noc",
+    "summary": "Ohlášena kapesní krádež. Pachatel využil nepozornosti oběti.",
+    "coordinates": [
+      50.06543,
+      14.43047
+    ],
+    "source_url": "https://policie.cz/zprava/1000"
+  },
+  {
+    "id": "inc-1001",
+    "title": "Krádež - Havlíčkovy sady (Grébovka)",
+    "incident_type": "krádež",
+    "severity": 6,
+    "location_name": "Havlíčkovy sady (Grébovka)",
+    "time_of_day": "podvečer",
+    "summary": "Ohlášena kapesní krádež. Pachatel využil nepozornosti oběti.",
+    "coordinates": [
+      50.07132,
+      14.44229
+    ],
+    "source_url": "https://policie.cz/zprava/1001"
+  },
+  {
+    "id": "inc-1002",
+    "title": "Vandalismus - Riegrovy sady",
+    "incident_type": "vandalismus",
+    "severity": 4,
+    "location_name": "Riegrovy sady",
+    "time_of_day": "noc",
+    "summary": "Poškození veřejného majetku (sprejerství, rozbité sklo).",
+    "coordinates": [
+      50.07845,
+      14.44191
+    ],
+    "source_url": "https://policie.cz/zprava/1002"
+  },
+  {
+    "id": "inc-1003",
+    "title": "Loupež - Černý Most",
+    "incident_type": "loupež",
+    "severity": 8,
+    "location_name": "Černý Most",
+    "time_of_day": "podvečer",
+    "summary": "Násilné odcizení osobních věcí pod hrozbou násilí.",
+    "coordinates": [
+      50.1079,
+      14.5775
+    ],
+    "source_url": "https://policie.cz/zprava/1003"
+  },
+  {
+    "id": "inc-1004",
+    "title": "Loupež - Masarykovo nádraží",
+    "incident_type": "loupež",
+    "severity": 8,
+    "location_name": "Masarykovo nádraží",
+    "time_of_day": "den",
+    "summary": "Násilné odcizení osobních věcí pod hrozbou násilí.",
+    "coordinates": [
+      50.08537,
+      14.4357
+    ],
+    "source_url": "https://policie.cz/zprava/1004"
+  },
+  {
+    "id": "inc-1005",
+    "title": "Skupinky osob - Háje",
+    "incident_type": "skupinky osob",
+    "severity": 6,
+    "location_name": "Háje",
+    "time_of_day": "noc",
+    "summary": "Srocování podezřelých osob v rizikové lokalitě.",
+    "coordinates": [
+      50.0326,
+      14.52646
+    ],
+    "source_url": "https://policie.cz/zprava/1005"
+  },
+  {
+    "id": "inc-1006",
+    "title": "Skupinky osob - Smíchovské nádraží",
+    "incident_type": "skupinky osob",
+    "severity": 6,
+    "location_name": "Smíchovské nádraží",
+    "time_of_day": "podvečer",
+    "summary": "Srocování podezřelých osob v rizikové lokalitě.",
+    "coordinates": [
+      50.06294,
+      14.40737
+    ],
+    "source_url": "https://policie.cz/zprava/1006"
+  },
+  {
+    "id": "inc-1007",
+    "title": "Loupež - Florenc",
+    "incident_type": "loupež",
+    "severity": 8,
+    "location_name": "Florenc",
+    "time_of_day": "podvečer",
+    "summary": "Násilné odcizení osobních věcí pod hrozbou násilí.",
+    "coordinates": [
+      50.08861,
+      14.44113
+    ],
+    "source_url": "https://policie.cz/zprava/1007"
+  },
+  {
+    "id": "inc-1008",
+    "title": "Krádež - Kobylisy",
+    "incident_type": "krádež",
+    "severity": 6,
+    "location_name": "Kobylisy",
+    "time_of_day": "podvečer",
+    "summary": "Ohlášena kapesní krádež. Pachatel využil nepozornosti oběti.",
+    "coordinates": [
+      50.12057,
+      14.45053
+    ],
+    "source_url": "https://policie.cz/zprava/1008"
+  },
+  {
+    "id": "inc-1009",
+    "title": "Obtěžování - Dejvická",
+    "incident_type": "obtěžování",
+    "severity": 6,
+    "location_name": "Dejvická",
+    "time_of_day": "noc",
+    "summary": "Slovní obtěžování kolemjdoucích podnapilými osobami.",
+    "coordinates": [
+      50.10019,
+      14.39263
+    ],
+    "source_url": "https://policie.cz/zprava/1009"
+  },
+  {
+    "id": "inc-1010",
+    "title": "Obtěžování - Náměstí Míru",
+    "incident_type": "obtěžování",
+    "severity": 2,
+    "location_name": "Náměstí Míru",
+    "time_of_day": "den",
+    "summary": "Slovní obtěžování kolemjdoucích podnapilými osobami.",
+    "coordinates": [
+      50.07492,
+      14.43481
+    ],
+    "source_url": "https://policie.cz/zprava/1010"
+  },
+  {
+    "id": "inc-1011",
+    "title": "Výtržnictví - Ladronka",
+    "incident_type": "výtržnictví",
+    "severity": 5,
+    "location_name": "Ladronka",
+    "time_of_day": "noc",
+    "summary": "Skupina osob narušovala veřejný pořádek a rušila noční klid.",
+    "coordinates": [
+      50.08086,
+      14.3638
+    ],
+    "source_url": "https://policie.cz/zprava/1011"
+  },
+  {
+    "id": "inc-1012",
+    "title": "Výtržnictví - Florenc",
+    "incident_type": "výtržnictví",
+    "severity": 3,
+    "location_name": "Florenc",
+    "time_of_day": "den",
+    "summary": "Skupina osob narušovala veřejný pořádek a rušila noční klid.",
+    "coordinates": [
+      50.09065,
+      14.44253
+    ],
+    "source_url": "https://policie.cz/zprava/1012"
+  },
+  {
+    "id": "inc-1013",
+    "title": "Skupinky osob - Smíchovské nádraží",
+    "incident_type": "skupinky osob",
+    "severity": 6,
+    "location_name": "Smíchovské nádraží",
+    "time_of_day": "den",
+    "summary": "Srocování podezřelých osob v rizikové lokalitě.",
+    "coordinates": [
+      50.05969,
+      14.40912
+    ],
+    "source_url": "https://policie.cz/zprava/1013"
+  },
+  {
+    "id": "inc-1014",
+    "title": "Obtěžování - Opatov",
+    "incident_type": "obtěžování",
+    "severity": 5,
+    "location_name": "Opatov",
+    "time_of_day": "den",
+    "summary": "Slovní obtěžování kolemjdoucích podnapilými osobami.",
+    "coordinates": [
+      50.02601,
+      14.51001
+    ],
+    "source_url": "https://policie.cz/zprava/1014"
+  },
+  {
+    "id": "inc-1015",
+    "title": "Napadení - Smíchovské nádraží",
+    "incident_type": "napadení",
+    "severity": 8,
+    "location_name": "Smíchovské nádraží",
+    "time_of_day": "podvečer",
+    "summary": "Fyzický konflikt mezi několika osobami. Na místo přivolána policie.",
+    "coordinates": [
+      50.06235,
+      14.40817
+    ],
+    "source_url": "https://policie.cz/zprava/1015"
+  },
+  {
+    "id": "inc-1016",
+    "title": "Obtěžování - Strossmayerovo náměstí",
+    "incident_type": "obtěžování",
+    "severity": 5,
+    "location_name": "Strossmayerovo náměstí",
+    "time_of_day": "noc",
+    "summary": "Slovní obtěžování kolemjdoucích podnapilými osobami.",
+    "coordinates": [
+      50.09602,
+      14.43414
+    ],
+    "source_url": "https://policie.cz/zprava/1016"
+  },
+  {
+    "id": "inc-1017",
+    "title": "Skupinky osob - Florenc",
+    "incident_type": "skupinky osob",
+    "severity": 6,
+    "location_name": "Florenc",
+    "time_of_day": "den",
+    "summary": "Srocování podezřelých osob v rizikové lokalitě.",
+    "coordinates": [
+      50.08963,
+      14.44218
+    ],
+    "source_url": "https://policie.cz/zprava/1017"
+  },
+  {
+    "id": "inc-1018",
+    "title": "Krádež - Folimanka",
+    "incident_type": "krádež",
+    "severity": 6,
+    "location_name": "Folimanka",
+    "time_of_day": "noc",
+    "summary": "Ohlášena kapesní krádež. Pachatel využil nepozornosti oběti.",
+    "coordinates": [
+      50.06577,
+      14.4294
+    ],
+    "source_url": "https://policie.cz/zprava/1018"
+  },
+  {
+    "id": "inc-1019",
+    "title": "Napadení - Florenc",
+    "incident_type": "napadení",
+    "severity": 8,
+    "location_name": "Florenc",
+    "time_of_day": "noc",
+    "summary": "Fyzický konflikt mezi několika osobami. Na místo přivolána policie.",
+    "coordinates": [
+      50.08785,
+      14.43895
+    ],
+    "source_url": "https://policie.cz/zprava/1019"
+  },
+  {
+    "id": "inc-1020",
+    "title": "Loupež - Zličín",
+    "incident_type": "loupež",
+    "severity": 8,
+    "location_name": "Zličín",
+    "time_of_day": "noc",
+    "summary": "Násilné odcizení osobních věcí pod hrozbou násilí.",
+    "coordinates": [
+      50.05071,
+      14.28949
+    ],
+    "source_url": "https://policie.cz/zprava/1020"
+  },
+  {
+    "id": "inc-1021",
+    "title": "Skupinky osob - Černý Most",
+    "incident_type": "skupinky osob",
+    "severity": 6,
+    "location_name": "Černý Most",
+    "time_of_day": "noc",
+    "summary": "Srocování podezřelých osob v rizikové lokalitě.",
+    "coordinates": [
+      50.11149,
+      14.57556
+    ],
+    "source_url": "https://policie.cz/zprava/1021"
+  },
+  {
+    "id": "inc-1022",
+    "title": "Skupinky osob - Hlavní nádraží (Sherwood)",
+    "incident_type": "skupinky osob",
+    "severity": 6,
+    "location_name": "Hlavní nádraží (Sherwood)",
+    "time_of_day": "den",
+    "summary": "Srocování podezřelých osob v rizikové lokalitě.",
+    "coordinates": [
+      50.08424,
+      14.4336
+    ],
+    "source_url": "https://policie.cz/zprava/1022"
+  },
+  {
+    "id": "inc-1023",
+    "title": "Obtěžování - Podchod u Železničního mostu",
+    "incident_type": "obtěžování",
+    "severity": 5,
+    "location_name": "Podchod u Železničního mostu",
+    "time_of_day": "den",
+    "summary": "Slovní obtěžování kolemjdoucích podnapilými osobami.",
+    "coordinates": [
+      50.06827,
+      14.41648
+    ],
+    "source_url": "https://policie.cz/zprava/1023"
+  },
+  {
+    "id": "inc-1024",
+    "title": "Napadení - Strossmayerovo náměstí",
+    "incident_type": "napadení",
+    "severity": 8,
+    "location_name": "Strossmayerovo náměstí",
+    "time_of_day": "noc",
+    "summary": "Fyzický konflikt mezi několika osobami. Na místo přivolána policie.",
+    "coordinates": [
+      50.0977,
+      14.43469
+    ],
+    "source_url": "https://policie.cz/zprava/1024"
+  },
+  {
+    "id": "inc-1025",
+    "title": "Výtržnictví - Riegrovy sady",
+    "incident_type": "výtržnictví",
+    "severity": 5,
+    "location_name": "Riegrovy sady",
+    "time_of_day": "den",
+    "summary": "Skupina osob narušovala veřejný pořádek a rušila noční klid.",
+    "coordinates": [
+      50.08106,
+      14.43882
+    ],
+    "source_url": "https://policie.cz/zprava/1025"
+  },
+  {
+    "id": "inc-1026",
+    "title": "Vandalismus - Folimanka",
+    "incident_type": "vandalismus",
+    "severity": 4,
+    "location_name": "Folimanka",
+    "time_of_day": "den",
+    "summary": "Poškození veřejného majetku (sprejerství, rozbité sklo).",
+    "coordinates": [
+      50.06511,
+      14.43108
+    ],
+    "source_url": "https://policie.cz/zprava/1026"
+  },
+  {
+    "id": "inc-1027",
+    "title": "Výtržnictví - Zličín",
+    "incident_type": "výtržnictví",
+    "severity": 2,
+    "location_name": "Zličín",
+    "time_of_day": "den",
+    "summary": "Skupina osob narušovala veřejný pořádek a rušila noční klid.",
+    "coordinates": [
+      50.05144,
+      14.29123
+    ],
+    "source_url": "https://policie.cz/zprava/1027"
+  },
+  {
+    "id": "inc-1028",
+    "title": "Vandalismus - Parukářka",
+    "incident_type": "vandalismus",
+    "severity": 4,
+    "location_name": "Parukářka",
+    "time_of_day": "podvečer",
+    "summary": "Poškození veřejného majetku (sprejerství, rozbité sklo).",
+    "coordinates": [
+      50.08601,
+      14.46478
+    ],
+    "source_url": "https://policie.cz/zprava/1028"
+  },
+  {
+    "id": "inc-1029",
+    "title": "Krádež - I. P. Pavlova",
+    "incident_type": "krádež",
+    "severity": 6,
+    "location_name": "I. P. Pavlova",
+    "time_of_day": "den",
+    "summary": "Ohlášena kapesní krádež. Pachatel využil nepozornosti oběti.",
+    "coordinates": [
+      50.07767,
+      14.43201
+    ],
+    "source_url": "https://policie.cz/zprava/1029"
+  },
+  {
+    "id": "inc-1030",
+    "title": "Krádež - Strossmayerovo náměstí",
+    "incident_type": "krádež",
+    "severity": 6,
+    "location_name": "Strossmayerovo náměstí",
+    "time_of_day": "podvečer",
+    "summary": "Ohlášena kapesní krádež. Pachatel využil nepozornosti oběti.",
+    "coordinates": [
+      50.09579,
+      14.43144
+    ],
+    "source_url": "https://policie.cz/zprava/1030"
+  },
+  {
+    "id": "inc-1031",
+    "title": "Obtěžování - Dejvická",
+    "incident_type": "obtěžování",
+    "severity": 5,
+    "location_name": "Dejvická",
+    "time_of_day": "noc",
+    "summary": "Slovní obtěžování kolemjdoucích podnapilými osobami.",
+    "coordinates": [
+      50.10042,
+      14.39474
+    ],
+    "source_url": "https://policie.cz/zprava/1031"
+  },
+  {
+    "id": "inc-1032",
+    "title": "Skupinky osob - Podchod magistrála (Muzeum)",
+    "incident_type": "skupinky osob",
+    "severity": 6,
+    "location_name": "Podchod magistrála (Muzeum)",
+    "time_of_day": "den",
+    "summary": "Srocování podezřelých osob v rizikové lokalitě.",
+    "coordinates": [
+      50.07739,
+      14.43355
+    ],
+    "source_url": "https://policie.cz/zprava/1032"
+  },
+  {
+    "id": "inc-1033",
+    "title": "Obtěžování - Kobylisy",
+    "incident_type": "obtěžování",
+    "severity": 5,
+    "location_name": "Kobylisy",
+    "time_of_day": "den",
+    "summary": "Slovní obtěžování kolemjdoucích podnapilými osobami.",
+    "coordinates": [
+      50.12618,
+      14.45585
+    ],
+    "source_url": "https://policie.cz/zprava/1033"
+  },
+  {
+    "id": "inc-1034",
+    "title": "Výtržnictví - Letenské sady",
+    "incident_type": "výtržnictví",
+    "severity": 6,
+    "location_name": "Letenské sady",
+    "time_of_day": "noc",
+    "summary": "Skupina osob narušovala veřejný pořádek a rušila noční klid.",
+    "coordinates": [
+      50.09447,
+      14.42163
+    ],
+    "source_url": "https://policie.cz/zprava/1034"
+  },
+  {
+    "id": "inc-1035",
+    "title": "Obtěžování - Parukářka",
+    "incident_type": "obtěžování",
+    "severity": 4,
+    "location_name": "Parukářka",
+    "time_of_day": "den",
+    "summary": "Slovní obtěžování kolemjdoucích podnapilými osobami.",
+    "coordinates": [
+      50.0866,
+      14.46358
+    ],
+    "source_url": "https://policie.cz/zprava/1035"
+  },
+  {
+    "id": "inc-1036",
+    "title": "Vandalismus - Náměstí Míru",
+    "incident_type": "vandalismus",
+    "severity": 4,
+    "location_name": "Náměstí Míru",
+    "time_of_day": "den",
+    "summary": "Poškození veřejného majetku (sprejerství, rozbité sklo).",
+    "coordinates": [
+      50.07395,
+      14.43612
+    ],
+    "source_url": "https://policie.cz/zprava/1036"
+  },
+  {
+    "id": "inc-1037",
+    "title": "Napadení - Podchod Florenc",
+    "incident_type": "napadení",
+    "severity": 8,
+    "location_name": "Podchod Florenc",
+    "time_of_day": "podvečer",
+    "summary": "Fyzický konflikt mezi několika osobami. Na místo přivolána policie.",
+    "coordinates": [
+      50.09133,
+      14.44322
+    ],
+    "source_url": "https://policie.cz/zprava/1037"
+  },
+  {
+    "id": "inc-1038",
+    "title": "Výtržnictví - Stromovka",
+    "incident_type": "výtržnictví",
+    "severity": 5,
+    "location_name": "Stromovka",
+    "time_of_day": "den",
+    "summary": "Skupina osob narušovala veřejný pořádek a rušila noční klid.",
+    "coordinates": [
+      50.1064,
+      14.41844
+    ],
+    "source_url": "https://policie.cz/zprava/1038"
+  },
+  {
+    "id": "inc-1039",
+    "title": "Krádež - Folimanka",
+    "incident_type": "krádež",
+    "severity": 6,
+    "location_name": "Folimanka",
+    "time_of_day": "podvečer",
+    "summary": "Ohlášena kapesní krádež. Pachatel využil nepozornosti oběti.",
+    "coordinates": [
+      50.06801,
+      14.4309
+    ],
+    "source_url": "https://policie.cz/zprava/1039"
+  },
+  {
+    "id": "inc-1040",
+    "title": "Vandalismus - Strossmayerovo náměstí",
+    "incident_type": "vandalismus",
+    "severity": 4,
+    "location_name": "Strossmayerovo náměstí",
+    "time_of_day": "noc",
+    "summary": "Poškození veřejného majetku (sprejerství, rozbité sklo).",
+    "coordinates": [
+      50.09705,
+      14.43214
+    ],
+    "source_url": "https://policie.cz/zprava/1040"
+  },
+  {
+    "id": "inc-1041",
+    "title": "Výtržnictví - Strossmayerovo náměstí",
+    "incident_type": "výtržnictví",
+    "severity": 3,
+    "location_name": "Strossmayerovo náměstí",
+    "time_of_day": "noc",
+    "summary": "Skupina osob narušovala veřejný pořádek a rušila noční klid.",
+    "coordinates": [
+      50.09658,
+      14.43108
+    ],
+    "source_url": "https://policie.cz/zprava/1041"
+  },
+  {
+    "id": "inc-1042",
+    "title": "Obtěžování - Letenské sady",
+    "incident_type": "obtěžování",
+    "severity": 6,
+    "location_name": "Letenské sady",
+    "time_of_day": "noc",
+    "summary": "Slovní obtěžování kolemjdoucích podnapilými osobami.",
+    "coordinates": [
+      50.09736,
+      14.42128
+    ],
+    "source_url": "https://policie.cz/zprava/1042"
+  },
+  {
+    "id": "inc-1043",
+    "title": "Krádež - Strossmayerovo náměstí",
+    "incident_type": "krádež",
+    "severity": 6,
+    "location_name": "Strossmayerovo náměstí",
+    "time_of_day": "podvečer",
+    "summary": "Ohlášena kapesní krádež. Pachatel využil nepozornosti oběti.",
+    "coordinates": [
+      50.09953,
+      14.43112
+    ],
+    "source_url": "https://policie.cz/zprava/1043"
+  },
+  {
+    "id": "inc-1044",
+    "title": "Krádež - Nádraží Holešovice",
+    "incident_type": "krádež",
+    "severity": 6,
+    "location_name": "Nádraží Holešovice",
+    "time_of_day": "noc",
+    "summary": "Ohlášena kapesní krádež. Pachatel využil nepozornosti oběti.",
+    "coordinates": [
+      50.1113,
+      14.44236
+    ],
+    "source_url": "https://policie.cz/zprava/1044"
+  },
+  {
+    "id": "inc-1045",
+    "title": "Krádež - Parukářka",
+    "incident_type": "krádež",
+    "severity": 6,
+    "location_name": "Parukářka",
+    "time_of_day": "den",
+    "summary": "Ohlášena kapesní krádež. Pachatel využil nepozornosti oběti.",
+    "coordinates": [
+      50.08745,
+      14.46232
+    ],
+    "source_url": "https://policie.cz/zprava/1045"
+  },
+  {
+    "id": "inc-1046",
+    "title": "Obtěžování - Palmovka",
+    "incident_type": "obtěžování",
+    "severity": 1,
+    "location_name": "Palmovka",
+    "time_of_day": "podvečer",
+    "summary": "Slovní obtěžování kolemjdoucích podnapilými osobami.",
+    "coordinates": [
+      50.10661,
+      14.47179
+    ],
+    "source_url": "https://policie.cz/zprava/1046"
+  },
+  {
+    "id": "inc-1047",
+    "title": "Napadení - Havlíčkovy sady (Grébovka)",
+    "incident_type": "napadení",
+    "severity": 8,
+    "location_name": "Havlíčkovy sady (Grébovka)",
+    "time_of_day": "noc",
+    "summary": "Fyzický konflikt mezi několika osobami. Na místo přivolána policie.",
+    "coordinates": [
+      50.07094,
+      14.44691
+    ],
+    "source_url": "https://policie.cz/zprava/1047"
+  },
+  {
+    "id": "inc-1048",
+    "title": "Výtržnictví - Palmovka",
+    "incident_type": "výtržnictví",
+    "severity": 2,
+    "location_name": "Palmovka",
+    "time_of_day": "noc",
+    "summary": "Skupina osob narušovala veřejný pořádek a rušila noční klid.",
+    "coordinates": [
+      50.1044,
+      14.4738
+    ],
+    "source_url": "https://policie.cz/zprava/1048"
+  },
+  {
+    "id": "inc-1049",
+    "title": "Loupež - Masarykovo nádraží",
+    "incident_type": "loupež",
+    "severity": 8,
+    "location_name": "Masarykovo nádraží",
+    "time_of_day": "podvečer",
+    "summary": "Násilné odcizení osobních věcí pod hrozbou násilí.",
+    "coordinates": [
+      50.08513,
+      14.4342
+    ],
+    "source_url": "https://policie.cz/zprava/1049"
+  },
+  {
+    "id": "inc-1050",
+    "title": "Vandalismus - Florenc",
+    "incident_type": "vandalismus",
+    "severity": 4,
+    "location_name": "Florenc",
+    "time_of_day": "noc",
+    "summary": "Poškození veřejného majetku (sprejerství, rozbité sklo).",
+    "coordinates": [
+      50.09266,
+      14.44227
+    ],
+    "source_url": "https://policie.cz/zprava/1050"
+  },
+  {
+    "id": "inc-1051",
+    "title": "Vandalismus - Ladronka",
+    "incident_type": "vandalismus",
+    "severity": 4,
+    "location_name": "Ladronka",
+    "time_of_day": "noc",
+    "summary": "Poškození veřejného majetku (sprejerství, rozbité sklo).",
+    "coordinates": [
+      50.07779,
+      14.36744
+    ],
+    "source_url": "https://policie.cz/zprava/1051"
+  },
+  {
+    "id": "inc-1052",
+    "title": "Krádež - Náměstí Míru",
+    "incident_type": "krádež",
+    "severity": 6,
+    "location_name": "Náměstí Míru",
+    "time_of_day": "den",
+    "summary": "Ohlášena kapesní krádež. Pachatel využil nepozornosti oběti.",
+    "coordinates": [
+      50.07425,
+      14.43693
+    ],
+    "source_url": "https://policie.cz/zprava/1052"
+  },
+  {
+    "id": "inc-1053",
+    "title": "Skupinky osob - Černý Most",
+    "incident_type": "skupinky osob",
+    "severity": 6,
+    "location_name": "Černý Most",
+    "time_of_day": "den",
+    "summary": "Srocování podezřelých osob v rizikové lokalitě.",
+    "coordinates": [
+      50.11111,
+      14.57997
+    ],
+    "source_url": "https://policie.cz/zprava/1053"
+  },
+  {
+    "id": "inc-1054",
+    "title": "Vandalismus - Palmovka",
+    "incident_type": "vandalismus",
+    "severity": 4,
+    "location_name": "Palmovka",
+    "time_of_day": "noc",
+    "summary": "Poškození veřejného majetku (sprejerství, rozbité sklo).",
+    "coordinates": [
+      50.10284,
+      14.47368
+    ],
+    "source_url": "https://policie.cz/zprava/1054"
+  },
+  {
+    "id": "inc-1055",
+    "title": "Napadení - Strossmayerovo náměstí",
+    "incident_type": "napadení",
+    "severity": 8,
+    "location_name": "Strossmayerovo náměstí",
+    "time_of_day": "podvečer",
+    "summary": "Fyzický konflikt mezi několika osobami. Na místo přivolána policie.",
+    "coordinates": [
+      50.0973,
+      14.43198
+    ],
+    "source_url": "https://policie.cz/zprava/1055"
+  },
+  {
+    "id": "inc-1056",
+    "title": "Krádež - Riegrovy sady",
+    "incident_type": "krádež",
+    "severity": 6,
+    "location_name": "Riegrovy sady",
+    "time_of_day": "noc",
+    "summary": "Ohlášena kapesní krádež. Pachatel využil nepozornosti oběti.",
+    "coordinates": [
+      50.08031,
+      14.43921
+    ],
+    "source_url": "https://policie.cz/zprava/1056"
+  },
+  {
+    "id": "inc-1057",
+    "title": "Obtěžování - Palmovka",
+    "incident_type": "obtěžování",
+    "severity": 5,
+    "location_name": "Palmovka",
+    "time_of_day": "den",
+    "summary": "Slovní obtěžování kolemjdoucích podnapilými osobami.",
+    "coordinates": [
+      50.10288,
+      14.47335
+    ],
+    "source_url": "https://policie.cz/zprava/1057"
+  },
+  {
+    "id": "inc-1058",
+    "title": "Výtržnictví - Podchod magistrála (Muzeum)",
+    "incident_type": "výtržnictví",
+    "severity": 6,
+    "location_name": "Podchod magistrála (Muzeum)",
+    "time_of_day": "podvečer",
+    "summary": "Skupina osob narušovala veřejný pořádek a rušila noční klid.",
+    "coordinates": [
+      50.08054,
+      14.43534
+    ],
+    "source_url": "https://policie.cz/zprava/1058"
+  },
+  {
+    "id": "inc-1059",
+    "title": "Skupinky osob - Anděl",
+    "incident_type": "skupinky osob",
+    "severity": 6,
+    "location_name": "Anděl",
+    "time_of_day": "podvečer",
+    "summary": "Srocování podezřelých osob v rizikové lokalitě.",
+    "coordinates": [
+      50.07146,
+      14.40573
+    ],
+    "source_url": "https://policie.cz/zprava/1059"
+  }
+]

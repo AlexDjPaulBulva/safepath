@@ -1,0 +1,2654 @@
+{
+  "version": "1.0.0",
+  "description": "Předem připravená offline databáze bezpečnosti pro centrální Prahu (Vinohrady, Nové Město, Žižkov, Nusle, Vršovice)",
+  "generatedAt": "2026-10-19T22:40:10.493Z",
+  "bounds": {
+    "minLat": 50.055,
+    "maxLat": 50.095,
+    "minLng": 14.41,
+    "maxLng": 14.48
+  },
+  "cameras": [
+    {
+      "id": 2,
+      "lat": 50.058103426170526,
+      "lng": 14.451224319092905,
+      "type": "ptz",
+      "direction": 100,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 87,
+      "lat": 50.08631724405653,
+      "lng": 14.475423703496364,
+      "type": "ptz",
+      "direction": 56,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 99,
+      "lat": 50.09409177173369,
+      "lng": 14.470681344804264,
+      "type": "dome",
+      "direction": 333,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 169,
+      "lat": 50.07760721976392,
+      "lng": 14.44009497351635,
+      "type": "dome",
+      "direction": 251,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 197,
+      "lat": 50.06377548104685,
+      "lng": 14.413989675838545,
+      "type": "dome",
+      "direction": 232,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 235,
+      "lat": 50.0656416346326,
+      "lng": 14.478785406078282,
+      "type": "ptz",
+      "direction": 18,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 236,
+      "lat": 50.063845545677985,
+      "lng": 14.412854332061535,
+      "type": "fixed",
+      "direction": 23,
+      "angle": 60,
+      "rangeMeters": 40,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 283,
+      "lat": 50.08209807354286,
+      "lng": 14.446756896958556,
+      "type": "ptz",
+      "direction": 356,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 328,
+      "lat": 50.067364556677994,
+      "lng": 14.474142014682137,
+      "type": "fixed",
+      "direction": 41,
+      "angle": 60,
+      "rangeMeters": 40,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 423,
+      "lat": 50.0787223416981,
+      "lng": 14.448779204093569,
+      "type": "dome",
+      "direction": 53,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 446,
+      "lat": 50.07256809419668,
+      "lng": 14.450833102477604,
+      "type": "ptz",
+      "direction": 306,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 584,
+      "lat": 50.08484214384689,
+      "lng": 14.413293951091646,
+      "type": "ptz",
+      "direction": 209,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 593,
+      "lat": 50.06339683423904,
+      "lng": 14.414214791563174,
+      "type": "fixed",
+      "direction": 88,
+      "angle": 60,
+      "rangeMeters": 40,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 604,
+      "lat": 50.09415465381824,
+      "lng": 14.479607758529516,
+      "type": "fixed",
+      "direction": 14,
+      "angle": 60,
+      "rangeMeters": 40,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 648,
+      "lat": 50.07392114818283,
+      "lng": 14.438245084008772,
+      "type": "fixed",
+      "direction": 341,
+      "angle": 60,
+      "rangeMeters": 40,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 670,
+      "lat": 50.09207537561985,
+      "lng": 14.426993558610576,
+      "type": "ptz",
+      "direction": 297,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 713,
+      "lat": 50.08275512542695,
+      "lng": 14.442609139471653,
+      "type": "dome",
+      "direction": 127,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 726,
+      "lat": 50.07802852446528,
+      "lng": 14.44209537617787,
+      "type": "fixed",
+      "direction": 114,
+      "angle": 60,
+      "rangeMeters": 40,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 773,
+      "lat": 50.07148511285951,
+      "lng": 14.42617477695624,
+      "type": "fixed",
+      "direction": 166,
+      "angle": 60,
+      "rangeMeters": 40,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 804,
+      "lat": 50.06336888480647,
+      "lng": 14.445154389086369,
+      "type": "dome",
+      "direction": 179,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 843,
+      "lat": 50.067106832741004,
+      "lng": 14.42607331428899,
+      "type": "fixed",
+      "direction": 50,
+      "angle": 60,
+      "rangeMeters": 40,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 894,
+      "lat": 50.06961953442747,
+      "lng": 14.443482320517822,
+      "type": "dome",
+      "direction": 70,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 899,
+      "lat": 50.09410362811323,
+      "lng": 14.42563046005963,
+      "type": "ptz",
+      "direction": 170,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 918,
+      "lat": 50.05773216987947,
+      "lng": 14.46089110750671,
+      "type": "fixed",
+      "direction": 258,
+      "angle": 60,
+      "rangeMeters": 40,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 948,
+      "lat": 50.093735929117486,
+      "lng": 14.46205115203562,
+      "type": "dome",
+      "direction": 61,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 1018,
+      "lat": 50.07010303351939,
+      "lng": 14.410272934182842,
+      "type": "ptz",
+      "direction": 322,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 1037,
+      "lat": 50.06675749509948,
+      "lng": 14.448307988558485,
+      "type": "dome",
+      "direction": 289,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 1051,
+      "lat": 50.09261761128731,
+      "lng": 14.4516280227579,
+      "type": "dome",
+      "direction": 42,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 1062,
+      "lat": 50.07390410025036,
+      "lng": 14.459827846792638,
+      "type": "fixed",
+      "direction": 51,
+      "angle": 60,
+      "rangeMeters": 40,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 1077,
+      "lat": 50.05963338384738,
+      "lng": 14.424048345466117,
+      "type": "dome",
+      "direction": 20,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 1079,
+      "lat": 50.089713596623774,
+      "lng": 14.44937162996917,
+      "type": "ptz",
+      "direction": 62,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 1182,
+      "lat": 50.06225254804207,
+      "lng": 14.452334829349853,
+      "type": "dome",
+      "direction": 19,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 1303,
+      "lat": 50.07314685759473,
+      "lng": 14.434939723927773,
+      "type": "dome",
+      "direction": 301,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 1340,
+      "lat": 50.05559226842484,
+      "lng": 14.454892008091045,
+      "type": "ptz",
+      "direction": 76,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 1488,
+      "lat": 50.05848095435528,
+      "lng": 14.41197638951543,
+      "type": "dome",
+      "direction": 5,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 1492,
+      "lat": 50.060440294593455,
+      "lng": 14.433586172695033,
+      "type": "ptz",
+      "direction": 70,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 1547,
+      "lat": 50.06089374299441,
+      "lng": 14.446900820339879,
+      "type": "fixed",
+      "direction": 66,
+      "angle": 60,
+      "rangeMeters": 40,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 1563,
+      "lat": 50.06910996109804,
+      "lng": 14.459005521829612,
+      "type": "fixed",
+      "direction": 300,
+      "angle": 60,
+      "rangeMeters": 40,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 1578,
+      "lat": 50.07072379199711,
+      "lng": 14.4646059255518,
+      "type": "dome",
+      "direction": 192,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 1602,
+      "lat": 50.070427445958664,
+      "lng": 14.432950197594165,
+      "type": "dome",
+      "direction": 260,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 1614,
+      "lat": 50.08292099390466,
+      "lng": 14.479859653204889,
+      "type": "ptz",
+      "direction": 233,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 1822,
+      "lat": 50.070860870689415,
+      "lng": 14.44943349929782,
+      "type": "fixed",
+      "direction": 63,
+      "angle": 60,
+      "rangeMeters": 40,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 1833,
+      "lat": 50.08447741505867,
+      "lng": 14.412238148431015,
+      "type": "fixed",
+      "direction": 109,
+      "angle": 60,
+      "rangeMeters": 40,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 1855,
+      "lat": 50.07689514902542,
+      "lng": 14.449621513832014,
+      "type": "dome",
+      "direction": 20,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 1919,
+      "lat": 50.06338338387521,
+      "lng": 14.443850319656322,
+      "type": "ptz",
+      "direction": 228,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 1989,
+      "lat": 50.06852332263066,
+      "lng": 14.430031520803155,
+      "type": "dome",
+      "direction": 245,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 2083,
+      "lat": 50.05630527148032,
+      "lng": 14.439002995335446,
+      "type": "fixed",
+      "direction": 209,
+      "angle": 60,
+      "rangeMeters": 40,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 2090,
+      "lat": 50.05934686341492,
+      "lng": 14.454370144034165,
+      "type": "dome",
+      "direction": 181,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 2098,
+      "lat": 50.06403514719466,
+      "lng": 14.447316784918584,
+      "type": "dome",
+      "direction": 306,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 2154,
+      "lat": 50.06212784383458,
+      "lng": 14.449920885394928,
+      "type": "dome",
+      "direction": 245,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 2200,
+      "lat": 50.09421882445525,
+      "lng": 14.425739914193064,
+      "type": "dome",
+      "direction": 243,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 2203,
+      "lat": 50.0928216262959,
+      "lng": 14.464108357432035,
+      "type": "dome",
+      "direction": 323,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 2244,
+      "lat": 50.09210142422578,
+      "lng": 14.444364519155403,
+      "type": "fixed",
+      "direction": 260,
+      "angle": 60,
+      "rangeMeters": 40,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 2291,
+      "lat": 50.09000736396062,
+      "lng": 14.474831389574886,
+      "type": "ptz",
+      "direction": 77,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 2314,
+      "lat": 50.0872754976849,
+      "lng": 14.458263974545131,
+      "type": "fixed",
+      "direction": 148,
+      "angle": 60,
+      "rangeMeters": 40,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 2367,
+      "lat": 50.07288557179787,
+      "lng": 14.473916015579903,
+      "type": "dome",
+      "direction": 312,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 2489,
+      "lat": 50.08872496575473,
+      "lng": 14.454221657106636,
+      "type": "fixed",
+      "direction": 274,
+      "angle": 60,
+      "rangeMeters": 40,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 2495,
+      "lat": 50.06983663544612,
+      "lng": 14.466685254883462,
+      "type": "ptz",
+      "direction": 33,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 2679,
+      "lat": 50.06471981869815,
+      "lng": 14.447356953143885,
+      "type": "ptz",
+      "direction": 306,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 2847,
+      "lat": 50.069702220676724,
+      "lng": 14.453711595292955,
+      "type": "dome",
+      "direction": 46,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 2902,
+      "lat": 50.085358666139,
+      "lng": 14.472751901362052,
+      "type": "ptz",
+      "direction": 357,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 2922,
+      "lat": 50.078129580442884,
+      "lng": 14.455560303413414,
+      "type": "dome",
+      "direction": 350,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 2933,
+      "lat": 50.06213147102142,
+      "lng": 14.457073648178635,
+      "type": "fixed",
+      "direction": 260,
+      "angle": 60,
+      "rangeMeters": 40,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 3019,
+      "lat": 50.07106620422724,
+      "lng": 14.476340096439518,
+      "type": "fixed",
+      "direction": 154,
+      "angle": 60,
+      "rangeMeters": 40,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 3024,
+      "lat": 50.081156162172206,
+      "lng": 14.449734271409977,
+      "type": "ptz",
+      "direction": 13,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 3086,
+      "lat": 50.0576462396904,
+      "lng": 14.471947399917504,
+      "type": "fixed",
+      "direction": 91,
+      "angle": 60,
+      "rangeMeters": 40,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 3116,
+      "lat": 50.07478599003107,
+      "lng": 14.412965686563156,
+      "type": "ptz",
+      "direction": 267,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 3149,
+      "lat": 50.07396916496627,
+      "lng": 14.46350577423925,
+      "type": "ptz",
+      "direction": 315,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 3229,
+      "lat": 50.08311330335581,
+      "lng": 14.420469364543216,
+      "type": "ptz",
+      "direction": 287,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 3230,
+      "lat": 50.07788041546098,
+      "lng": 14.471126389894774,
+      "type": "fixed",
+      "direction": 60,
+      "angle": 60,
+      "rangeMeters": 40,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 3287,
+      "lat": 50.07887130272082,
+      "lng": 14.435972657266177,
+      "type": "ptz",
+      "direction": 183,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 3327,
+      "lat": 50.08525648622888,
+      "lng": 14.425659551543317,
+      "type": "ptz",
+      "direction": 14,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 3362,
+      "lat": 50.05821589869447,
+      "lng": 14.436063639916537,
+      "type": "fixed",
+      "direction": 31,
+      "angle": 60,
+      "rangeMeters": 40,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 3546,
+      "lat": 50.05954303659083,
+      "lng": 14.439215260196676,
+      "type": "fixed",
+      "direction": 293,
+      "angle": 60,
+      "rangeMeters": 40,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 3560,
+      "lat": 50.071978141725246,
+      "lng": 14.444712927548414,
+      "type": "ptz",
+      "direction": 33,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 3603,
+      "lat": 50.089738524218305,
+      "lng": 14.46505711040519,
+      "type": "dome",
+      "direction": 320,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 3635,
+      "lat": 50.06755304967703,
+      "lng": 14.411685144881146,
+      "type": "ptz",
+      "direction": 127,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 3651,
+      "lat": 50.08170032432708,
+      "lng": 14.479537236084006,
+      "type": "dome",
+      "direction": 140,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 3708,
+      "lat": 50.07437441085371,
+      "lng": 14.439817277795289,
+      "type": "ptz",
+      "direction": 146,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 3725,
+      "lat": 50.07595765184061,
+      "lng": 14.451352095150172,
+      "type": "dome",
+      "direction": 153,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 3751,
+      "lat": 50.06473434301142,
+      "lng": 14.433531690650577,
+      "type": "dome",
+      "direction": 60,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 3873,
+      "lat": 50.08386220071916,
+      "lng": 14.45117538164016,
+      "type": "ptz",
+      "direction": 65,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 3886,
+      "lat": 50.0799079287068,
+      "lng": 14.475332227541417,
+      "type": "dome",
+      "direction": 224,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 4113,
+      "lat": 50.09004185984671,
+      "lng": 14.433138936652181,
+      "type": "dome",
+      "direction": 56,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 4170,
+      "lat": 50.06750113703349,
+      "lng": 14.470269068547198,
+      "type": "ptz",
+      "direction": 346,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 4172,
+      "lat": 50.09076418785864,
+      "lng": 14.414257069696303,
+      "type": "dome",
+      "direction": 29,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 4180,
+      "lat": 50.07872628134286,
+      "lng": 14.466371132296782,
+      "type": "dome",
+      "direction": 233,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 4199,
+      "lat": 50.082376199507735,
+      "lng": 14.425070164812002,
+      "type": "ptz",
+      "direction": 344,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 4233,
+      "lat": 50.06316063803441,
+      "lng": 14.453948393288831,
+      "type": "dome",
+      "direction": 50,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 4240,
+      "lat": 50.06856367132753,
+      "lng": 14.45008344386025,
+      "type": "dome",
+      "direction": 101,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 4246,
+      "lat": 50.09428332985897,
+      "lng": 14.42591359164743,
+      "type": "fixed",
+      "direction": 320,
+      "angle": 60,
+      "rangeMeters": 40,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 4253,
+      "lat": 50.07389589877187,
+      "lng": 14.47629560005074,
+      "type": "ptz",
+      "direction": 214,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 4278,
+      "lat": 50.060340754994186,
+      "lng": 14.43109270132153,
+      "type": "fixed",
+      "direction": 288,
+      "angle": 60,
+      "rangeMeters": 40,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 4369,
+      "lat": 50.06245372566844,
+      "lng": 14.42694558465821,
+      "type": "ptz",
+      "direction": 305,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 4380,
+      "lat": 50.06235601058106,
+      "lng": 14.454506713434977,
+      "type": "fixed",
+      "direction": 129,
+      "angle": 60,
+      "rangeMeters": 40,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 4417,
+      "lat": 50.075943949825465,
+      "lng": 14.43707342223569,
+      "type": "ptz",
+      "direction": 87,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 4451,
+      "lat": 50.05837107369487,
+      "lng": 14.427529578145144,
+      "type": "dome",
+      "direction": 58,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 4463,
+      "lat": 50.056732087895,
+      "lng": 14.421780268248293,
+      "type": "dome",
+      "direction": 250,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 4468,
+      "lat": 50.079627481461365,
+      "lng": 14.425432035563434,
+      "type": "ptz",
+      "direction": 94,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 4544,
+      "lat": 50.08738329656055,
+      "lng": 14.464139343935512,
+      "type": "dome",
+      "direction": 263,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 4600,
+      "lat": 50.09230364066073,
+      "lng": 14.4779713577093,
+      "type": "fixed",
+      "direction": 355,
+      "angle": 60,
+      "rangeMeters": 40,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 4645,
+      "lat": 50.0617448590934,
+      "lng": 14.468408586823307,
+      "type": "fixed",
+      "direction": 286,
+      "angle": 60,
+      "rangeMeters": 40,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 4697,
+      "lat": 50.0724809301778,
+      "lng": 14.439331307823068,
+      "type": "ptz",
+      "direction": 31,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 4755,
+      "lat": 50.09304513264699,
+      "lng": 14.466132705839703,
+      "type": "dome",
+      "direction": 110,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 4765,
+      "lat": 50.08254401513462,
+      "lng": 14.471691691083775,
+      "type": "fixed",
+      "direction": 261,
+      "angle": 60,
+      "rangeMeters": 40,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 4801,
+      "lat": 50.06804892855552,
+      "lng": 14.414839212404587,
+      "type": "ptz",
+      "direction": 30,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 4809,
+      "lat": 50.0825724320269,
+      "lng": 14.470297514297087,
+      "type": "ptz",
+      "direction": 271,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 4812,
+      "lat": 50.059773363795735,
+      "lng": 14.472293662342064,
+      "type": "fixed",
+      "direction": 139,
+      "angle": 60,
+      "rangeMeters": 40,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 4820,
+      "lat": 50.07729594106129,
+      "lng": 14.44107644666457,
+      "type": "ptz",
+      "direction": 183,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 4837,
+      "lat": 50.070781353683564,
+      "lng": 14.446372074985257,
+      "type": "dome",
+      "direction": 298,
+      "angle": 360,
+      "rangeMeters": 35,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 4886,
+      "lat": 50.060398945496985,
+      "lng": 14.4491335233184,
+      "type": "ptz",
+      "direction": 113,
+      "angle": 360,
+      "rangeMeters": 60,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 4935,
+      "lat": 50.09176766989369,
+      "lng": 14.472686891913959,
+      "type": "fixed",
+      "direction": 21,
+      "angle": 60,
+      "rangeMeters": 40,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 4985,
+      "lat": 50.08210271258114,
+      "lng": 14.430798603418586,
+      "type": "fixed",
+      "direction": 78,
+      "angle": 60,
+      "rangeMeters": 40,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 4997,
+      "lat": 50.068453212009416,
+      "lng": 14.472554163350253,
+      "type": "fixed",
+      "direction": 341,
+      "angle": 60,
+      "rangeMeters": 40,
+      "description": "Městský kamerový systém (AI MOCK)"
+    },
+    {
+      "id": 9001,
+      "lat": 50.0754,
+      "lng": 14.43,
+      "type": "ptz",
+      "direction": 90,
+      "angle": 360,
+      "rangeMeters": 65,
+      "description": "MKS I.P. Pavlova x Jugoslávská"
+    },
+    {
+      "id": 9002,
+      "lat": 50.0758,
+      "lng": 14.4378,
+      "type": "ptz",
+      "direction": 270,
+      "angle": 360,
+      "rangeMeters": 65,
+      "description": "MKS Náměstí Míru (kostel sv. Ludmily)"
+    },
+    {
+      "id": 9003,
+      "lat": 50.0763,
+      "lng": 14.4215,
+      "type": "ptz",
+      "direction": 180,
+      "angle": 360,
+      "rangeMeters": 65,
+      "description": "MKS Karlovo náměstí x Ječná"
+    },
+    {
+      "id": 9004,
+      "lat": 50.0822,
+      "lng": 14.4185,
+      "type": "ptz",
+      "direction": 0,
+      "angle": 360,
+      "rangeMeters": 65,
+      "description": "MKS Národní třída x Spálená"
+    },
+    {
+      "id": 9005,
+      "lat": 50.0826,
+      "lng": 14.4312,
+      "type": "ptz",
+      "direction": 140,
+      "angle": 360,
+      "rangeMeters": 65,
+      "description": "MKS Václavské náměstí (střed / Muzeum)"
+    },
+    {
+      "id": 9006,
+      "lat": 50.0832,
+      "lng": 14.435,
+      "type": "ptz",
+      "direction": 320,
+      "angle": 360,
+      "rangeMeters": 65,
+      "description": "MKS Hlavní nádraží (severní park)"
+    },
+    {
+      "id": 9007,
+      "lat": 50.0775,
+      "lng": 14.4502,
+      "type": "ptz",
+      "direction": 45,
+      "angle": 360,
+      "rangeMeters": 65,
+      "description": "MKS Náměstí Jiřího z Poděbrad"
+    },
+    {
+      "id": 9008,
+      "lat": 50.0763,
+      "lng": 14.4615,
+      "type": "ptz",
+      "direction": 210,
+      "angle": 360,
+      "rangeMeters": 65,
+      "description": "MKS Vinohradská x Jičínská (Flora)"
+    },
+    {
+      "id": 9009,
+      "lat": 50.0658,
+      "lng": 14.4385,
+      "type": "ptz",
+      "direction": 180,
+      "angle": 360,
+      "rangeMeters": 65,
+      "description": "MKS Náměstí Bratří Synků (Nusle)"
+    },
+    {
+      "id": 9010,
+      "lat": 50.068,
+      "lng": 14.452,
+      "type": "ptz",
+      "direction": 90,
+      "angle": 360,
+      "rangeMeters": 65,
+      "description": "MKS Vršovické náměstí (Vršovice)"
+    },
+    {
+      "id": 9011,
+      "lat": 50.0845,
+      "lng": 14.451,
+      "type": "ptz",
+      "direction": 60,
+      "angle": 360,
+      "rangeMeters": 65,
+      "description": "MKS Seifertova x Táboritská (Žižkov)"
+    },
+    {
+      "id": 9012,
+      "lat": 50.081,
+      "lng": 14.461,
+      "type": "ptz",
+      "direction": 135,
+      "angle": 360,
+      "rangeMeters": 65,
+      "description": "MKS Olšanské náměstí (Žižkov)"
+    },
+    {
+      "id": 9013,
+      "lat": 50.0718,
+      "lng": 14.434,
+      "type": "fixed",
+      "direction": 180,
+      "angle": 60,
+      "rangeMeters": 45,
+      "description": "MKS Bělehradská x Šafaříkova"
+    },
+    {
+      "id": 9014,
+      "lat": 50.0735,
+      "lng": 14.4382,
+      "type": "fixed",
+      "direction": 90,
+      "angle": 60,
+      "rangeMeters": 45,
+      "description": "MKS Americká x Záhřebská (kruhový objezd)"
+    }
+  ],
+  "crossings": [
+    {
+      "id": "prg-cross-ipp-1",
+      "lat": 50.07542,
+      "lng": 14.43005,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Ječná x Sokolská (I.P. Pavlova východ)"
+    },
+    {
+      "id": "prg-cross-ipp-2",
+      "lat": 50.07505,
+      "lng": 14.42978,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Sokolská (I.P. Pavlova jih)"
+    },
+    {
+      "id": "prg-cross-ipp-3",
+      "lat": 50.07565,
+      "lng": 14.42965,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Ječná x Legerova (I.P. Pavlova sever)"
+    },
+    {
+      "id": "prg-cross-ipp-4",
+      "lat": 50.0752,
+      "lng": 14.4312,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Legerova (I.P. Pavlova stanice metra)"
+    },
+    {
+      "id": "prg-cross-tyl-1",
+      "lat": 50.0745,
+      "lng": 14.4323,
+      "category": "priority",
+      "crossingType": "zebra",
+      "hasSignals": false,
+      "hasZebra": true,
+      "streetName": "Tylovo náměstí x Bělehradská"
+    },
+    {
+      "id": "prg-cross-karlak-1",
+      "lat": 50.07625,
+      "lng": 14.42195,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Karlovo náměstí x Ječná"
+    },
+    {
+      "id": "prg-cross-karlak-2",
+      "lat": 50.0758,
+      "lng": 14.41785,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Resslova x Karlovo náměstí"
+    },
+    {
+      "id": "prg-cross-karlak-3",
+      "lat": 50.0765,
+      "lng": 14.4195,
+      "category": "priority",
+      "crossingType": "zebra",
+      "hasSignals": false,
+      "hasZebra": true,
+      "streetName": "Karlovo náměstí (středový park)"
+    },
+    {
+      "id": "prg-cross-karlak-4",
+      "lat": 50.07765,
+      "lng": 14.4211,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Žitná x Karlovo náměstí"
+    },
+    {
+      "id": "prg-cross-karlak-5",
+      "lat": 50.0772,
+      "lng": 14.4202,
+      "category": "priority",
+      "crossingType": "zebra",
+      "hasSignals": false,
+      "hasZebra": true,
+      "streetName": "Odborů x Myslíkova"
+    },
+    {
+      "id": "prg-cross-stepanska-jecna",
+      "lat": 50.07585,
+      "lng": 14.4254,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Ječná x Štěpánská"
+    },
+    {
+      "id": "prg-cross-tunich-jecna",
+      "lat": 50.0756,
+      "lng": 14.4276,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Ječná x V Tůních"
+    },
+    {
+      "id": "prg-cross-karlovu-jecna",
+      "lat": 50.0755,
+      "lng": 14.4286,
+      "category": "priority",
+      "crossingType": "zebra",
+      "hasSignals": false,
+      "hasZebra": true,
+      "streetName": "Ječná x Ke Karlovu"
+    },
+    {
+      "id": "prg-cross-zitna-sokolska",
+      "lat": 50.0778,
+      "lng": 14.42925,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Žitná x Sokolská"
+    },
+    {
+      "id": "prg-cross-zitna-legerova",
+      "lat": 50.078,
+      "lng": 14.4308,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Žitná x Legerova"
+    },
+    {
+      "id": "prg-cross-rumunska-sokolska",
+      "lat": 50.0735,
+      "lng": 14.4302,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Rumunská x Sokolská"
+    },
+    {
+      "id": "prg-cross-rumunska-legerova",
+      "lat": 50.07365,
+      "lng": 14.4314,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Rumunská x Legerova"
+    },
+    {
+      "id": "prg-cross-wenzigova-sokolska",
+      "lat": 50.0708,
+      "lng": 14.4305,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Wenzigova x Sokolská"
+    },
+    {
+      "id": "prg-cross-wenzigova-legerova",
+      "lat": 50.071,
+      "lng": 14.432,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Wenzigova x Legerova"
+    },
+    {
+      "id": "prg-cross-vino-muzeum",
+      "lat": 50.07925,
+      "lng": 14.4322,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Vinohradská x Legerova (Muzeum)"
+    },
+    {
+      "id": "prg-cross-vino-spanelska",
+      "lat": 50.07905,
+      "lng": 14.4338,
+      "category": "priority",
+      "crossingType": "zebra",
+      "hasSignals": false,
+      "hasZebra": true,
+      "streetName": "Vinohradská x Španělská"
+    },
+    {
+      "id": "prg-cross-vino-skretova",
+      "lat": 50.07885,
+      "lng": 14.4351,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Vinohradská x Škrétova"
+    },
+    {
+      "id": "prg-cross-vino-italska",
+      "lat": 50.07845,
+      "lng": 14.43725,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Vinohradská x Italská"
+    },
+    {
+      "id": "prg-cross-vino-anny-letenske",
+      "lat": 50.07815,
+      "lng": 14.44105,
+      "category": "priority",
+      "crossingType": "zebra",
+      "hasSignals": false,
+      "hasZebra": true,
+      "streetName": "Vinohradská x Anny Letenské"
+    },
+    {
+      "id": "prg-cross-vino-budecska",
+      "lat": 50.07802,
+      "lng": 14.44215,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Vinohradská x Budečská"
+    },
+    {
+      "id": "prg-cross-vino-blanicka",
+      "lat": 50.0778,
+      "lng": 14.4452,
+      "category": "priority",
+      "crossingType": "zebra",
+      "hasSignals": false,
+      "hasZebra": true,
+      "streetName": "Vinohradská x Blanická"
+    },
+    {
+      "id": "prg-cross-vino-sazavska",
+      "lat": 50.07765,
+      "lng": 14.4475,
+      "category": "priority",
+      "crossingType": "zebra",
+      "hasSignals": false,
+      "hasZebra": true,
+      "streetName": "Vinohradská x Sázavská"
+    },
+    {
+      "id": "prg-cross-vino-jzp",
+      "lat": 50.0775,
+      "lng": 14.45025,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Vinohradská x Náměstí Jiřího z Poděbrad"
+    },
+    {
+      "id": "prg-cross-vino-perunova",
+      "lat": 50.0773,
+      "lng": 14.4528,
+      "category": "priority",
+      "crossingType": "zebra",
+      "hasSignals": false,
+      "hasZebra": true,
+      "streetName": "Vinohradská x Perunova"
+    },
+    {
+      "id": "prg-cross-vino-radhostska",
+      "lat": 50.07715,
+      "lng": 14.45455,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Vinohradská x Radhošťská"
+    },
+    {
+      "id": "prg-cross-vino-baranova",
+      "lat": 50.0767,
+      "lng": 14.45805,
+      "category": "priority",
+      "crossingType": "zebra",
+      "hasSignals": false,
+      "hasZebra": true,
+      "streetName": "Vinohradská x Baranova"
+    },
+    {
+      "id": "prg-cross-vino-flora",
+      "lat": 50.07635,
+      "lng": 14.46145,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Vinohradská x Jičínská (Flora)"
+    },
+    {
+      "id": "prg-cross-vino-olsany",
+      "lat": 50.0758,
+      "lng": 14.4665,
+      "category": "priority",
+      "crossingType": "zebra",
+      "hasSignals": false,
+      "hasZebra": true,
+      "streetName": "Vinohradská (Olšanské hřbitovy)"
+    },
+    {
+      "id": "prg-cross-vino-zelivskeho",
+      "lat": 50.0751,
+      "lng": 14.4748,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Vinohradská x Želivského"
+    },
+    {
+      "id": "prg-cross-nam-miru-zapad",
+      "lat": 50.0756,
+      "lng": 14.4372,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Náměstí Míru západ / Rumunská"
+    },
+    {
+      "id": "prg-cross-nam-miru-jih",
+      "lat": 50.0752,
+      "lng": 14.4385,
+      "category": "priority",
+      "crossingType": "zebra",
+      "hasSignals": false,
+      "hasZebra": true,
+      "streetName": "Náměstí Míru jih"
+    },
+    {
+      "id": "prg-cross-nam-miru-francouzska",
+      "lat": 50.0758,
+      "lng": 14.4398,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Francouzská x Náměstí Míru"
+    },
+    {
+      "id": "prg-cross-anglicka-miru",
+      "lat": 50.0762,
+      "lng": 14.4378,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Anglická x Náměstí Míru"
+    },
+    {
+      "id": "prg-cross-korunni-zatek",
+      "lat": 50.0761,
+      "lng": 14.441,
+      "category": "priority",
+      "crossingType": "zebra",
+      "hasSignals": false,
+      "hasZebra": true,
+      "streetName": "Korunní začátek"
+    },
+    {
+      "id": "prg-cross-korunni-budecska",
+      "lat": 50.0759,
+      "lng": 14.4442,
+      "category": "priority",
+      "crossingType": "zebra",
+      "hasSignals": false,
+      "hasZebra": true,
+      "streetName": "Korunní x Budečská"
+    },
+    {
+      "id": "prg-cross-korunni-sumavska",
+      "lat": 50.0756,
+      "lng": 14.4498,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Korunní x Šumavská"
+    },
+    {
+      "id": "prg-cross-narodni-divadlo",
+      "lat": 50.08185,
+      "lng": 14.4132,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Národní divadlo / Smetanovo nábřeží"
+    },
+    {
+      "id": "prg-cross-narodni-karoliny-svetle",
+      "lat": 50.082,
+      "lng": 14.4155,
+      "category": "priority",
+      "crossingType": "zebra",
+      "hasSignals": false,
+      "hasZebra": true,
+      "streetName": "Národní x Karolíny Světlé"
+    },
+    {
+      "id": "prg-cross-narodni-spalena",
+      "lat": 50.08225,
+      "lng": 14.4185,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Národní x Spálená"
+    },
+    {
+      "id": "prg-cross-narodni-jungmannova",
+      "lat": 50.0826,
+      "lng": 14.4222,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Národní x Jungmannova"
+    },
+    {
+      "id": "prg-cross-jungmannak",
+      "lat": 50.0832,
+      "lng": 14.4235,
+      "category": "priority",
+      "crossingType": "zebra",
+      "hasSignals": false,
+      "hasZebra": true,
+      "streetName": "Jungmannovo náměstí"
+    },
+    {
+      "id": "prg-cross-mustek",
+      "lat": 50.0842,
+      "lng": 14.4245,
+      "category": "priority",
+      "crossingType": "zebra",
+      "hasSignals": false,
+      "hasZebra": true,
+      "streetName": "Můstek / Na Příkopě"
+    },
+    {
+      "id": "prg-cross-vodickova-jindrisska",
+      "lat": 50.0828,
+      "lng": 14.4265,
+      "category": "priority",
+      "crossingType": "zebra",
+      "hasSignals": false,
+      "hasZebra": true,
+      "streetName": "Vodičkova x Jindřišská"
+    },
+    {
+      "id": "prg-cross-stepanska-vaclavak",
+      "lat": 50.0815,
+      "lng": 14.4285,
+      "category": "priority",
+      "crossingType": "zebra",
+      "hasSignals": false,
+      "hasZebra": true,
+      "streetName": "Štěpánská x Václavské náměstí"
+    },
+    {
+      "id": "prg-cross-muzeum-horni-vaclavak",
+      "lat": 50.0801,
+      "lng": 14.43,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Muzeum / Horní Václavské náměstí"
+    },
+    {
+      "id": "prg-cross-florenc-1",
+      "lat": 50.0902,
+      "lng": 14.4385,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Křižíkova x Ke Štvanici (Florenc)"
+    },
+    {
+      "id": "prg-cross-florenc-prvniho-pluku",
+      "lat": 50.091,
+      "lng": 14.442,
+      "category": "priority",
+      "crossingType": "zebra",
+      "hasSignals": false,
+      "hasZebra": true,
+      "streetName": "Křižíkova x Prvního pluku"
+    },
+    {
+      "id": "prg-cross-karlin-namesti",
+      "lat": 50.0918,
+      "lng": 14.4465,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Křižíkova x Karlínské náměstí"
+    },
+    {
+      "id": "prg-cross-karlin-thamova",
+      "lat": 50.0935,
+      "lng": 14.4552,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Křižíkova x Thámova (Křižíkova metro)"
+    },
+    {
+      "id": "prg-cross-zahrebska-americka",
+      "lat": 50.0735,
+      "lng": 14.4382,
+      "category": "priority",
+      "crossingType": "zebra",
+      "hasSignals": false,
+      "hasZebra": true,
+      "streetName": "Záhřebská x Americká (kruhový objezd)"
+    },
+    {
+      "id": "prg-cross-zahrebska-francouzska",
+      "lat": 50.075,
+      "lng": 14.4395,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Záhřebská x Francouzská / Blanická"
+    },
+    {
+      "id": "prg-cross-zahrebska-masarykova",
+      "lat": 50.0722,
+      "lng": 14.4398,
+      "category": "priority",
+      "crossingType": "zebra",
+      "hasSignals": false,
+      "hasZebra": true,
+      "streetName": "Záhřebská x Jana Masaryka"
+    },
+    {
+      "id": "prg-cross-zahrebska-bruselska",
+      "lat": 50.0725,
+      "lng": 14.4355,
+      "category": "priority",
+      "crossingType": "zebra",
+      "hasSignals": false,
+      "hasZebra": true,
+      "streetName": "Záhřebská x Bruselská"
+    },
+    {
+      "id": "prg-cross-americka-francouzska",
+      "lat": 50.0758,
+      "lng": 14.4378,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Americká x Francouzská"
+    },
+    {
+      "id": "prg-cross-americka-machova",
+      "lat": 50.072,
+      "lng": 14.4385,
+      "category": "priority",
+      "crossingType": "zebra",
+      "hasSignals": false,
+      "hasZebra": true,
+      "streetName": "Americká x Máchova"
+    },
+    {
+      "id": "prg-cross-americka-grebovka",
+      "lat": 50.071,
+      "lng": 14.439,
+      "category": "priority",
+      "crossingType": "zebra",
+      "hasSignals": false,
+      "hasZebra": true,
+      "streetName": "Americká x U Havlíčkových sadů"
+    },
+    {
+      "id": "prg-cross-belehradska-ipp",
+      "lat": 50.0754,
+      "lng": 14.43,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Bělehradská x Jugoslávská (I.P. Pavlova / tram)"
+    },
+    {
+      "id": "prg-cross-belehradska-tylak",
+      "lat": 50.0745,
+      "lng": 14.4318,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Bělehradská x Tylovo náměstí (tram)"
+    },
+    {
+      "id": "prg-cross-belehradska-rumunska",
+      "lat": 50.0735,
+      "lng": 14.4325,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Bělehradská x Rumunská (tram)"
+    },
+    {
+      "id": "prg-cross-belehradska-bruselska",
+      "lat": 50.0728,
+      "lng": 14.4332,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Bělehradská x Bruselská (tram)"
+    },
+    {
+      "id": "prg-cross-belehradska-safarikova",
+      "lat": 50.0705,
+      "lng": 14.4348,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Bělehradská x Šafaříkova (tram)"
+    },
+    {
+      "id": "prg-cross-belehradska-otakarova",
+      "lat": 50.0658,
+      "lng": 14.4385,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Bělehradská x Otakarova (Nádraží Vršovice / tram)"
+    },
+    {
+      "id": "prg-cross-londynska-anglicka",
+      "lat": 50.0768,
+      "lng": 14.4345,
+      "category": "priority",
+      "crossingType": "zebra",
+      "hasSignals": false,
+      "hasZebra": true,
+      "streetName": "Londýnská x Anglická"
+    },
+    {
+      "id": "prg-cross-londynska-jugoslavska",
+      "lat": 50.0755,
+      "lng": 14.4352,
+      "category": "priority",
+      "crossingType": "zebra",
+      "hasSignals": false,
+      "hasZebra": true,
+      "streetName": "Londýnská x Jugoslávská"
+    },
+    {
+      "id": "prg-cross-londynska-rumunska",
+      "lat": 50.0742,
+      "lng": 14.4358,
+      "category": "priority",
+      "crossingType": "zebra",
+      "hasSignals": false,
+      "hasZebra": true,
+      "streetName": "Londýnská x Rumunská"
+    },
+    {
+      "id": "prg-cross-londynska-bruselska",
+      "lat": 50.073,
+      "lng": 14.4362,
+      "category": "priority",
+      "crossingType": "zebra",
+      "hasSignals": false,
+      "hasZebra": true,
+      "streetName": "Londýnská x Bruselská"
+    },
+    {
+      "id": "prg-cross-masaryka-francouzska",
+      "lat": 50.0742,
+      "lng": 14.4435,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Jana Masaryka x Francouzská"
+    },
+    {
+      "id": "prg-cross-masaryka-machova",
+      "lat": 50.0728,
+      "lng": 14.4438,
+      "category": "priority",
+      "crossingType": "zebra",
+      "hasSignals": false,
+      "hasZebra": true,
+      "streetName": "Jana Masaryka x Máchova"
+    },
+    {
+      "id": "prg-cross-lublanska-tylak",
+      "lat": 50.0748,
+      "lng": 14.4308,
+      "category": "priority",
+      "crossingType": "zebra",
+      "hasSignals": false,
+      "hasZebra": true,
+      "streetName": "Lublaňská x Tylovo náměstí"
+    },
+    {
+      "id": "prg-cross-lublanska-wenzigova",
+      "lat": 50.0712,
+      "lng": 14.4312,
+      "category": "priority",
+      "crossingType": "zebra",
+      "hasSignals": false,
+      "hasZebra": true,
+      "streetName": "Lublaňská x Wenzigova"
+    },
+    {
+      "id": "prg-cross-anglicka-ital",
+      "lat": 50.0772,
+      "lng": 14.434,
+      "category": "priority",
+      "crossingType": "traffic_signals",
+      "hasSignals": true,
+      "hasZebra": true,
+      "streetName": "Anglická x Italská"
+    },
+    {
+      "id": "prg-cross-korunni-perunova",
+      "lat": 50.0754,
+      "lng": 14.453,
+      "category": "priority",
+      "crossingType": "zebra",
+      "hasSignals": false,
+      "hasZebra": true,
+      "streetName": "Korunní x Perunova"
+    },
+    {
+      "id": "prg-cross-blanicka-slezska",
+      "lat": 50.0768,
+      "lng": 14.4448,
+      "category": "priority",
+      "crossingType": "zebra",
+      "hasSignals": false,
+      "hasZebra": true,
+      "streetName": "Blanická x Slezská"
+    }
+  ],
+  "riskZones": [
+    {
+      "id": "zone-riegrak",
+      "name": "Riegrovy sady",
+      "type": "park",
+      "coordinates": [
+        [
+          50.0785,
+          14.4382
+        ],
+        [
+          50.0845,
+          14.4382
+        ],
+        [
+          50.0845,
+          14.4462
+        ],
+        [
+          50.0785,
+          14.4462
+        ],
+        [
+          50.0785,
+          14.4382
+        ]
+      ],
+      "baseScore": 85,
+      "factors": {
+        "cameraCoverage": false,
+        "wellLit": false,
+        "sosNearby": false,
+        "incidentPenalty": 15,
+        "userRating": 4.2,
+        "userReportsCount": 15
+      }
+    },
+    {
+      "id": "zone-vitkov",
+      "name": "Vítkov",
+      "type": "park",
+      "coordinates": [
+        [
+          50.086,
+          14.448
+        ],
+        [
+          50.09,
+          14.448
+        ],
+        [
+          50.09,
+          14.462
+        ],
+        [
+          50.086,
+          14.462
+        ],
+        [
+          50.086,
+          14.448
+        ]
+      ],
+      "baseScore": 70,
+      "factors": {
+        "cameraCoverage": false,
+        "wellLit": false,
+        "sosNearby": false,
+        "incidentPenalty": 25,
+        "userRating": 3.8,
+        "userReportsCount": 22
+      }
+    },
+    {
+      "id": "zone-folimanka",
+      "name": "Folimanka",
+      "type": "park",
+      "coordinates": [
+        [
+          50.065,
+          14.426
+        ],
+        [
+          50.069,
+          14.426
+        ],
+        [
+          50.069,
+          14.434
+        ],
+        [
+          50.065,
+          14.434
+        ],
+        [
+          50.065,
+          14.426
+        ]
+      ],
+      "baseScore": 60,
+      "factors": {
+        "cameraCoverage": false,
+        "wellLit": false,
+        "sosNearby": false,
+        "incidentPenalty": 35,
+        "userRating": 3.1,
+        "userReportsCount": 12
+      }
+    },
+    {
+      "id": "zone-grebovka",
+      "name": "Havlíčkovy sady (Grébovka)",
+      "type": "park",
+      "coordinates": [
+        [
+          50.066,
+          14.44
+        ],
+        [
+          50.072,
+          14.44
+        ],
+        [
+          50.072,
+          14.450000000000001
+        ],
+        [
+          50.066,
+          14.450000000000001
+        ],
+        [
+          50.066,
+          14.44
+        ]
+      ],
+      "baseScore": 85,
+      "factors": {
+        "cameraCoverage": false,
+        "wellLit": true,
+        "sosNearby": false,
+        "incidentPenalty": 5,
+        "userRating": 4.6,
+        "userReportsCount": 50
+      }
+    },
+    {
+      "id": "zone-sherwood",
+      "name": "Vrchlického sady (Sherwood)",
+      "type": "transit_hub",
+      "coordinates": [
+        [
+          50.082,
+          14.431
+        ],
+        [
+          50.085,
+          14.431
+        ],
+        [
+          50.085,
+          14.435
+        ],
+        [
+          50.082,
+          14.435
+        ],
+        [
+          50.082,
+          14.431
+        ]
+      ],
+      "baseScore": 45,
+      "factors": {
+        "cameraCoverage": true,
+        "wellLit": true,
+        "sosNearby": true,
+        "incidentPenalty": 40,
+        "userRating": 2.1,
+        "userReportsCount": 120
+      }
+    },
+    {
+      "id": "zone-florenc",
+      "name": "Florenc",
+      "type": "transit_hub",
+      "coordinates": [
+        [
+          50.086999999999996,
+          14.437
+        ],
+        [
+          50.091,
+          14.437
+        ],
+        [
+          50.091,
+          14.443
+        ],
+        [
+          50.086999999999996,
+          14.443
+        ],
+        [
+          50.086999999999996,
+          14.437
+        ]
+      ],
+      "baseScore": 50,
+      "factors": {
+        "cameraCoverage": true,
+        "wellLit": true,
+        "sosNearby": true,
+        "incidentPenalty": 30,
+        "userRating": 2.8,
+        "userReportsCount": 80
+      }
+    },
+    {
+      "id": "zone-karlovo",
+      "name": "Karlovo náměstí",
+      "type": "park",
+      "coordinates": [
+        [
+          50.073,
+          14.418
+        ],
+        [
+          50.079,
+          14.418
+        ],
+        [
+          50.079,
+          14.422
+        ],
+        [
+          50.073,
+          14.422
+        ],
+        [
+          50.073,
+          14.418
+        ]
+      ],
+      "baseScore": 70,
+      "factors": {
+        "cameraCoverage": true,
+        "wellLit": true,
+        "sosNearby": true,
+        "incidentPenalty": 20,
+        "userRating": 3.9,
+        "userReportsCount": 110
+      }
+    },
+    {
+      "id": "zone-miru",
+      "name": "Náměstí Míru",
+      "type": "transit_hub",
+      "coordinates": [
+        [
+          50.0735,
+          14.4355
+        ],
+        [
+          50.0765,
+          14.4355
+        ],
+        [
+          50.0765,
+          14.4385
+        ],
+        [
+          50.0735,
+          14.4385
+        ],
+        [
+          50.0735,
+          14.4355
+        ]
+      ],
+      "baseScore": 95,
+      "factors": {
+        "cameraCoverage": true,
+        "wellLit": true,
+        "sosNearby": true,
+        "incidentPenalty": 2,
+        "userRating": 4.8,
+        "userReportsCount": 200
+      }
+    },
+    {
+      "id": "zone-vinohrady",
+      "name": "Vinohrady",
+      "type": "street",
+      "coordinates": [
+        [
+          50.068,
+          14.434000000000001
+        ],
+        [
+          50.084,
+          14.434000000000001
+        ],
+        [
+          50.084,
+          14.454
+        ],
+        [
+          50.068,
+          14.454
+        ],
+        [
+          50.068,
+          14.434000000000001
+        ]
+      ],
+      "baseScore": 90,
+      "factors": {
+        "cameraCoverage": true,
+        "wellLit": true,
+        "sosNearby": true,
+        "incidentPenalty": 5,
+        "userRating": 4.7,
+        "userReportsCount": 350
+      }
+    },
+    {
+      "id": "zone-karlin",
+      "name": "Karlín",
+      "type": "street",
+      "coordinates": [
+        [
+          50.088,
+          14.445
+        ],
+        [
+          50.096,
+          14.445
+        ],
+        [
+          50.096,
+          14.460999999999999
+        ],
+        [
+          50.088,
+          14.460999999999999
+        ],
+        [
+          50.088,
+          14.445
+        ]
+      ],
+      "baseScore": 88,
+      "factors": {
+        "cameraCoverage": true,
+        "wellLit": true,
+        "sosNearby": true,
+        "incidentPenalty": 8,
+        "userRating": 4.6,
+        "userReportsCount": 220
+      }
+    },
+    {
+      "id": "zone-zizkov",
+      "name": "Žižkov",
+      "type": "street",
+      "coordinates": [
+        [
+          50.078,
+          14.447000000000001
+        ],
+        [
+          50.09,
+          14.447000000000001
+        ],
+        [
+          50.09,
+          14.463
+        ],
+        [
+          50.078,
+          14.463
+        ],
+        [
+          50.078,
+          14.447000000000001
+        ]
+      ],
+      "baseScore": 75,
+      "factors": {
+        "cameraCoverage": true,
+        "wellLit": true,
+        "sosNearby": true,
+        "incidentPenalty": 18,
+        "userRating": 3.8,
+        "userReportsCount": 180
+      }
+    },
+    {
+      "id": "zone-staremesto",
+      "name": "Staré Město",
+      "type": "street",
+      "coordinates": [
+        [
+          50.082,
+          14.414
+        ],
+        [
+          50.092000000000006,
+          14.414
+        ],
+        [
+          50.092000000000006,
+          14.427999999999999
+        ],
+        [
+          50.082,
+          14.427999999999999
+        ],
+        [
+          50.082,
+          14.414
+        ]
+      ],
+      "baseScore": 90,
+      "factors": {
+        "cameraCoverage": true,
+        "wellLit": true,
+        "sosNearby": true,
+        "incidentPenalty": 15,
+        "userRating": 4.5,
+        "userReportsCount": 400
+      }
+    },
+    {
+      "id": "zone-vrchlickeho-sady",
+      "name": "Vrchlického sady (Sherwood) - Hlavní nádraží",
+      "type": "park",
+      "description": "Nebezpečná zóna s vysokým výskytem incidentů a nedostatečným nočním osvětlením.",
+      "riskLevel": "high",
+      "coordinates": [
+        [
+          50.084,
+          14.433
+        ],
+        [
+          50.0825,
+          14.4355
+        ],
+        [
+          50.0815,
+          14.4335
+        ],
+        [
+          50.083,
+          14.431
+        ],
+        [
+          50.084,
+          14.433
+        ]
+      ]
+    },
+    {
+      "id": "zone-folimanka",
+      "name": "Park Folimanka a podchod Nuselského mostu",
+      "type": "park",
+      "description": "Tmavé schodiště a neosvětlené stezky pod Nuselským mostem.",
+      "riskLevel": "medium",
+      "coordinates": [
+        [
+          50.0685,
+          14.427
+        ],
+        [
+          50.067,
+          14.432
+        ],
+        [
+          50.0655,
+          14.43
+        ],
+        [
+          50.067,
+          14.425
+        ],
+        [
+          50.0685,
+          14.427
+        ]
+      ]
+    },
+    {
+      "id": "zone-karlak-night",
+      "name": "Karlovo náměstí (centrální park noční zóna)",
+      "type": "park",
+      "description": "Noční riziko v nepřehledných částech centrálního parku.",
+      "riskLevel": "medium",
+      "coordinates": [
+        [
+          50.078,
+          14.419
+        ],
+        [
+          50.0775,
+          14.4225
+        ],
+        [
+          50.0735,
+          14.421
+        ],
+        [
+          50.074,
+          14.418
+        ],
+        [
+          50.078,
+          14.419
+        ]
+      ]
+    },
+    {
+      "id": "zone-riegrovy-sady",
+      "name": "Riegrovy sady (Vinohrady/Žižkov)",
+      "type": "park",
+      "description": "Rozlehlý park, noční neosvětlené cesty mimo hlavní promenádu.",
+      "riskLevel": "low_night",
+      "coordinates": [
+        [
+          50.082,
+          14.439
+        ],
+        [
+          50.081,
+          14.446
+        ],
+        [
+          50.078,
+          14.444
+        ],
+        [
+          50.079,
+          14.438
+        ],
+        [
+          50.082,
+          14.439
+        ]
+      ]
+    },
+    {
+      "id": "zone-grebovka",
+      "name": "Havlíčkovy sady (Grébovka) - Vinohrady/Vršovice",
+      "type": "park",
+      "description": "Uzavíraný svažitý park s nočním rizikem zhoršené viditelnosti.",
+      "riskLevel": "low_night",
+      "coordinates": [
+        [
+          50.0715,
+          14.443
+        ],
+        [
+          50.0705,
+          14.45
+        ],
+        [
+          50.068,
+          14.448
+        ],
+        [
+          50.069,
+          14.441
+        ],
+        [
+          50.0715,
+          14.443
+        ]
+      ]
+    }
+  ]
+}

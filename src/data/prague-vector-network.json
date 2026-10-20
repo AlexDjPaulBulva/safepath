@@ -1,0 +1,462 @@
+{
+  "parks": [
+    {
+      "id": "park-stromovka",
+      "name": "Stromovka",
+      "type": "park",
+      "baseScore": 80,
+      "factors": {
+        "cameraCoverage": true,
+        "wellLit": false,
+        "sosNearby": false,
+        "incidentPenalty": 0,
+        "userRating": 4.5,
+        "userReportsCount": 150
+      },
+      "coordinates": [
+        [
+          50.108,
+          14.41
+        ],
+        [
+          50.109,
+          14.425
+        ],
+        [
+          50.106,
+          14.435
+        ],
+        [
+          50.103,
+          14.425
+        ],
+        [
+          50.104,
+          14.41
+        ]
+      ]
+    },
+    {
+      "id": "park-letna",
+      "name": "Letná",
+      "type": "park",
+      "baseScore": 85,
+      "factors": {
+        "cameraCoverage": true,
+        "wellLit": true,
+        "sosNearby": true,
+        "incidentPenalty": 0,
+        "userRating": 4.8,
+        "userReportsCount": 220
+      },
+      "coordinates": [
+        [
+          50.096,
+          14.415
+        ],
+        [
+          50.098,
+          14.425
+        ],
+        [
+          50.095,
+          14.43
+        ],
+        [
+          50.093,
+          14.42
+        ]
+      ]
+    },
+    {
+      "id": "park-vitkov",
+      "name": "Vítkov",
+      "type": "park",
+      "baseScore": 70,
+      "factors": {
+        "cameraCoverage": false,
+        "wellLit": false,
+        "sosNearby": false,
+        "incidentPenalty": 15,
+        "userRating": 3.5,
+        "userReportsCount": 80
+      },
+      "coordinates": [
+        [
+          50.089,
+          14.448
+        ],
+        [
+          50.089,
+          14.46
+        ],
+        [
+          50.087,
+          14.46
+        ],
+        [
+          50.087,
+          14.448
+        ]
+      ]
+    },
+    {
+      "id": "park-riegrak",
+      "name": "Riegrovy sady",
+      "type": "park",
+      "baseScore": 88,
+      "factors": {
+        "cameraCoverage": true,
+        "wellLit": true,
+        "sosNearby": false,
+        "incidentPenalty": 0,
+        "userRating": 4.9,
+        "userReportsCount": 300
+      },
+      "coordinates": [
+        [
+          50.082,
+          14.439
+        ],
+        [
+          50.083,
+          14.445
+        ],
+        [
+          50.079,
+          14.446
+        ],
+        [
+          50.078,
+          14.44
+        ]
+      ]
+    },
+    {
+      "id": "park-petrin",
+      "name": "Petřín",
+      "type": "park",
+      "baseScore": 78,
+      "factors": {
+        "cameraCoverage": false,
+        "wellLit": true,
+        "sosNearby": true,
+        "incidentPenalty": 0,
+        "userRating": 4.6,
+        "userReportsCount": 180
+      },
+      "coordinates": [
+        [
+          50.084,
+          14.394
+        ],
+        [
+          50.085,
+          14.402
+        ],
+        [
+          50.08,
+          14.4
+        ],
+        [
+          50.078,
+          14.394
+        ]
+      ]
+    },
+    {
+      "id": "park-grebovka",
+      "name": "Grébovka (Havlíčkovy sady)",
+      "type": "park",
+      "baseScore": 82,
+      "factors": {
+        "cameraCoverage": true,
+        "wellLit": true,
+        "sosNearby": false,
+        "incidentPenalty": 5,
+        "userRating": 4.7,
+        "userReportsCount": 120
+      },
+      "coordinates": [
+        [
+          50.071,
+          14.442
+        ],
+        [
+          50.071,
+          14.448
+        ],
+        [
+          50.068,
+          14.449
+        ],
+        [
+          50.067,
+          14.444
+        ]
+      ]
+    },
+    {
+      "id": "park-folimanka",
+      "name": "Folimanka",
+      "type": "park",
+      "baseScore": 65,
+      "factors": {
+        "cameraCoverage": false,
+        "wellLit": false,
+        "sosNearby": false,
+        "incidentPenalty": 20,
+        "userRating": 3.2,
+        "userReportsCount": 95
+      },
+      "coordinates": [
+        [
+          50.068,
+          14.428
+        ],
+        [
+          50.068,
+          14.435
+        ],
+        [
+          50.066,
+          14.434
+        ],
+        [
+          50.066,
+          14.427
+        ]
+      ]
+    }
+  ],
+  "streets": [
+    {
+      "id": "street-vinohradska",
+      "name": "Vinohradská (Bezpečný koridor)",
+      "type": "street",
+      "baseScore": 92,
+      "factors": {
+        "cameraCoverage": true,
+        "wellLit": true,
+        "sosNearby": true,
+        "incidentPenalty": 0,
+        "userRating": 4.9,
+        "userReportsCount": 400
+      },
+      "coordinates": [
+        [
+          50.079,
+          14.432
+        ],
+        [
+          50.077,
+          14.44
+        ],
+        [
+          50.076,
+          14.45
+        ],
+        [
+          50.075,
+          14.46
+        ]
+      ]
+    },
+    {
+      "id": "street-narodni",
+      "name": "Národní třída",
+      "type": "street",
+      "baseScore": 88,
+      "factors": {
+        "cameraCoverage": true,
+        "wellLit": true,
+        "sosNearby": true,
+        "incidentPenalty": 10,
+        "userRating": 4.5,
+        "userReportsCount": 350
+      },
+      "coordinates": [
+        [
+          50.082,
+          14.412
+        ],
+        [
+          50.082,
+          14.417
+        ],
+        [
+          50.082,
+          14.423
+        ]
+      ]
+    },
+    {
+      "id": "street-jecna",
+      "name": "Ječná",
+      "type": "street",
+      "baseScore": 75,
+      "factors": {
+        "cameraCoverage": true,
+        "wellLit": true,
+        "sosNearby": false,
+        "incidentPenalty": 15,
+        "userRating": 4,
+        "userReportsCount": 200
+      },
+      "coordinates": [
+        [
+          50.075,
+          14.422
+        ],
+        [
+          50.075,
+          14.428
+        ],
+        [
+          50.075,
+          14.432
+        ]
+      ]
+    },
+    {
+      "id": "street-sherwood",
+      "name": "Vrchlického sady (Podchody)",
+      "type": "street",
+      "baseScore": 35,
+      "factors": {
+        "cameraCoverage": true,
+        "wellLit": false,
+        "sosNearby": false,
+        "incidentPenalty": 50,
+        "userRating": 1.5,
+        "userReportsCount": 600
+      },
+      "coordinates": [
+        [
+          50.085,
+          14.433
+        ],
+        [
+          50.083,
+          14.434
+        ],
+        [
+          50.081,
+          14.433
+        ]
+      ]
+    },
+    {
+      "id": "street-florenc-podchod",
+      "name": "Podchody Florenc",
+      "type": "street",
+      "baseScore": 40,
+      "factors": {
+        "cameraCoverage": true,
+        "wellLit": false,
+        "sosNearby": false,
+        "incidentPenalty": 40,
+        "userRating": 2,
+        "userReportsCount": 300
+      },
+      "coordinates": [
+        [
+          50.09,
+          14.438
+        ],
+        [
+          50.089,
+          14.439
+        ],
+        [
+          50.088,
+          14.44
+        ]
+      ]
+    },
+    {
+      "id": "street-karlin-koridor",
+      "name": "Křižíkova (Karlín)",
+      "type": "street",
+      "baseScore": 85,
+      "factors": {
+        "cameraCoverage": true,
+        "wellLit": true,
+        "sosNearby": false,
+        "incidentPenalty": 0,
+        "userRating": 4.7,
+        "userReportsCount": 150
+      },
+      "coordinates": [
+        [
+          50.091,
+          14.446
+        ],
+        [
+          50.093,
+          14.455
+        ],
+        [
+          50.095,
+          14.465
+        ]
+      ]
+    },
+    {
+      "id": "street-zizkov-dark",
+      "name": "Rizikové uličky Žižkov (Husitská)",
+      "type": "street",
+      "baseScore": 45,
+      "factors": {
+        "cameraCoverage": false,
+        "wellLit": false,
+        "sosNearby": false,
+        "incidentPenalty": 30,
+        "userRating": 2.5,
+        "userReportsCount": 100
+      },
+      "coordinates": [
+        [
+          50.087,
+          14.445
+        ],
+        [
+          50.087,
+          14.45
+        ],
+        [
+          50.086,
+          14.455
+        ]
+      ]
+    },
+    {
+      "id": "street-smichov-nadrazi",
+      "name": "Nádražní (Smíchov)",
+      "type": "street",
+      "baseScore": 55,
+      "factors": {
+        "cameraCoverage": true,
+        "wellLit": true,
+        "sosNearby": false,
+        "incidentPenalty": 25,
+        "userRating": 3,
+        "userReportsCount": 250
+      },
+      "coordinates": [
+        [
+          50.071,
+          14.405
+        ],
+        [
+          50.065,
+          14.406
+        ],
+        [
+          50.061,
+          14.408
+        ]
+      ]
+    }
+  ]
+}

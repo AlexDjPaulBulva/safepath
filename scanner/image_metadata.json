@@ -1,0 +1,34 @@
+[
+  {
+    "filename": "images/point_7_angle_0.jpg",
+    "angle": 0,
+    "mapillary_id": "1019297175329450",
+    "url": "https://scontent.fprg1-1.fna.fbcdn.net/m1/v/t6/An80qrmjGG_w5gekC5tWzM5V56uNK2U4Jjb1Jm0p2uWNAwivxpqQ7dslh3hjhqc_Y9rSTtx_1TFERbn9UgsXZekzYZUAQELK1OdZjc7LKUCMSbSHYGsiXx6NBsdMXCuoj-0cyY1xioUEhmbb0F2j28g?stp=s1024x768&edm=ALXxkZ8EAAAA&_nc_gid=BTWsQfcVVa-2KE3Z5gHD8g&_nc_oc=AdpUfJUmcqPCSqykpp4LuYmu7TF_CXZU5t7kNOgy_3EI99C8od4ztP60pB5ddv24ofOY-wcBeSUJSkttGN6cheO1&ccb=10-5&oh=00_AQH0HtbJy6y7VzmcKpenu_5CIWUF7I7z1hbWjt3PaEG6Dg&oe=6AA98644&_nc_sid=201bca",
+    "lat": 50.076576,
+    "lng": 14.43343
+  },
+  {
+    "filename": "images/point_7_angle_90.jpg",
+    "angle": 90,
+    "mapillary_id": "1019297175329450",
+    "url": "https://scontent.fprg1-1.fna.fbcdn.net/m1/v/t6/An80qrmjGG_w5gekC5tWzM5V56uNK2U4Jjb1Jm0p2uWNAwivxpqQ7dslh3hjhqc_Y9rSTtx_1TFERbn9UgsXZekzYZUAQELK1OdZjc7LKUCMSbSHYGsiXx6NBsdMXCuoj-0cyY1xioUEhmbb0F2j28g?stp=s1024x768&edm=ALXxkZ8EAAAA&_nc_gid=BTWsQfcVVa-2KE3Z5gHD8g&_nc_oc=AdpUfJUmcqPCSqykpp4LuYmu7TF_CXZU5t7kNOgy_3EI99C8od4ztP60pB5ddv24ofOY-wcBeSUJSkttGN6cheO1&ccb=10-5&oh=00_AQH0HtbJy6y7VzmcKpenu_5CIWUF7I7z1hbWjt3PaEG6Dg&oe=6AA98644&_nc_sid=201bca",
+    "lat": 50.076576,
+    "lng": 14.43343
+  },
+  {
+    "filename": "images/point_7_angle_180.jpg",
+    "angle": 180,
+    "mapillary_id": "1019297175329450",
+    "url": "https://scontent.fprg1-1.fna.fbcdn.net/m1/v/t6/An80qrmjGG_w5gekC5tWzM5V56uNK2U4Jjb1Jm0p2uWNAwivxpqQ7dslh3hjhqc_Y9rSTtx_1TFERbn9UgsXZekzYZUAQELK1OdZjc7LKUCMSbSHYGsiXx6NBsdMXCuoj-0cyY1xioUEhmbb0F2j28g?stp=s1024x768&edm=ALXxkZ8EAAAA&_nc_gid=BTWsQfcVVa-2KE3Z5gHD8g&_nc_oc=AdpUfJUmcqPCSqykpp4LuYmu7TF_CXZU5t7kNOgy_3EI99C8od4ztP60pB5ddv24ofOY-wcBeSUJSkttGN6cheO1&ccb=10-5&oh=00_AQH0HtbJy6y7VzmcKpenu_5CIWUF7I7z1hbWjt3PaEG6Dg&oe=6AA98644&_nc_sid=201bca",
+    "lat": 50.076576,
+    "lng": 14.43343
+  },
+  {
+    "filename": "images/point_7_angle_270.jpg",
+    "angle": 270,
+    "mapillary_id": "1019297175329450",
+    "url": "https://scontent.fprg1-1.fna.fbcdn.net/m1/v/t6/An80qrmjGG_w5gekC5tWzM5V56uNK2U4Jjb1Jm0p2uWNAwivxpqQ7dslh3hjhqc_Y9rSTtx_1TFERbn9UgsXZekzYZUAQELK1OdZjc7LKUCMSbSHYGsiXx6NBsdMXCuoj-0cyY1xioUEhmbb0F2j28g?stp=s1024x768&edm=ALXxkZ8EAAAA&_nc_gid=BTWsQfcVVa-2KE3Z5gHD8g&_nc_oc=AdpUfJUmcqPCSqykpp4LuYmu7TF_CXZU5t7kNOgy_3EI99C8od4ztP60pB5ddv24ofOY-wcBeSUJSkttGN6cheO1&ccb=10-5&oh=00_AQH0HtbJy6y7VzmcKpenu_5CIWUF7I7z1hbWjt3PaEG6Dg&oe=6AA98644&_nc_sid=201bca",
+    "lat": 50.076576,
+    "lng": 14.43343
+  }
+]

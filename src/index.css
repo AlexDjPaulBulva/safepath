@@ -1,0 +1,61 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.safety-fade-layer {
+  transition: opacity 220ms ease, fill-opacity 220ms ease;
+}
+
+@layer utilities {
+  .custom-popup .leaflet-popup-content-wrapper {
+    @apply bg-slate-800 text-slate-100 rounded-lg shadow-xl border border-slate-700 p-1;
+  }
+  .custom-popup .leaflet-popup-tip {
+    @apply bg-slate-800 border-b border-r border-slate-700;
+  }
+}
+
+/* Custom Leaflet MarkerCluster Styles (Cyberpunk Theme) */
+.marker-cluster-custom {
+  background-clip: padding-box;
+  border-radius: 20px;
+}
+
+.marker-cluster-custom div {
+  width: 30px;
+  height: 30px;
+  margin-left: 5px;
+  margin-top: 5px;
+  text-align: center;
+  border-radius: 15px;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(15, 23, 42, 0.9); /* slate-900 */
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.6); /* emerald glow */
+  border: 2px solid #10b981; /* emerald-500 */
+  transition: all 0.3s ease;
+}
+
+.marker-cluster-custom:hover div {
+  box-shadow: 0 0 15px rgba(52, 211, 153, 0.8); /* emerald-400 glow on hover */
+  transform: scale(1.1);
+}
+
+.marker-cluster-large div {
+  border-color: #06b6d4; /* cyan-500 for large clusters */
+  box-shadow: 0 0 10px rgba(6, 182, 212, 0.6);
+}
+
+.marker-cluster-large:hover div {
+  box-shadow: 0 0 15px rgba(34, 211, 238, 0.8);
+}
+
+/* Dark Map Tiles */
+.map-tiles {
+  filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+}
