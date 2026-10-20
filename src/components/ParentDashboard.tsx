@@ -165,30 +165,44 @@ export function ParentDashboard({ isPublic = false, onLoginClick, initialProfile
     fetchData();
   }, []);
 
-  // 2. Načtení trasy přes OSRM
+  // Reference na aktuální bezpečnostní data (zabraňuje zbytečnému re-routování a problikávání při doběhnutí background fetchů)
+  const safetyDataRef = useRef({ safetyNodes, osmCameras, safeHavens });
   useEffect(() => {
-    if (!startPoint || !endPoint) return;
+    safetyDataRef.current = { safetyNodes, osmCameras, safeHavens };
+  }, [safetyNodes, osmCameras, safeHavens]);
+
+  // Klíče souřadnic pro stabilní spouštění výpočtu trasy (reverzní geokódování textu nemění souřadnice a nespouští zbytečné refreshe)
+  const startCoordKey = startPoint ? `${startPoint.lat.toFixed(5)},${startPoint.lng.toFixed(5)}` : '';
+  const endCoordKey = endPoint ? `${endPoint.lat.toFixed(5)},${endPoint.lng.toFixed(5)}` : '';
+
+  // 2. Načtení trasy přes OSRM s debouncingem a eliminací problikávání
+  useEffect(() => {
+    if (!startPoint || !endPoint) {
+      setRouteA(null);
+      setRouteB(null);
+      setRouteC(null);
+      return;
+    }
 
     let isCurrentRequest = true;
-    const loadRoutes = async () => {
+    setIsRoutingLoading(true);
+
+    const debounceTimer = setTimeout(async () => {
       try {
-        setLoading(true);
-        setIsRoutingLoading(true);
         setRoutingError(null);
-        setRouteA(null);
-        setRouteB(null);
-        setRouteC(null);
+
+        const { safetyNodes: sNodes, osmCameras: oCams, safeHavens: sHavens } = safetyDataRef.current;
 
         const combinedSafetyNodes = [
-          ...safetyNodes,
-          ...osmCameras.map(c => ({
+          ...sNodes,
+          ...oCams.map(c => ({
             id: c.id.toString(),
             type: 'camera' as const,
             coords: [c.lat, c.lng] as [number, number],
             radius: c.rangeMeters,
             active_night: true
           })),
-          ...safeHavens.map(h => ({
+          ...sHavens.map(h => ({
             id: h.id.toString(),
             type: 'haven' as const,
             coords: [h.lat, h.lng] as [number, number],
@@ -199,7 +213,7 @@ export function ParentDashboard({ isPublic = false, onLoginClick, initialProfile
 
         const isChildMode = activeMode === 'child' || activeMode === 'parent' || activeProfiles.includes('child') || activeProfiles.includes('parent');
 
-        const { routeA: rA, routeB: rB, routeC: rC } = await fetchOSRMRoute(
+        const { routeA: rA } = await fetchOSRMRoute(
           startPoint.lat, startPoint.lng,
           endPoint.lat, endPoint.lng,
           combinedSafetyNodes,
@@ -215,28 +229,25 @@ export function ParentDashboard({ isPublic = false, onLoginClick, initialProfile
         setSelectedRoute('A');
         setArgumentsText(generateParentArguments({ safeRoute: rA.metrics }, isChildMode));
       } catch (err) {
+        if (!isCurrentRequest) return;
         console.error('Chyba routingu:', err);
-        if (isCurrentRequest) {
-          const message = err instanceof Error && err.name === 'AbortError'
-            ? 'Výpočet trasy trval příliš dlouho. Zkuste body posunout blíže ke komunikaci.'
-            : (err instanceof Error ? err.message : 'Nelze nalézt cestu po komunikacích. Zkuste body posunout blíže ke komunikaci.');
-          setRoutingError(message);
-          setRouteA(null);
-          setRouteB(null);
-          setRouteC(null);
-        }
+        const message = err instanceof Error && err.name === 'AbortError'
+          ? 'Výpočet trasy trval příliš dlouho. Zkuste body posunout blíže ke komunikaci.'
+          : (err instanceof Error ? err.message : 'Nelze nalézt cestu po komunikacích. Zkuste body posunout blíže ke komunikaci.');
+        setRoutingError(message);
       } finally {
-        // Garantované ukončení načítání (UI unlock) - provede se VŽDY
-        setLoading(false);
-        setIsRoutingLoading(false);
+        if (isCurrentRequest) {
+          setLoading(false);
+          setIsRoutingLoading(false);
+        }
       }
-    };
+    }, 180);
 
-    loadRoutes();
     return () => {
       isCurrentRequest = false;
+      clearTimeout(debounceTimer);
     };
-  }, [startPoint, endPoint, timeOfDay, safetyNodes, osmCameras, safeHavens, activeProfiles]);
+  }, [startCoordKey, endCoordKey, timeOfDay, activeMode, activeProfiles]);
 
   // Generování argumentace AI pro garantovanou bezpečnou trasu
   useEffect(() => {

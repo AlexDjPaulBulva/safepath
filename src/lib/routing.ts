@@ -129,6 +129,11 @@ function normalizeCoordinates(
   return { sLng, sLat, eLng, eLat };
 }
 
+// Cache pro pěší OSRM alternativy (zabraňuje opakovaným zpožděním sítě a problikávání)
+const footAlternativesCache = new Map<string, { data: any[]; timestamp: number }>();
+const footWaypointCache = new Map<string, { data: any[]; timestamp: number }>();
+const ROUTE_CACHE_TTL_MS = 15 * 60 * 1000; // 15 minut
+
 /**
  * Zavolá skutečný pěší OSRM profil OpenStreetMap (routed-foot):
  */
@@ -138,6 +143,12 @@ async function fetchFootAlternatives(
   eLng: number,
   eLat: number
 ): Promise<any[]> {
+  const cacheKey = `${sLng.toFixed(5)},${sLat.toFixed(5)}_${eLng.toFixed(5)},${eLat.toFixed(5)}`;
+  const cached = footAlternativesCache.get(cacheKey);
+  if (cached && (Date.now() - cached.timestamp < ROUTE_CACHE_TTL_MS)) {
+    return cached.data;
+  }
+
   const coordStr = `${sLng.toFixed(6)},${sLat.toFixed(6)};${eLng.toFixed(6)},${eLat.toFixed(6)}`;
   const url = `https://routing.openstreetmap.de/routed-foot/route/v1/driving/${coordStr}?overview=full&geometries=geojson&alternatives=true&steps=true&continue_straight=false`;
 
@@ -153,6 +164,7 @@ async function fetchFootAlternatives(
     if (data.code !== 'Ok' || !Array.isArray(data.routes) || data.routes.length === 0) {
       throw new RouteFetchError(data.message || 'Pěší trasa nenalezena', data.code);
     }
+    footAlternativesCache.set(cacheKey, { data: data.routes, timestamp: Date.now() });
     return data.routes;
   } finally {
     clearTimeout(timeoutId);
@@ -171,6 +183,12 @@ async function fetchFootRouteWithWaypoint(
   eLng: number,
   eLat: number
 ): Promise<any[]> {
+  const cacheKey = `${sLng.toFixed(5)},${sLat.toFixed(5)}_${wpLng.toFixed(5)},${wpLat.toFixed(5)}_${eLng.toFixed(5)},${eLat.toFixed(5)}`;
+  const cached = footWaypointCache.get(cacheKey);
+  if (cached && (Date.now() - cached.timestamp < ROUTE_CACHE_TTL_MS)) {
+    return cached.data;
+  }
+
   const coordStr = `${sLng.toFixed(6)},${sLat.toFixed(6)};${wpLng.toFixed(6)},${wpLat.toFixed(6)};${eLng.toFixed(6)},${eLat.toFixed(6)}`;
   const url = `https://routing.openstreetmap.de/routed-foot/route/v1/driving/${coordStr}?overview=full&geometries=geojson&alternatives=false&steps=true&continue_straight=false`;
 
@@ -182,6 +200,7 @@ async function fetchFootRouteWithWaypoint(
     if (!response.ok) return [];
     const data = await response.json();
     if (data.code !== 'Ok' || !Array.isArray(data.routes)) return [];
+    footWaypointCache.set(cacheKey, { data: data.routes, timestamp: Date.now() });
     return data.routes;
   } catch {
     return [];
