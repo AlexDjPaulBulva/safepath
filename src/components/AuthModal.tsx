@@ -37,7 +37,7 @@ export function AuthModal({
   const [childIsEntering, setChildIsEntering] = useState(false);
 
   // RODIČ - AUTENTIZACE (E-mail + Heslo)
-  const [authSubTab, setAuthSubTab] = useState<'login' | 'register'>('login');
+  const [isRegistering, setIsRegistering] = useState(false);
   const [emailInput, setEmailInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
@@ -225,7 +225,7 @@ export function AuthModal({
       return;
     }
     if (passwordInput !== confirmPasswordInput) {
-      setAuthError('Zadaná hesla se neshodují.');
+      setAuthError('Zadaná hesla se neshodují');
       return;
     }
 
@@ -574,44 +574,17 @@ export function AuthModal({
             ) : (
               /* Stav 2: Rodič není přihlášený (Formulář Přihlášení / Registrace) */
               <div className="flex flex-col">
-                {/* Přepínač: Přihlášení vs Registrace */}
-                <div className="flex border-b border-slate-700 mb-5">
-                  <button
-                    onClick={() => {
-                      setAuthSubTab('login');
-                      setAuthError(null);
-                    }}
-                    className={`flex-1 pb-3 text-sm font-bold border-b-2 transition-all flex items-center justify-center gap-1.5 ${
-                      authSubTab === 'login'
-                        ? 'border-cyan-400 text-cyan-300'
-                        : 'border-transparent text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    <span>🔑</span>
-                    <span>Přihlášení</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setAuthSubTab('register');
-                      setAuthError(null);
-                    }}
-                    className={`flex-1 pb-3 text-sm font-bold border-b-2 transition-all flex items-center justify-center gap-1.5 ${
-                      authSubTab === 'register'
-                        ? 'border-cyan-400 text-cyan-300'
-                        : 'border-transparent text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    <span>📝</span>
-                    <span>Vytvořit účet</span>
-                  </button>
-                </div>
-
-                {/* FORMULÁŘ: PŘIHLÁŠENÍ */}
-                {authSubTab === 'login' && (
+                {/* FORMULÁŘ PRO PŘIHLÁŠENÍ RODIČE (!isRegistering) */}
+                {!isRegistering ? (
                   <form onSubmit={handleParentLogin} className="flex flex-col gap-3.5">
+                    <div className="text-center mb-1">
+                      <h2 className="text-xl font-bold text-white mb-0.5">Přihlášení rodiče</h2>
+                      <p className="text-xs text-slate-400">Přihlaste se ke svému účtu pro správu dětí a bezpečný dispečink</p>
+                    </div>
+
                     <div>
                       <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        E-mail rodiče
+                        E-mail
                       </label>
                       <input
                         type="email"
@@ -657,15 +630,29 @@ export function AuthModal({
                       <span>{authLoading ? '⏳' : '🔑'}</span>
                       <span>{authLoading ? 'Přihlašuji...' : 'Přihlásit se'}</span>
                     </button>
-                  </form>
-                )}
 
-                {/* FORMULÁŘ: REGISTRACE */}
-                {authSubTab === 'register' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsRegistering(true);
+                        setAuthError(null);
+                      }}
+                      className="text-xs text-cyan-400 hover:text-cyan-300 font-semibold underline underline-offset-4 text-center mt-2 cursor-pointer transition-colors"
+                    >
+                      Nemáte ještě rodičovský účet? Zaregistrujte se
+                    </button>
+                  </form>
+                ) : (
+                  /* FORMULÁŘ PRO REGISTRACI RODIČE (isRegistering === true) */
                   <form onSubmit={handleParentRegister} className="flex flex-col gap-3.5">
+                    <div className="text-center mb-1">
+                      <h2 className="text-xl font-bold text-white mb-0.5">Vytvořit účet rodiče</h2>
+                      <p className="text-xs text-slate-400">Zaregistrujte se pro trvalé párování dětí a živý dohled</p>
+                    </div>
+
                     <div>
                       <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        E-mail rodiče
+                        E-mail
                       </label>
                       <input
                         type="email"
@@ -682,7 +669,7 @@ export function AuthModal({
 
                     <div>
                       <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        Heslo (minimálně 6 znaků)
+                        Heslo
                       </label>
                       <input
                         type="password"
@@ -693,14 +680,14 @@ export function AuthModal({
                           setPasswordInput(e.target.value);
                           setAuthError(null);
                         }}
-                        placeholder="••••••••"
+                        placeholder="Heslo (min. 6 znaků)"
                         className="w-full bg-slate-950 border border-slate-700 focus:border-cyan-500 rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition-colors"
                       />
                     </div>
 
                     <div>
                       <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        Heslo pro kontrolu
+                        Potvrzení hesla
                       </label>
                       <input
                         type="password"
@@ -711,7 +698,7 @@ export function AuthModal({
                           setConfirmPasswordInput(e.target.value);
                           setAuthError(null);
                         }}
-                        placeholder="••••••••"
+                        placeholder="Potvrďte heslo"
                         className="w-full bg-slate-950 border border-slate-700 focus:border-cyan-500 rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition-colors"
                       />
                     </div>
@@ -728,7 +715,18 @@ export function AuthModal({
                       className="w-full bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 text-white font-bold py-3.5 rounded-xl text-base transition-all shadow-lg shadow-cyan-900/30 flex items-center justify-center gap-2 active:scale-[0.98] mt-1"
                     >
                       <span>{authLoading ? '⏳' : '📝'}</span>
-                      <span>{authLoading ? 'Vytvářím účet...' : 'Vytvořit účet rodiče'}</span>
+                      <span>{authLoading ? 'Vytvářím účet...' : 'Zaregistrovat se a vytvořit profil'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsRegistering(false);
+                        setAuthError(null);
+                      }}
+                      className="text-xs text-cyan-400 hover:text-cyan-300 font-semibold underline underline-offset-4 text-center mt-2 cursor-pointer transition-colors"
+                    >
+                      Již máte účet? Přihlaste se
                     </button>
                   </form>
                 )}

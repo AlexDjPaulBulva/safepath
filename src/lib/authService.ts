@@ -124,18 +124,17 @@ export function getAuthErrorMessage(error: any): string {
 
   switch (code) {
     case 'auth/email-already-in-use':
-      return 'Tento e-mail je již registrován. Zvolte prosím přihlášení.';
+      return 'Tento e-mail je již zaregistrován.';
     case 'auth/invalid-email':
       return 'Neplatný formát e-mailové adresy.';
     case 'auth/weak-password':
-      return 'Heslo je příliš krátké nebo slabé. Musí mít alespoň 6 znaků.';
+      return 'Heslo musí mít alespoň 6 znaků.';
     case 'auth/wrong-password':
-      return 'Nesprávné heslo. Zkontrolujte zadané údaje.';
-    case 'auth/user-not-found':
-      return 'Účet s tímto e-mailem nebyl nalezen. Zaregistrujte se prosím.';
     case 'auth/invalid-credential':
     case 'auth/invalid-login-credentials':
-      return 'Nesprávný e-mail nebo heslo.';
+      return 'Nesprávné heslo nebo e-mail.';
+    case 'auth/user-not-found':
+      return 'Účet s tímto e-mailem nebyl nalezen.';
     case 'auth/user-disabled':
       return 'Tento uživatelský účet byl zablokován.';
     case 'auth/too-many-requests':
