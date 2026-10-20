@@ -1,4 +1,4 @@
-import { ref, set, update, onValue, get } from 'firebase/database';
+import { ref, set, update, onValue, get, remove } from 'firebase/database';
 import { db } from './firebase';
 
 export interface ChildSessionData {
@@ -84,6 +84,60 @@ export async function getChildSession(code: string): Promise<ChildSessionData | 
     return snapshot.val() as ChildSessionData;
   }
   return null;
+}
+
+/**
+ * Uloží spárovaný 6místný kód dítěte trvale pod účet přihlášeného rodiče:
+ * /users/${parentUid}/pairedChildren/${childCode}: true
+ */
+export async function savePairedChildToParent(parentUid: string, childCode: string): Promise<void> {
+  if (!parentUid || !childCode) return;
+  const childRef = ref(db, `users/${parentUid}/pairedChildren/${childCode}`);
+  await set(childRef, true);
+}
+
+/**
+ * Odebere spárované dítě z účtu rodiče.
+ */
+export async function removePairedChildFromParent(parentUid: string, childCode: string): Promise<void> {
+  if (!parentUid || !childCode) return;
+  const childRef = ref(db, `users/${parentUid}/pairedChildren/${childCode}`);
+  await remove(childRef);
+}
+
+/**
+ * Načte všechna dříve spárovaná zařízení k účtu rodiče.
+ */
+export async function getPairedChildren(parentUid: string): Promise<string[]> {
+  if (!parentUid) return [];
+  const snapshot = await get(ref(db, `users/${parentUid}/pairedChildren`));
+  if (snapshot.exists()) {
+    const data = snapshot.val();
+    return Object.keys(data || {});
+  }
+  return [];
+}
+
+/**
+ * Poslouchá změny v seznamu spárovaných zařízení rodiče v reálném čase.
+ */
+export function subscribeToParentPairedChildren(
+  parentUid: string,
+  callback: (childCodes: string[]) => void
+): () => void {
+  if (!parentUid) {
+    callback([]);
+    return () => {};
+  }
+  const userChildrenRef = ref(db, `users/${parentUid}/pairedChildren`);
+  return onValue(userChildrenRef, (snapshot) => {
+    if (snapshot.exists()) {
+      const data = snapshot.val();
+      callback(Object.keys(data || {}));
+    } else {
+      callback([]);
+    }
+  });
 }
 
 /**

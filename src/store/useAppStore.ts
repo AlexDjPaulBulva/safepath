@@ -2,6 +2,11 @@ import { create } from 'zustand';
 import { SafeHavenPOI } from '../data/safe-havens-poi';
 import type { ChildSessionData } from '../lib/liveSync';
 
+export interface AuthUserInfo {
+  uid: string;
+  email: string | null;
+}
+
 type AppState = {
   childLocation: { lat: number; lng: number } | null;
   setChildLocation: (loc: { lat: number; lng: number } | null) => void;
@@ -36,6 +41,13 @@ type AppState = {
 
   myChildCode: string | null;
   setMyChildCode: (code: string | null) => void;
+
+  // Firebase Auth stav rodiče
+  currentUser: AuthUserInfo | null;
+  setCurrentUser: (user: AuthUserInfo | null) => void;
+
+  pairedChildrenList: string[];
+  setPairedChildrenList: (list: string[]) => void;
 };
 
 const getInitialPairedCode = (): string | null => {
@@ -99,4 +111,10 @@ export const useAppStore = create<AppState>((set) => ({
     }
     set({ myChildCode: code });
   },
+
+  currentUser: null,
+  setCurrentUser: (user) => set({ currentUser: user }),
+
+  pairedChildrenList: [],
+  setPairedChildrenList: (list) => set({ pairedChildrenList: list }),
 }));

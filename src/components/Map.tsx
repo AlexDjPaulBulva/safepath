@@ -82,13 +82,15 @@ export function Map(props: MapEngineProps) {
       )}
 
       {/* Stavová lišta spárovaného dítěte */}
-      {pairedCode && isParentMode && childData && (
-        <div className="absolute top-4 left-4 z-[1000] hidden sm:flex items-center gap-2 bg-slate-900/90 backdrop-blur border border-lime-500/50 px-3.5 py-1.5 rounded-xl shadow-lg text-xs font-semibold text-slate-200">
+      {pairedCode && isParentMode && (
+        <div className="absolute top-4 left-4 z-[1000] hidden sm:flex items-center gap-2 bg-slate-900/90 backdrop-blur border border-slate-700/80 px-3.5 py-1.5 rounded-xl shadow-lg text-xs font-semibold text-slate-200">
           <span className="relative flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lime-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-lime-500"></span>
+            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${childData ? 'bg-lime-400' : 'bg-amber-400'} opacity-75`}></span>
+            <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${childData ? 'bg-lime-500' : 'bg-amber-500'}`}></span>
           </span>
-          <span className="text-lime-300 font-bold">Dítě živě sledováno</span>
+          <span className={childData ? 'text-lime-300 font-bold' : 'text-amber-300 font-medium'}>
+            {childData ? 'Dítě živě sledováno' : 'Čekám na polohu dítěte'}
+          </span>
           <span className="text-slate-400 font-mono">({pairedCode})</span>
         </div>
       )}

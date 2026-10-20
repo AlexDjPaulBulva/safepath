@@ -1,6 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../store/useAppStore';
-import { startChildSession, startGpsStreaming, getChildSession } from '../lib/liveSync';
+import { 
+  startChildSession, 
+  startGpsStreaming, 
+  getChildSession 
+} from '../lib/liveSync';
+import {
+  registerParent,
+  loginParent,
+  logoutParent,
+  subscribeToAuthChanges,
+  savePairedChildToParent,
+  removePairedChildFromParent,
+  subscribeToParentPairedChildren,
+  getAuthErrorMessage
+} from '../lib/authService';
 
 export interface AuthModalProps {
   onSelectMode?: (mode: 'parent' | 'child') => void;
@@ -22,16 +36,29 @@ export function AuthModal({
   const [childCopied, setChildCopied] = useState(false);
   const [childIsEntering, setChildIsEntering] = useState(false);
 
-  // RODIČOVSKÝ KÓD
+  // RODIČ - AUTENTIZACE (E-mail + Heslo)
+  const [authSubTab, setAuthSubTab] = useState<'login' | 'register'>('login');
+  const [emailInput, setEmailInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  // RODIČ - PÁROVÁNÍ
   const [parentInputCode, setParentInputCode] = useState<string>('');
-  const [parentLoading, setParentLoading] = useState(false);
-  const [parentError, setParentError] = useState<string | null>(null);
+  const [parentConnectLoading, setParentConnectLoading] = useState(false);
+  const [parentConnectError, setParentConnectError] = useState<string | null>(null);
 
   // Globální Zustand store
   const { 
     setActiveMode, 
     setPairedChildCode, 
-    setMyChildCode 
+    pairedChildCode,
+    setMyChildCode,
+    currentUser,
+    setCurrentUser,
+    pairedChildrenList,
+    setPairedChildrenList
   } = useAppStore();
 
   // Právní disclaimer pro rodiče
@@ -41,11 +68,44 @@ export function AuthModal({
   });
   const [hasCheckedConsent, setHasCheckedConsent] = useState(false);
 
-  // 1. Automatické vygenerování nebo načtení 6místného kódu pro DÍTĚ
+  // 1. Sledování stavu přihlášení (onAuthStateChanged)
+  useEffect(() => {
+    const unsubscribeAuth = subscribeToAuthChanges((firebaseUser) => {
+      if (firebaseUser) {
+        setCurrentUser({ uid: firebaseUser.uid, email: firebaseUser.email });
+      } else {
+        setCurrentUser(null);
+        setPairedChildrenList([]);
+      }
+    });
+
+    return () => {
+      unsubscribeAuth();
+    };
+  }, [setCurrentUser, setPairedChildrenList]);
+
+  // 2. Trvalé načítání spárovaných dětí přihlášeného rodiče z Firebase
+  useEffect(() => {
+    if (!currentUser?.uid) return;
+
+    const unsubscribeChildren = subscribeToParentPairedChildren(currentUser.uid, (children) => {
+      setPairedChildrenList(children);
+      // Pokud rodič nemá vybrané aktivní dítě a má k dispozici spárovaná zařízení, předvolíme první
+      if (children.length > 0 && !pairedChildCode) {
+        const firstCode = children[0];
+        setPairedChildCode(firstCode);
+      }
+    });
+
+    return () => {
+      unsubscribeChildren();
+    };
+  }, [currentUser?.uid, pairedChildCode, setPairedChildCode, setPairedChildrenList]);
+
+  // 3. Automatické vygenerování nebo načtení 6místného kódu pro DÍTĚ
   useEffect(() => {
     let code = localStorage.getItem('safepath_child_code');
     if (!code || code.length !== 6 || !/^\d{6}$/.test(code)) {
-      // Vygeneruj nový náhodný 6místný kód (např. 482915)
       code = Math.floor(100000 + Math.random() * 900000).toString();
       localStorage.setItem('safepath_child_code', code);
     }
@@ -53,7 +113,7 @@ export function AuthModal({
     setMyChildCode(code);
   }, [setMyChildCode]);
 
-  // Načtení uloženého spárovaného kódu pro rodiče (pokud existuje)
+  // Načtení uloženého spárovaného kódu pro rodiče
   useEffect(() => {
     const savedPaired = localStorage.getItem('safepath_paired_child_code');
     if (savedPaired && /^\d{6}$/.test(savedPaired)) {
@@ -61,13 +121,13 @@ export function AuthModal({
     }
   }, []);
 
-  // Formátování kódu s mezerou uprostřed (např. "482 915")
+  // Formátování kódu s mezerou (např. "482 915")
   const formatDisplayCode = (raw: string) => {
     if (!raw || raw.length !== 6) return raw || '000 000';
     return `${raw.slice(0, 3)} ${raw.slice(3)}`;
   };
 
-  // Vygenerování nového kódu pro dítě na vyžádání
+  // Vygenerování nového kódu pro dítě
   const handleRegenerateCode = () => {
     const newCode = Math.floor(100000 + Math.random() * 900000).toString();
     localStorage.setItem('safepath_child_code', newCode);
@@ -87,12 +147,11 @@ export function AuthModal({
     }
   };
 
-  // Vstoupit do mapy jako DÍTĚ
+  // Vstoupit do mapy jako DÍTĚ (100% bezheslové)
   const handleEnterChildMap = async () => {
     setChildIsEntering(true);
     const code = childCode || localStorage.getItem('safepath_child_code') || '123456';
     
-    // Získání aktuální polohy pro počáteční zápis do Firebase
     const getInitialCoords = (): Promise<{ lat: number; lng: number }> => {
       return new Promise((resolve) => {
         if (typeof window !== 'undefined' && 'geolocation' in navigator) {
@@ -109,9 +168,7 @@ export function AuthModal({
 
     try {
       const coords = await getInitialCoords();
-      // Inicializace sezení v Realtime Database
       await startChildSession(code, coords);
-      // Spuštění automatického streamování polohy každých 3-5 sekund
       startGpsStreaming(code);
       
       localStorage.setItem('safepath_mode', 'child');
@@ -121,7 +178,6 @@ export function AuthModal({
       if (onClose) onClose();
     } catch (err) {
       console.error('Chyba při inicializaci dětského sezení:', err);
-      // I při selhání sítě umožníme vstup
       localStorage.setItem('safepath_mode', 'child');
       setActiveMode('child');
       if (onSelectMode) onSelectMode('child');
@@ -131,25 +187,99 @@ export function AuthModal({
     }
   };
 
-  // Připojit k dítěti jako RODIČ
-  const handleConnectParent = async () => {
-    const cleanCode = parentInputCode.trim().replace(/\s+/g, '');
-    if (cleanCode.length !== 6 || !/^\d{6}$/.test(cleanCode)) {
-      setParentError('Zadejte prosím platný 6místný číselný kód.');
+  // PŘIHLÁŠENÍ RODIČE (E-mail + Heslo)
+  const handleParentLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!emailInput.trim()) {
+      setAuthError('Zadejte prosím e-mailovou adresu.');
+      return;
+    }
+    if (!passwordInput) {
+      setAuthError('Zadejte prosím heslo.');
       return;
     }
 
-    setParentLoading(true);
-    setParentError(null);
+    setAuthLoading(true);
+    setAuthError(null);
 
     try {
-      // Ověření, zda uzel v Realtime Database existuje
+      const user = await loginParent(emailInput, passwordInput);
+      setCurrentUser({ uid: user.uid, email: user.email });
+      setAuthError(null);
+    } catch (error: any) {
+      setAuthError(getAuthErrorMessage(error));
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  // REGISTRACE RODIČE (E-mail + Heslo + Potvrzení)
+  const handleParentRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!emailInput.trim()) {
+      setAuthError('Zadejte prosím e-mailovou adresu.');
+      return;
+    }
+    if (passwordInput.length < 6) {
+      setAuthError('Heslo musí mít alespoň 6 znaků.');
+      return;
+    }
+    if (passwordInput !== confirmPasswordInput) {
+      setAuthError('Zadaná hesla se neshodují.');
+      return;
+    }
+
+    setAuthLoading(true);
+    setAuthError(null);
+
+    try {
+      const user = await registerParent(emailInput, passwordInput);
+      setCurrentUser({ uid: user.uid, email: user.email });
+      setAuthError(null);
+    } catch (error: any) {
+      setAuthError(getAuthErrorMessage(error));
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  // ODHLÁŠENÍ RODIČE
+  const handleParentLogout = async () => {
+    try {
+      await logoutParent();
+      setCurrentUser(null);
+      setPairedChildrenList([]);
+    } catch (err) {
+      console.error('Chyba při odhlašování:', err);
+    }
+  };
+
+  // PŘIPOJIT K DÍTĚTI A ULOŽIT DO ÚČTU RODIČE (TRVALÉ PÁROVÁNÍ)
+  const handleConnectAndSaveChild = async (codeToPair?: string) => {
+    const rawCode = codeToPair || parentInputCode;
+    const cleanCode = rawCode.trim().replace(/\s+/g, '');
+    
+    if (cleanCode.length !== 6 || !/^\d{6}$/.test(cleanCode)) {
+      setParentConnectError('Zadejte prosím platný 6místný číselný kód.');
+      return;
+    }
+
+    setParentConnectLoading(true);
+    setParentConnectError(null);
+
+    try {
+      // 1. Ověření existence sezení ve Firebase
       const session = await getChildSession(cleanCode);
       if (!session) {
-        console.info(`SafePath: Sezení ${cleanCode} ještě nebylo založeno dítětem, ale párujeme kód.`);
+        console.info(`SafePath: Sezení ${cleanCode} zatím nebylo založeno dítětem, ale párujeme kód.`);
       }
 
-      // Uložení spárovaného kódu do localStorage a Zustand store
+      // 2. Trvalé uložení k účtu přihlášeného rodiče do Firebase
+      if (currentUser?.uid) {
+        await savePairedChildToParent(currentUser.uid, cleanCode);
+      }
+
+      // 3. Uložení lokálně a přechod do dispečinku
       localStorage.setItem('safepath_paired_child_code', cleanCode);
       localStorage.setItem('safepath_mode', 'parent');
       localStorage.setItem('safepath_disclaimer_accepted', 'true');
@@ -160,7 +290,8 @@ export function AuthModal({
       if (onSelectMode) onSelectMode('parent');
       if (onClose) onClose();
     } catch (err) {
-      console.warn('Ověření sezení selhalo, pokračuji s uloženým kódem:', err);
+      console.warn('Upozornění při párování:', err);
+      // I při dočasném výpadku uložíme lokálně a pokračujeme
       localStorage.setItem('safepath_paired_child_code', cleanCode);
       localStorage.setItem('safepath_mode', 'parent');
       setPairedChildCode(cleanCode);
@@ -170,11 +301,26 @@ export function AuthModal({
       if (onSelectMode) onSelectMode('parent');
       if (onClose) onClose();
     } finally {
-      setParentLoading(false);
+      setParentConnectLoading(false);
     }
   };
 
-  // Vstup do aplikace jako rodič bez okamžitého spárování
+  // Odebrání dříve spárovaného dítěte z účtu rodiče
+  const handleRemoveChild = async (childCodeToRemove: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!currentUser?.uid) return;
+    try {
+      await removePairedChildFromParent(currentUser.uid, childCodeToRemove);
+      if (pairedChildCode === childCodeToRemove) {
+        setPairedChildCode(null);
+        localStorage.removeItem('safepath_paired_child_code');
+      }
+    } catch (err) {
+      console.error('Chyba při odebírání dítěte z profilu:', err);
+    }
+  };
+
+  // Vstup do aplikace bez spárování
   const handleEnterParentWithoutPairing = () => {
     localStorage.setItem('safepath_mode', 'parent');
     localStorage.setItem('safepath_disclaimer_accepted', 'true');
@@ -186,13 +332,13 @@ export function AuthModal({
 
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 md:p-6 relative overflow-hidden select-none">
-      {/* Vizuální efekty pozadí */}
+      {/* Vizuální efekty na pozadí */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-emerald-500/10 blur-[100px] rounded-full"></div>
         <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-cyan-500/10 blur-[100px] rounded-full"></div>
       </div>
 
-      <div className="z-10 w-full max-w-xl bg-slate-800/90 backdrop-blur-md rounded-3xl border border-slate-700 p-6 md:p-8 shadow-2xl relative">
+      <div className="z-10 w-full max-w-xl bg-slate-800/90 backdrop-blur-md rounded-3xl border border-slate-700 p-6 md:p-8 shadow-2xl relative my-auto">
         {onClose && (
           <button
             onClick={onClose}
@@ -211,10 +357,10 @@ export function AuthModal({
             </div>
             <h1 className="text-3xl font-black tracking-tight text-white">SafePath</h1>
           </div>
-          <p className="text-slate-400 text-sm">Živé propojení a navigace pro bezpečný návrat domů</p>
+          <p className="text-slate-400 text-sm">Autentizace a živý dohled pro bezpečný návrat domů</p>
         </div>
 
-        {/* Přepínač záložek (Karta Dítě vs Karta Rodič) */}
+        {/* Hlavní přepínač záložek: DÍTĚ vs RODIČ */}
         <div className="flex bg-slate-950/70 p-1.5 rounded-2xl border border-slate-700/80 mb-6 shadow-inner">
           <button
             onClick={() => setActiveTab('child')}
@@ -225,7 +371,7 @@ export function AuthModal({
             }`}
           >
             <span className="text-lg">👶</span>
-            <span>Karta Dítě</span>
+            <span>Jsem dítě / Chráněná osoba</span>
           </button>
           <button
             onClick={() => setActiveTab('parent')}
@@ -236,11 +382,13 @@ export function AuthModal({
             }`}
           >
             <span className="text-lg">👨‍👧</span>
-            <span>Karta Rodič</span>
+            <span>Rodičovský dispečink</span>
           </button>
         </div>
 
-        {/* OBSAH KARTY: DÍTĚ */}
+        {/* ============================================================== */}
+        {/* OBSAH ZÁLOŽKY: DÍTĚ (100% BEZHESLOVÉ PŘES 6MÍSTNÝ KÓD) */}
+        {/* ============================================================== */}
         {activeTab === 'child' && (
           <div className="flex flex-col items-center text-center animate-fadeIn">
             <div className="w-14 h-14 bg-emerald-500/10 border border-emerald-500/30 rounded-full flex items-center justify-center text-3xl mb-3">
@@ -249,7 +397,7 @@ export function AuthModal({
 
             <h2 className="text-xl font-bold text-white mb-1">Párovací kód pro rodiče</h2>
             <p className="text-slate-400 text-xs mb-6 max-w-sm">
-              Tento kód zadejte do telefonu rodiče v záložce Rodič. Po vstupu do mapy bude vaše poloha v reálném čase přenášena přes Firebase.
+              Tento kód nadiktujte nebo pošlete rodiči. Po vstupu do mapy bude vaše poloha v reálném čase přenášena přes Firebase.
             </p>
 
             {/* Velký kód pro rodiče */}
@@ -281,10 +429,9 @@ export function AuthModal({
 
             <div className="w-full text-left bg-slate-900/60 border border-slate-700/60 rounded-xl p-3 mb-6 text-xs text-slate-400 flex items-center gap-2.5">
               <span className="text-base text-emerald-400">📡</span>
-              <span>Po kliknutí níže se automaticky aktivuje GPS sledování a vysílání souřadnic.</span>
+              <span>100% bezpečné a bez hesla. Poloha se začne sdílet kliknutím na tlačítko níže.</span>
             </div>
 
-            {/* Tlačítko: Vstoupit do mapy */}
             <button
               onClick={handleEnterChildMap}
               disabled={childIsEntering}
@@ -296,56 +443,325 @@ export function AuthModal({
           </div>
         )}
 
-        {/* OBSAH KARTY: RODIČ */}
+        {/* ============================================================== */}
+        {/* OBSAH ZÁLOŽKY: RODIČOVSKÝ DISPEČINK (FIREBASE AUTH + TRVALÉ PÁROVÁNÍ) */}
+        {/* ============================================================== */}
         {activeTab === 'parent' && (
           <div className="flex flex-col animate-fadeIn">
-            <div className="text-center mb-4">
-              <div className="w-14 h-14 mx-auto bg-cyan-500/10 border border-cyan-500/30 rounded-full flex items-center justify-center text-3xl mb-3">
-                🛡️
+            {/* Stav 1: Rodič je přihlášený */}
+            {currentUser ? (
+              <div className="flex flex-col">
+                {/* Přihlášený profilový banner */}
+                <div className="bg-slate-900/80 border border-cyan-500/40 rounded-2xl p-4 mb-5 flex items-center justify-between shadow-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-cyan-500/20 border border-cyan-400 flex items-center justify-center text-lg">
+                      🛡️
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-cyan-400">
+                        Účet rodiče aktivní
+                      </div>
+                      <div className="text-sm font-bold text-white truncate max-w-[200px] sm:max-w-[260px]">
+                        {currentUser.email}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleParentLogout}
+                    className="text-xs text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    Odhlásit
+                  </button>
+                </div>
+
+                {/* Seznam dříve spárovaných dětí (Trvalé párování přes Firebase) */}
+                {pairedChildrenList.length > 0 && (
+                  <div className="mb-5">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">
+                      Dříve spárovaná zařízení ({pairedChildrenList.length}):
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {pairedChildrenList.map((code) => {
+                        const isSelected = pairedChildCode === code;
+                        return (
+                          <div
+                            key={code}
+                            onClick={() => handleConnectAndSaveChild(code)}
+                            className={`cursor-pointer rounded-xl p-3 border transition-all flex items-center justify-between ${
+                              isSelected
+                                ? 'bg-cyan-950/60 border-cyan-400 shadow-md shadow-cyan-900/40'
+                                : 'bg-slate-900/60 border-slate-700 hover:border-slate-500'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <span className="text-xl">👶</span>
+                              <div>
+                                <div className="text-xs text-slate-400 font-medium">Dítě kód:</div>
+                                <div className="text-base font-black font-mono text-white tracking-wider">
+                                  {formatDisplayCode(code)}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-bold text-cyan-400 bg-cyan-950/80 px-2 py-1 rounded-md border border-cyan-800">
+                                Sledovat
+                              </span>
+                              <button
+                                onClick={(e) => handleRemoveChild(code, e)}
+                                title="Odebrat toto zařízení"
+                                className="text-slate-500 hover:text-rose-400 p-1 rounded transition-colors text-sm"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Zadání nového párovacího kódu */}
+                <div className="bg-slate-900/60 border border-slate-700/80 rounded-2xl p-4 mb-4">
+                  <h3 className="text-sm font-bold text-white mb-1 flex items-center gap-2">
+                    <span>➕</span> Spárovat další telefon dítěte
+                  </h3>
+                  <p className="text-xs text-slate-400 mb-3">
+                    Zadejte 6místný kód zobrazený na telefonu dítěte. Automaticky se trvale uloží k vašemu profilu.
+                  </p>
+
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={6}
+                      value={parentInputCode}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                        setParentInputCode(val);
+                        setParentConnectError(null);
+                      }}
+                      placeholder="např. 482915"
+                      className="flex-1 bg-slate-950 border border-slate-700 focus:border-cyan-500 rounded-xl text-center text-2xl font-mono font-black text-white tracking-widest py-2.5 focus:outline-none transition-colors"
+                    />
+                    <button
+                      onClick={() => handleConnectAndSaveChild()}
+                      disabled={parentConnectLoading || parentInputCode.trim().length !== 6}
+                      className="bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-bold px-5 rounded-xl transition-all shadow-md active:scale-95 text-sm flex items-center gap-1.5"
+                    >
+                      <span>{parentConnectLoading ? '⏳' : '🔗'}</span>
+                      <span>Připojit</span>
+                    </button>
+                  </div>
+
+                  {parentConnectError && (
+                    <p className="text-rose-400 text-xs mt-2 font-medium">
+                      {parentConnectError}
+                    </p>
+                  )}
+                </div>
+
+                {/* Vstup do dispečinku */}
+                <button
+                  onClick={handleEnterParentWithoutPairing}
+                  className="w-full bg-slate-700/60 hover:bg-slate-700 text-slate-200 font-semibold py-3 px-4 rounded-xl text-sm transition-all border border-slate-600/60 flex items-center justify-center gap-2 active:scale-[0.98]"
+                >
+                  <span>🗺️</span>
+                  <span>Otevřít mapový dispečink</span>
+                </button>
               </div>
-              <h2 className="text-xl font-bold text-white mb-1">Rodičovský dispečink</h2>
-              <p className="text-slate-400 text-xs max-w-sm mx-auto">
-                Zadejte 6místný kód zobrazený na telefonu dítěte pro zahájení živého dohledu a kontrolu bezpečnostního koridoru.
-              </p>
-            </div>
+            ) : (
+              /* Stav 2: Rodič není přihlášený (Formulář Přihlášení / Registrace) */
+              <div className="flex flex-col">
+                {/* Přepínač: Přihlášení vs Registrace */}
+                <div className="flex border-b border-slate-700 mb-5">
+                  <button
+                    onClick={() => {
+                      setAuthSubTab('login');
+                      setAuthError(null);
+                    }}
+                    className={`flex-1 pb-3 text-sm font-bold border-b-2 transition-all flex items-center justify-center gap-1.5 ${
+                      authSubTab === 'login'
+                        ? 'border-cyan-400 text-cyan-300'
+                        : 'border-transparent text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <span>🔑</span>
+                    <span>Přihlášení</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setAuthSubTab('register');
+                      setAuthError(null);
+                    }}
+                    className={`flex-1 pb-3 text-sm font-bold border-b-2 transition-all flex items-center justify-center gap-1.5 ${
+                      authSubTab === 'register'
+                        ? 'border-cyan-400 text-cyan-300'
+                        : 'border-transparent text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <span>📝</span>
+                    <span>Vytvořit účet</span>
+                  </button>
+                </div>
 
-            {/* Vstup pro 6místný kód */}
-            <div className="mb-4">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2 text-center">
-                Zadejte 6místný kód dítěte
-              </label>
-              <input
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={6}
-                value={parentInputCode}
-                onChange={(e) => {
-                  const val = e.target.value.replace(/\D/g, '').slice(0, 6);
-                  setParentInputCode(val);
-                  setParentError(null);
-                }}
-                placeholder="např. 482915"
-                className="w-full bg-slate-950 border-2 border-slate-700 focus:border-cyan-500 rounded-xl text-center text-3xl md:text-4xl font-mono font-black text-white tracking-widest py-3.5 focus:outline-none transition-colors shadow-inner"
-              />
-              {parentError && (
-                <p className="text-rose-400 text-xs mt-2 text-center font-medium animate-shake">
-                  {parentError}
-                </p>
-              )}
-            </div>
+                {/* FORMULÁŘ: PŘIHLÁŠENÍ */}
+                {authSubTab === 'login' && (
+                  <form onSubmit={handleParentLogin} className="flex flex-col gap-3.5">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                        E-mail rodiče
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        value={emailInput}
+                        onChange={(e) => {
+                          setEmailInput(e.target.value);
+                          setAuthError(null);
+                        }}
+                        placeholder="rodic@email.cz"
+                        className="w-full bg-slate-950 border border-slate-700 focus:border-cyan-500 rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition-colors"
+                      />
+                    </div>
 
-            {/* Důležité právní upozornění pro rodiče */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                        Heslo
+                      </label>
+                      <input
+                        type="password"
+                        required
+                        value={passwordInput}
+                        onChange={(e) => {
+                          setPasswordInput(e.target.value);
+                          setAuthError(null);
+                        }}
+                        placeholder="••••••••"
+                        className="w-full bg-slate-950 border border-slate-700 focus:border-cyan-500 rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition-colors"
+                      />
+                    </div>
+
+                    {authError && (
+                      <div className="p-3 rounded-xl bg-rose-950/50 border border-rose-500/50 text-rose-300 text-xs font-medium">
+                        {authError}
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={authLoading}
+                      className="w-full bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 text-white font-bold py-3.5 rounded-xl text-base transition-all shadow-lg shadow-cyan-900/30 flex items-center justify-center gap-2 active:scale-[0.98] mt-1"
+                    >
+                      <span>{authLoading ? '⏳' : '🔑'}</span>
+                      <span>{authLoading ? 'Přihlašuji...' : 'Přihlásit se'}</span>
+                    </button>
+                  </form>
+                )}
+
+                {/* FORMULÁŘ: REGISTRACE */}
+                {authSubTab === 'register' && (
+                  <form onSubmit={handleParentRegister} className="flex flex-col gap-3.5">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                        E-mail rodiče
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        value={emailInput}
+                        onChange={(e) => {
+                          setEmailInput(e.target.value);
+                          setAuthError(null);
+                        }}
+                        placeholder="rodic@email.cz"
+                        className="w-full bg-slate-950 border border-slate-700 focus:border-cyan-500 rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition-colors"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                        Heslo (minimálně 6 znaků)
+                      </label>
+                      <input
+                        type="password"
+                        required
+                        minLength={6}
+                        value={passwordInput}
+                        onChange={(e) => {
+                          setPasswordInput(e.target.value);
+                          setAuthError(null);
+                        }}
+                        placeholder="••••••••"
+                        className="w-full bg-slate-950 border border-slate-700 focus:border-cyan-500 rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition-colors"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                        Heslo pro kontrolu
+                      </label>
+                      <input
+                        type="password"
+                        required
+                        minLength={6}
+                        value={confirmPasswordInput}
+                        onChange={(e) => {
+                          setConfirmPasswordInput(e.target.value);
+                          setAuthError(null);
+                        }}
+                        placeholder="••••••••"
+                        className="w-full bg-slate-950 border border-slate-700 focus:border-cyan-500 rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition-colors"
+                      />
+                    </div>
+
+                    {authError && (
+                      <div className="p-3 rounded-xl bg-rose-950/50 border border-rose-500/50 text-rose-300 text-xs font-medium">
+                        {authError}
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={authLoading}
+                      className="w-full bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 text-white font-bold py-3.5 rounded-xl text-base transition-all shadow-lg shadow-cyan-900/30 flex items-center justify-center gap-2 active:scale-[0.98] mt-1"
+                    >
+                      <span>{authLoading ? '⏳' : '📝'}</span>
+                      <span>{authLoading ? 'Vytvářím účet...' : 'Vytvořit účet rodiče'}</span>
+                    </button>
+                  </form>
+                )}
+
+                {/* Vstup bez registrace */}
+                <div className="mt-5 pt-4 border-t border-slate-700/60">
+                  <button
+                    onClick={handleEnterParentWithoutPairing}
+                    className="w-full bg-slate-700/50 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold py-3 px-4 rounded-xl text-sm transition-all border border-slate-600/50 flex items-center justify-center gap-2 active:scale-[0.98]"
+                  >
+                    <span>Vstoupit do mapy bez přihlášení</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Důležité právní upozornění */}
             {!disclaimerAccepted && (
-              <div className="mb-4 p-3.5 rounded-xl bg-amber-950/40 border border-amber-500/40 text-amber-200 text-xs shadow-lg leading-relaxed">
+              <div className="mt-4 p-3 rounded-xl bg-amber-950/40 border border-amber-500/40 text-amber-200 text-xs shadow-lg leading-relaxed">
                 <p className="mb-2 text-amber-200/90 font-medium">
-                  „SafePath je asistenční nástroj. Vyhodnocení bezpečnosti tras je algoritmické a nenahrazuje dohled zákonného zástupce.“
+                  „SafePath je asistenční nástroj a nenahrazuje dohled zákonného zástupce.“
                 </p>
                 <label className="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white select-none">
                   <input
                     type="checkbox"
                     checked={hasCheckedConsent}
-                    onChange={(e) => setHasCheckedConsent(e.target.checked)}
+                    onChange={(e) => {
+                      setHasCheckedConsent(e.target.checked);
+                      if (e.target.checked) {
+                        localStorage.setItem('safepath_disclaimer_accepted', 'true');
+                        setDisclaimerAccepted(true);
+                      }
+                    }}
                     className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-cyan-500 focus:ring-cyan-500"
                   />
                   <span className="text-[11px] font-medium leading-tight text-amber-100/90">
@@ -354,25 +770,6 @@ export function AuthModal({
                 </label>
               </div>
             )}
-
-            {/* Tlačítko: Připojit k dítěti */}
-            <button
-              onClick={handleConnectParent}
-              disabled={parentLoading || parentInputCode.trim().length !== 6 || (!disclaimerAccepted && !hasCheckedConsent)}
-              className="w-full bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-bold py-4 px-4 rounded-xl text-lg transition-all shadow-lg shadow-cyan-900/30 flex items-center justify-center gap-2 active:scale-[0.98] mb-3"
-            >
-              <span>{parentLoading ? '⏳' : '🔗'}</span>
-              <span>{parentLoading ? 'Ověřuji propojení...' : 'Připojit k dítěti'}</span>
-            </button>
-
-            {/* Alternativní vstup bez párování */}
-            <button
-              onClick={handleEnterParentWithoutPairing}
-              disabled={!disclaimerAccepted && !hasCheckedConsent}
-              className="w-full bg-slate-700/60 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold py-3 px-4 rounded-xl text-sm transition-all border border-slate-600/60 flex items-center justify-center gap-2 active:scale-[0.98]"
-            >
-              <span>Vstoupit do mapy bez spárování</span>
-            </button>
           </div>
         )}
       </div>
