@@ -3,23 +3,45 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { SyncEngine } from '../lib/sync-engine';
 import { useMotionAnomaly } from '../hooks/useMotionAnomaly';
 import { MotionAnomalyModals } from './MotionAnomalyModals';
+import { startGpsStreaming, updateChildPosition } from '../lib/liveSync';
+import { useAppStore } from '../store/useAppStore';
 
 interface ChildCompanionProps {
   onBack?: () => void;
 }
 
 export function ChildCompanion({ onBack }: ChildCompanionProps) {
-  const [isPaired, setIsPaired] = useState(false);
+  const storeChildCode = useAppStore((state) => state.myChildCode);
+  const activeChildCode = storeChildCode || (typeof window !== 'undefined' ? localStorage.getItem('safepath_child_code') : null);
+
+  const [isPaired, setIsPaired] = useState<boolean>(() => {
+    return !!activeChildCode;
+  });
   const [pinInput, setPinInput] = useState('');
   const [sosCountdown, setSosCountdown] = useState<number | null>(null);
+  const [currentCoords, setCurrentCoords] = useState<{ lat: number; lng: number }>({ lat: 50.0755, lng: 14.4378 });
 
   const motionAnomaly = useMotionAnomaly({
     enabled: isPaired,
-    currentLocation: { lat: 50.0755, lng: 14.4378 },
+    currentLocation: currentCoords,
     activeMode: 'child',
     isNight: false,
     cameras: []
   });
+
+  // Živé GPS streamování do Firebase Realtime Database
+  useEffect(() => {
+    if (!activeChildCode) return;
+    setIsPaired(true);
+
+    const stopGps = startGpsStreaming(activeChildCode, (coords) => {
+      setCurrentCoords(coords);
+    });
+
+    return () => {
+      stopGps();
+    };
+  }, [activeChildCode]);
 
   useEffect(() => {
     SyncEngine.init();
@@ -49,13 +71,18 @@ export function ChildCompanion({ onBack }: ChildCompanionProps) {
       const timer = setTimeout(() => setSosCountdown(sosCountdown - 1), 1000);
       return () => clearTimeout(timer);
     } else if (sosCountdown === 0) {
-      // Fire SOS!
-      SyncEngine.broadcast('SOS_ALERT', { location: [50.0755, 14.4378] }); // Mocked location
+      // Fire SOS do BroadcastChannel i Firebase!
+      SyncEngine.broadcast('SOS_ALERT', { location: [currentCoords.lat, currentCoords.lng] });
+      
+      if (activeChildCode) {
+        // Označit jako odchýlení / nouzový stav ve Firebase (inCorridor: false)
+        updateChildPosition(activeChildCode, currentCoords.lat, currentCoords.lng, false).catch(console.error);
+      }
+
       setSosCountdown(null);
-      alert('SOS Odesláno! Naviguji k nejbližšímu záchytnému bodu...');
-      // Zde by normálně proběhl fetch trasy k policii/hasičům
+      alert('SOS Odesláno rodiči! Naviguji k nejbližšímu záchytnému bodu...');
     }
-  }, [sosCountdown]);
+  }, [sosCountdown, activeChildCode, currentCoords]);
 
   if (!isPaired) {
     return (
@@ -122,9 +149,11 @@ export function ChildCompanion({ onBack }: ChildCompanionProps) {
             <span>←</span> Zpět
           </button>
         )}
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-slate-900/90 px-6 py-3 rounded-full border border-slate-700 shadow-xl backdrop-blur flex items-center space-x-3 z-10 w-[90%] max-w-sm">
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-slate-900/95 px-5 py-2.5 rounded-full border border-slate-700 shadow-2xl backdrop-blur flex items-center space-x-3 z-10 max-w-sm">
           <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span className="font-bold text-sm text-slate-200">Poloha sledována rodičem</span>
+          <span className="font-bold text-xs md:text-sm text-slate-200 truncate">
+            Poloha sledována rodičem {activeChildCode ? `(Kód: ${activeChildCode})` : ''}
+          </span>
         </div>
 
         {/* SOS Button Layer */}
@@ -172,7 +201,16 @@ export function ChildCompanion({ onBack }: ChildCompanionProps) {
         </div>
         
         <button 
-          onClick={() => SyncEngine.broadcast('TOGGLE_SIMULATION', {})}
+          onClick={() => {
+            SyncEngine.broadcast('TOGGLE_SIMULATION', {});
+            if (activeChildCode) {
+              // Simulovaný posun v poloze
+              const simLat = currentCoords.lat + 0.0008;
+              const simLng = currentCoords.lng + 0.0008;
+              setCurrentCoords({ lat: simLat, lng: simLng });
+              updateChildPosition(activeChildCode, simLat, simLng, true).catch(console.error);
+            }
+          }}
           className="w-full mt-4 bg-emerald-600 border border-emerald-500 p-4 rounded-2xl flex flex-row items-center justify-center space-x-3 active:bg-emerald-700 transition-colors shadow-lg shadow-emerald-900/50"
         >
           <span className="text-xl">📍</span>

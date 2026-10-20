@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { RoleSelector } from './RoleSelector';
+import { AuthModal } from './AuthModal';
 import { ParentDashboard } from './ParentDashboard';
 import { ChildCompanion } from './ChildCompanion';
 import { useAppStore } from '../store/useAppStore';
@@ -27,7 +27,7 @@ export default function SafePathApp() {
 
   if (appMode === 'login') {
     return (
-      <RoleSelector 
+      <AuthModal 
         onSelectMode={setAppMode} 
         onSelectProfiles={setInitialProfiles}
       />

@@ -65,3 +65,8 @@
 .map-tiles {
   filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
 }
+
+/* Plynulý posun živého markeru dítěte */
+.leaflet-marker-icon.custom-child-marker {
+  transition: transform 0.4s ease-out;
+}

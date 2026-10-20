@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { SafeHavenPOI } from '../data/safe-havens-poi';
+import type { ChildSessionData } from '../lib/liveSync';
 
 type AppState = {
   childLocation: { lat: number; lng: number } | null;
@@ -25,6 +26,26 @@ type AppState = {
 
   heightenedVigilance: boolean;
   setHeightenedVigilance: (val: boolean) => void;
+
+  // Firebase Live Sync stav
+  pairedChildCode: string | null;
+  setPairedChildCode: (code: string | null) => void;
+
+  childSession: ChildSessionData | null;
+  setChildSession: (session: ChildSessionData | null) => void;
+
+  myChildCode: string | null;
+  setMyChildCode: (code: string | null) => void;
+};
+
+const getInitialPairedCode = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('safepath_paired_child_code') || null;
+};
+
+const getInitialMyChildCode = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('safepath_child_code') || null;
 };
 
 export const useAppStore = create<AppState>((set) => ({
@@ -51,4 +72,31 @@ export const useAppStore = create<AppState>((set) => ({
 
   heightenedVigilance: false,
   setHeightenedVigilance: (val) => set({ heightenedVigilance: val }),
+
+  pairedChildCode: getInitialPairedCode(),
+  setPairedChildCode: (code) => {
+    if (typeof window !== 'undefined') {
+      if (code) {
+        localStorage.setItem('safepath_paired_child_code', code);
+      } else {
+        localStorage.removeItem('safepath_paired_child_code');
+      }
+    }
+    set({ pairedChildCode: code });
+  },
+
+  childSession: null,
+  setChildSession: (session) => set({ childSession: session }),
+
+  myChildCode: getInitialMyChildCode(),
+  setMyChildCode: (code) => {
+    if (typeof window !== 'undefined') {
+      if (code) {
+        localStorage.setItem('safepath_child_code', code);
+      } else {
+        localStorage.removeItem('safepath_child_code');
+      }
+    }
+    set({ myChildCode: code });
+  },
 }));

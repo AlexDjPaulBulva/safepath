@@ -179,6 +179,7 @@ export interface MapEngineProps {
   proximityPoint?: [number, number] | null;
   onRouteProximityChange?: (point: [number, number] | null) => void;
   onSelectRoute?: (route: 'A' | 'B' | 'C') => void;
+  childLiveLocation?: { lat: number; lng: number; inCorridor?: boolean; lastSeen?: number } | null;
 }
 
 export function MapEngine({ 
@@ -209,6 +210,7 @@ export function MapEngine({
   onMapRightClick,
   safeStops = [],
   childDeviation = null,
+  childLiveLocation = null,
   reveal = null,
   proximityPoint = null,
   onRouteProximityChange,
@@ -389,6 +391,22 @@ export function MapEngine({
     iconSize: [32, 32],
     iconAnchor: [16, 16]
   });
+
+  const childLiveIcon = useMemo(() => L.divIcon({
+    html: `<div class="relative flex items-center justify-center -translate-x-1/2 -translate-y-1/2">
+             <span class="animate-ping absolute inline-flex h-10 w-10 rounded-full bg-lime-400 opacity-75"></span>
+             <span class="animate-pulse absolute inline-flex h-8 w-8 rounded-full bg-yellow-400/50"></span>
+             <div class="relative inline-flex rounded-full h-8 w-8 bg-gradient-to-tr from-lime-500 to-yellow-400 border-2 border-white shadow-[0_0_15px_rgba(163,230,53,0.8)] items-center justify-center text-sm shadow-xl font-bold">
+               👶
+             </div>
+             <div class="absolute -top-6 bg-slate-900/90 text-lime-300 border border-lime-400/80 text-[10px] font-black px-2 py-0.5 rounded-full whitespace-nowrap shadow-lg tracking-wider uppercase">
+               Dítě
+             </div>
+           </div>`,
+    className: 'custom-child-marker pointer-events-auto',
+    iconSize: [32, 32],
+    iconAnchor: [16, 16]
+  }), []);
 
   // Memoizace JSX vrstev pro zamezení re-renderu
   const camerasLayer = useMemo(() => {
@@ -817,6 +835,33 @@ export function MapEngine({
         {/* Avatar Simulace */}
         {isSimulating && avatarPoint && (
           <Marker position={[avatarPoint.lat, avatarPoint.lng]} icon={avatarIcon} />
+        )}
+
+        {/* Živý marker dítěte ze vzdáleného Firebase Realtime Database */}
+        {childLiveLocation && (
+          <Marker
+            position={[childLiveLocation.lat, childLiveLocation.lng]}
+            icon={childLiveIcon}
+            zIndexOffset={2000}
+          >
+            <Popup className="custom-popup">
+              <div className="p-2 text-xs bg-slate-900 text-slate-100 rounded-md shadow-xl border border-lime-500/50">
+                <div className="flex items-center gap-1.5 font-bold text-lime-400 border-b border-slate-700 pb-1 mb-1">
+                  <span>👶</span>
+                  <span>Dítě (Živý GPS signál)</span>
+                </div>
+                <p className="text-[11px] text-slate-300 m-0">
+                  Poloha: {childLiveLocation.lat.toFixed(5)}, {childLiveLocation.lng.toFixed(5)}
+                </p>
+                <div className={`text-[10px] mt-1.5 font-semibold flex items-center gap-1 ${
+                  childLiveLocation.inCorridor !== false ? 'text-emerald-400' : 'text-rose-400 animate-pulse'
+                }`}>
+                  <span>{childLiveLocation.inCorridor !== false ? '✓' : '🚨'}</span>
+                  <span>{childLiveLocation.inCorridor !== false ? 'V bezpečnostním koridoru' : 'Odchýleno z trasy!'}</span>
+                </div>
+              </div>
+            </Popup>
+          </Marker>
         )}
 
         {/* Bezpečné Zastávky (Geofencing) */}
