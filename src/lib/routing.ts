@@ -603,6 +603,96 @@ export function calculateRoutesOverlap(
 }
 
 /**
+ * Safe Transit Hub (Bezpečný uzel pro aktivní bezpečnostní koridor):
+ * Křižovatka na hlavní/vedlejší třídě (primary/secondary jako Vinohradská, Korunní, Francouzská, Bělehradská)
+ * se semaforem (highway=traffic_signals) a dohledem MKS kamery.
+ */
+interface SafeTransitHub {
+  id: string;
+  name: string;
+  coords: [number, number]; // [lat, lng]
+  corridorName: string;
+  highwayClass: string;
+}
+
+/**
+ * Vyhledá v databázi bezpečné uzly (Safe Transit Hubs) mezi START a CÍL.
+ * Křižovatky s highway=traffic_signals + MKS kamera + třída ulice primary/secondary.
+ */
+function findSafeTransitHubs(
+  sLat: number,
+  sLng: number,
+  eLat: number,
+  eLng: number,
+  safetyNodes: SafetyFeature[],
+  rawFastestDistMeters: number
+): SafeTransitHub[] {
+  const dDirect = getDistance(sLat, sLng, eLat, eLng);
+  if (dDirect < 90) return [];
+
+  const hubs: SafeTransitHub[] = [];
+  const registeredIds = new Set<string>();
+
+  // 1. Získání křižovatek z PRAGUE_ROAD_CORRIDORS s třídou primary / secondary
+  for (const corridor of PRAGUE_ROAD_CORRIDORS) {
+    if (corridor.osmHighway !== 'primary' && corridor.osmHighway !== 'secondary') {
+      continue;
+    }
+
+    for (const sc of corridor.signalizedCrossings) {
+      if (registeredIds.has(sc.id)) continue;
+
+      // Ověření přítomnosti MKS kamery v okolí křižovatky (do 150 m)
+      const hasCamera = safetyNodes.some(
+        n => n.type === 'camera' && getDistance(sc.coords[0], sc.coords[1], n.coords[0], n.coords[1]) <= 150
+      ) || ['Vinohradská', 'Francouzská', 'Korunní', 'Bělehradská', 'Ječná', 'Žitná', 'Budečská'].includes(corridor.name);
+
+      if (hasCamera) {
+        registeredIds.add(sc.id);
+        hubs.push({
+          id: sc.id,
+          name: sc.name,
+          coords: sc.coords,
+          corridorName: corridor.name,
+          highwayClass: corridor.osmHighway
+        });
+      }
+    }
+  }
+
+  // 2. Filtrujeme uzly, které leží ve směru cesty a nepřekročí 25% prodloužení
+  const validHubs = hubs.filter(hub => {
+    const dStart = getDistance(sLat, sLng, hub.coords[0], hub.coords[1]);
+    const dEnd = getDistance(eLat, eLng, hub.coords[0], hub.coords[1]);
+    const totalDetour = dStart + dEnd;
+
+    // Musí ležet mezi startem a cílem (alespoň 25 m od obou)
+    if (dStart < 25 || dEnd < 25) return false;
+
+    // Max 25 % prodloužení oproti přímé vzdálenosti
+    if (totalDetour > dDirect * 1.25) return false;
+
+    return true;
+  });
+
+  // 3. Seřadíme uzly podle priority:
+  // - Prioritní bulváry (Vinohradská, Francouzská, Korunní, Bělehradská)
+  // - Minimální zacházka
+  validHubs.sort((a, b) => {
+    const isPriorityA = ['Vinohradská', 'Francouzská', 'Korunní', 'Bělehradská'].includes(a.corridorName);
+    const isPriorityB = ['Vinohradská', 'Francouzská', 'Korunní', 'Bělehradská'].includes(b.corridorName);
+    if (isPriorityA && !isPriorityB) return -1;
+    if (!isPriorityA && isPriorityB) return 1;
+
+    const detourA = getDistance(sLat, sLng, a.coords[0], a.coords[1]) + getDistance(eLat, eLng, a.coords[0], a.coords[1]);
+    const detourB = getDistance(sLat, sLng, b.coords[0], b.coords[1]) + getDistance(eLat, eLng, b.coords[0], b.coords[1]);
+    return detourA - detourB;
+  });
+
+  return validHubs;
+}
+
+/**
  * Pokusí se vygenerovat reálně odlišnou a bezpečnou trasu pro "Přehledné hlavní třídy":
  * - Preferuje široké osvětlené bulváry (primary/secondary jako Francouzská, Korunní, Budečská, Vinohradská)
  * - Vylučuje úzké rezidenční uličky (např. Sázavská) pomocí strategického waypointu na bulváru
@@ -790,7 +880,25 @@ export async function fetchOSRMRoute(
     console.warn('Evaluace fastestRoute se nezdařila:', fastestErr);
   }
 
-  // 3. Child Safety Constraint validace a re-routing přes světelnou křižovatku
+  // 3. Aktivní bezpečnostní trasování přes bezpečné uzly (Safe Transit Hubs)
+  // Pokud cesta vede bočními uličkami, odkloníme trasu na osvětlený bulvár s MKS kamerami a světelnými přechody (max 25% prodloužení)
+  try {
+    const transitHubs = findSafeTransitHubs(sLat, sLng, eLat, eLng, safetyNodes, rawFastest.distance);
+    for (const hub of transitHubs.slice(0, 3)) {
+      const hubRoutes = await fetchFootRouteWithWaypoint(sLng, sLat, hub.coords[1], hub.coords[0], eLng, eLat);
+      if (hubRoutes && hubRoutes.length > 0) {
+        const candidateHubRoute = hubRoutes[0];
+        if (candidateHubRoute.distance <= rawFastest.distance * 1.25) {
+          rawRoutes.unshift(candidateHubRoute);
+          break;
+        }
+      }
+    }
+  } catch (hubErr) {
+    console.warn('Aktivní bezpečnostní trasování přes koridor selhalo, pokračuji se standardními trasami:', hubErr);
+  }
+
+  // 4. Child Safety Constraint validace a re-routing přes světelnou křižovatku
   try {
     const primaryRouteCoords: [number, number][] = rawRoutes[0].geometry.coordinates.map(
       ([lng, lat]: [number, number]) => [lat, lng]

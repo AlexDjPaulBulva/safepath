@@ -777,39 +777,37 @@ export function ParentDashboard({
       </AnimatePresence>
       
       {/* Sidebar - Na mobilu fixed bottom sheet, na desktopu pevný panel vlevo */}
-      <div className="md:relative fixed inset-x-0 bottom-0 z-20 w-full md:w-96 pointer-events-none md:pointer-events-auto flex flex-col justify-end md:h-full md:block">
-        <div className="pointer-events-none md:pointer-events-auto w-full md:h-full flex flex-col justify-end">
-          <Sidebar 
-            startPointName={startPoint ? startPoint.name : ''}
-            endPointName={endPoint ? endPoint.name : ''}
-            onSelectStart={handleSelectStart}
-            onSelectEnd={handleSelectEnd}
-            selectedRoute={selectedRoute}
-            onSelectRoute={(route) => { setSelectedRoute(route); setSafetyReveal(null); setRouteProximityPoint(null); }}
-            routeA={routeA}
-            routeB={routeB}
-            routeC={routeC}
-            fastestRoute={fastestRoute}
-            showFastestRoute={showFastestRoute}
-            onToggleFastestRoute={() => setShowFastestRoute(prev => !prev)}
-            argumentsText={argumentsText}
-            layers={layers}
-            onToggleLayer={toggleLayer}
-            timeOfDay={timeOfDay}
-            onChangeTime={setTimeOfDay}
-            onSelectProfile={(p: string) => handleSelectProfiles([p])}
-            safeHavens={safeHavens}
-            isSimulating={isSimulating}
-            onToggleSimulation={handleToggleSimulation}
-            activeProfiles={activeProfiles}
-            activeMode={activeMode}
-            onMetricHover={setSafetyReveal}
-            isRoutingLoading={isRoutingLoading}
-            routingError={routingError}
-            userLocation={userLocation}
-            onRecenterGps={handleRecenterGps}
-          />
-        </div>
+      <div className="md:relative fixed inset-x-0 bottom-0 z-20 w-full md:w-96 md:max-w-md pointer-events-none md:pointer-events-auto flex flex-col justify-end md:justify-start md:h-full h-auto">
+        <Sidebar 
+          startPointName={startPoint ? startPoint.name : ''}
+          endPointName={endPoint ? endPoint.name : ''}
+          onSelectStart={handleSelectStart}
+          onSelectEnd={handleSelectEnd}
+          selectedRoute={selectedRoute}
+          onSelectRoute={(route) => { setSelectedRoute(route); setSafetyReveal(null); setRouteProximityPoint(null); }}
+          routeA={routeA}
+          routeB={routeB}
+          routeC={routeC}
+          fastestRoute={fastestRoute}
+          showFastestRoute={showFastestRoute}
+          onToggleFastestRoute={() => setShowFastestRoute(prev => !prev)}
+          argumentsText={argumentsText}
+          layers={layers}
+          onToggleLayer={toggleLayer}
+          timeOfDay={timeOfDay}
+          onChangeTime={setTimeOfDay}
+          onSelectProfile={(p: string) => handleSelectProfiles([p])}
+          safeHavens={safeHavens}
+          isSimulating={isSimulating}
+          onToggleSimulation={handleToggleSimulation}
+          activeProfiles={activeProfiles}
+          activeMode={activeMode}
+          onMetricHover={setSafetyReveal}
+          isRoutingLoading={isRoutingLoading}
+          routingError={routingError}
+          userLocation={userLocation}
+          onRecenterGps={handleRecenterGps}
+        />
       </div>
       
       {/* Mapa - Na mobilu fixní pozadí přes celou obrazovku, na desktopu zabírá zbytek (flex-1) */}

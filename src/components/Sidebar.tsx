@@ -296,18 +296,18 @@ export function Sidebar({
 
       <aside 
         className={`
-          bg-slate-900/95 backdrop-blur-md border-r border-slate-700/50
-          w-full md:w-96 shadow-2xl flex flex-col pointer-events-auto relative z-20
-          transition-all duration-300 ease-out md:translate-y-0 md:h-full pt-0
+          h-full w-full max-w-md bg-slate-900 border-r border-slate-700/50
+          shadow-2xl flex flex-col pointer-events-auto relative z-20
+          pt-3 px-4 pb-0
           ${isOpen 
-            ? 'translate-y-0 h-[85vh] max-h-[85vh] rounded-t-3xl border-t border-slate-700/70 md:border-t-0 md:rounded-none' 
-            : 'translate-y-0 h-[5.25rem] max-h-[5.25rem] overflow-hidden rounded-t-2xl border-t border-slate-700/70 md:border-t-0 md:rounded-none'
+            ? 'max-md:h-[85vh] max-md:max-h-[85vh] max-md:rounded-t-3xl max-md:border-t max-md:border-slate-700/70' 
+            : 'max-md:h-[5.25rem] max-md:max-h-[5.25rem] max-md:overflow-hidden max-md:rounded-t-2xl max-md:border-t max-md:border-slate-700/70'
           }
         `}
       >
         {/* Mobile Handle / Drawer Peek Bar */}
         <div 
-          className="md:hidden flex flex-col justify-center px-4 py-2 border-b border-slate-700/60 bg-slate-900/95 cursor-pointer active:bg-slate-800 transition-colors select-none rounded-t-2xl shrink-0"
+          className="md:hidden flex flex-col justify-center px-2 py-1.5 border-b border-slate-700/60 bg-slate-900 cursor-pointer active:bg-slate-800 transition-colors select-none rounded-t-2xl shrink-0 mb-2"
           onClick={() => setIsOpen(!isOpen)}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
@@ -334,10 +334,10 @@ export function Sidebar({
           </div>
         </div>
 
-        {/* Pevná hlavička (Logo SafePath + vstupy ODKUD / KAM) bez scrollování */}
-        <div className="shrink-0 px-5 pt-3 pb-3 border-b border-slate-800/80 bg-slate-900/95">
+        {/* Fixní záhlaví – nikdy neodskroluje */}
+        <div className="shrink-0 mb-3">
           {/* Header a Profil */}
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-2.5">
             <div>
               <h1 className="text-xl font-black tracking-tight text-white flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -345,7 +345,7 @@ export function Sidebar({
               </h1>
               <p className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">Rodičovský Dispečink</p>
             </div>
-            <div className="bg-slate-800/60 px-2.5 py-1 rounded-lg border border-slate-700/80 flex items-center gap-1.5">
+            <div className="bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700/80 flex items-center gap-1.5">
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Režim:</span>
               <span className="text-xs font-black text-white">
                 {isChildMode && activeProfiles.length === 1 && '👨‍👧 Malé děti'}
@@ -392,11 +392,8 @@ export function Sidebar({
           </div>
         </div>
 
-        {/* Samostatně scrollovatelný zbytek obsahu */}
-        <div 
-          className="flex-1 overflow-y-auto overflow-x-hidden px-5 py-4 space-y-5"
-          style={{ paddingBottom: '3.5rem' }}
-        >
+        {/* Samostatně scrollovatelný obsah */}
+        <div className="flex-1 overflow-y-auto space-y-3 pb-8 pr-1 custom-scrollbar">
           {/* Trasa */}
           <div>
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">

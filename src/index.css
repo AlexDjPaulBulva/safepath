@@ -3,19 +3,27 @@
 @tailwind utilities;
 
 /* Moderní tenký scrollbar (namísto výchozího bílého posuvníku) */
-::-webkit-scrollbar {
+::-webkit-scrollbar,
+.custom-scrollbar::-webkit-scrollbar {
   width: 5px;
   height: 5px;
 }
-::-webkit-scrollbar-track {
+::-webkit-scrollbar-track,
+.custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
 }
-::-webkit-scrollbar-thumb {
+::-webkit-scrollbar-thumb,
+.custom-scrollbar::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.15);
   border-radius: 9999px;
 }
-::-webkit-scrollbar-thumb:hover {
+::-webkit-scrollbar-thumb:hover,
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.25);
+}
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
 }
 
 #map,
