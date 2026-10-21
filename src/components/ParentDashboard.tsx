@@ -593,11 +593,6 @@ export function ParentDashboard({
     }
   };
 
-  const handleMapRightClick = (lat: number, lng: number) => {
-    // Add safe stop
-    setSafeStops(prev => [...prev, { lat, lng, name: 'Zastávka' }]);
-  };
-
   const handleSelectProfiles = (profiles: string[]) => {
     setActiveProfiles(profiles);
     const newMode = profiles.includes('night_girl') ? 'night_girl' : (profiles.includes('child') ? 'child' : 'parent');
@@ -981,7 +976,6 @@ export function ParentDashboard({
             scannedLocation={scannedLocation}
             onCloseScanner={() => setScannedLocation(null)}
             onMapDoubleClick={handleMapDoubleClick}
-            onMapRightClick={handleMapRightClick}
             safeStops={safeStops}
             childDeviation={childDeviation}
             reveal={safetyReveal}

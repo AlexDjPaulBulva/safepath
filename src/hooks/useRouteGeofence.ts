@@ -29,6 +29,14 @@ export interface GeofenceState {
  * - Při odchylce > 35 m po dobu > 15 s spustí vibraci a varovnou notifikaci v UI.
  * - Při trvání > 45 s nastaví stav ALERT a simuluje push notifikaci na dispečink rodiče.
  */
+interface ValidGpsLocation {
+  lat: number;
+  lng: number;
+  accuracy: number;
+  dist: number;
+  timestamp: number;
+}
+
 export function useRouteGeofence(
   currentLocation: { lat: number; lng: number; accuracy?: number } | null,
   routeGeometry: [number, number][] | null,
@@ -53,8 +61,8 @@ export function useRouteGeofence(
   const hasVibratedRef = useRef(false);
   const hasAlertedRef = useRef(false);
 
-  // Vyhlazovací fronta posledních 3 validních měření proti falešným poplachům
-  const recentSamplesRef = useRef<number[]>([]);
+  // Klouzavá fronta posledních 3 validních poloh proti odrazům GPS
+  const validSamplesRef = useRef<ValidGpsLocation[]>([]);
 
   // Throttling reference (max 1x za 3 sekundy)
   const lastCalculationTimeRef = useRef<number>(0);
@@ -100,24 +108,31 @@ export function useRouteGeofence(
       });
 
       if (inSafeStop) {
-        recentSamplesRef.current = [];
+        validSamplesRef.current = [];
         setIsDeviated(false);
         lastCalculationTimeRef.current = Date.now();
         return;
       }
 
-      // 2. Vyhlazovací fronta posledních 3 měření
-      recentSamplesRef.current.push(dist);
-      if (recentSamplesRef.current.length > 3) {
-        recentSamplesRef.current.shift();
+      // 2. Klouzavá fronta posledních 3 validních poloh (GPS Jitter & Noise Filter)
+      validSamplesRef.current.push({
+        lat: loc.lat,
+        lng: loc.lng,
+        accuracy: loc.accuracy ?? 10,
+        dist,
+        timestamp: Date.now()
+      });
+      if (validSamplesRef.current.length > 3) {
+        validSamplesRef.current.shift();
       }
 
-      // Vyhodnoť odchylku z trasy až tehdy, pokud jsou 3 po sobě jdoucí validní vzorky vzdáleny více než 35 metrů od koridoru
-      if (recentSamplesRef.current.length >= 3) {
-        const allThreeDeviated = recentSamplesRef.current.every(d => d > corridorMeters);
+      // Výstrahu o opuštění bezpečného koridoru (vzdálenost > 35 m) vyvolej POUZE tehdy,
+      // pokud jsou mimo koridor minimálně 3 po sobě jdoucí platné vzorky (zabraňuje jednorázovým ustřelením GPS)
+      if (validSamplesRef.current.length >= 3) {
+        const allThreeDeviated = validSamplesRef.current.every(sample => sample.dist > corridorMeters);
         setIsDeviated(allThreeDeviated);
       } else {
-        // Méně než 3 vzorky - čekáme na potvrzení stability, nehlásíme jednorázový falešný poplach
+        // Méně než 3 vzorky - čekáme na potvrzení stability, nehlásíme falešný poplach
         setIsDeviated(false);
       }
       lastCalculationTimeRef.current = Date.now();
@@ -131,7 +146,7 @@ export function useRouteGeofence(
     if (!enabled || !currentLocation || !routeLineString) {
       setDistanceMeters(0);
       setIsDeviated(false);
-      recentSamplesRef.current = [];
+      validSamplesRef.current = [];
       return;
     }
 
@@ -221,7 +236,7 @@ export function useRouteGeofence(
   }, [enabled, isDeviated, warningThresholdSec, alertThresholdSec, currentLocation, distanceMeters, setChildStatus]);
 
   const resetGeofence = () => {
-    recentSamplesRef.current = [];
+    validSamplesRef.current = [];
     setDeviationSeconds(0);
     setWarningActive(false);
     setAlertActive(false);

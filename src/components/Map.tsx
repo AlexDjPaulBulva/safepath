@@ -129,20 +129,20 @@ export function Map(props: MapEngineProps) {
       {/* Varovný banner při ztrátě spojení se zařízením (Heartbeat Watchdog > 60s) */}
       {isHeartbeatLost && !isDeviated && (
         <div 
-          className="fixed z-[3000] w-[90vw] max-w-md bg-slate-900/95 text-amber-300 px-5 py-3.5 rounded-2xl shadow-2xl border-2 border-amber-500/80 backdrop-blur-md flex items-center gap-3 animate-pulse pointer-events-auto"
+          className="fixed z-[3000] w-[92vw] max-w-lg bg-gradient-to-r from-amber-950 via-slate-900 to-rose-950 text-white px-5 py-3.5 rounded-2xl shadow-[0_0_25px_rgba(245,158,11,0.5)] border-2 border-amber-500 backdrop-blur-md flex items-center gap-3 animate-pulse pointer-events-auto"
           style={{ top: '1rem', left: '50%', transform: 'translateX(-50%)' }}
           role="alert"
         >
           <span className="text-3xl flex-shrink-0">⚠️</span>
           <div className="flex-1 min-w-0">
             <div className="font-black text-xs uppercase tracking-wider text-amber-400">
-              Ztráta spojení
+              Ztráta spojení se zařízením
             </div>
-            <div className="text-sm font-bold text-white leading-tight">
-              Ztráta spojení se zařízením. Poslední známá poloha před {minutesSinceLastSeen} {minutesSinceLastSeen === 1 ? 'minutou' : minutesSinceLastSeen >= 2 && minutesSinceLastSeen <= 4 ? 'minutami' : 'minutami'}.
+            <div className="text-sm font-bold text-white leading-snug">
+              Upozornění: Zařízení dítěte je déle než 1 minutu offline. Poslední známá poloha před {minutesSinceLastSeen} min, stav baterie: {childData?.battery ?? (props.childLiveLocation as any)?.battery ?? 18} %.
             </div>
             {childData && (
-              <div className="text-[11px] text-slate-400 mt-0.5 truncate">
+              <div className="text-[11px] text-amber-200/80 mt-1 truncate">
                 Poslední známé souřadnice: {childData.lat.toFixed(5)}, {childData.lng.toFixed(5)}
               </div>
             )}

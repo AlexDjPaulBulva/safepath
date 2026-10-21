@@ -612,6 +612,9 @@ function evaluateRoute(
   const crossingsBonus = (microResult.snappedCrossings?.length || 0) * 4;
   const childSafetyBonus = isChildSafe ? 25 : (isTramSafe ? -150 : -600);
   const gatedPenalty = hasGatedNightBreach ? 150 : 0;
+  // Striktní zákaz křížení tramvajových kolejí bez semaforu (railway=tram bez crossing=traffic_signals):
+  // Nekonečná váha / absolutní restrikce (penalizace 50 000 bodů)
+  const tramPenalty = isTramSafe ? 0 : 50000;
 
   const livelyScore =
     metrics.overallSafetyScore * 0.55 +
@@ -625,7 +628,8 @@ function evaluateRoute(
     gatedPenalty -
     tskPenalty -
     cdvPenalty -
-    crimePenalty;
+    crimePenalty -
+    tramPenalty;
 
   const surveillanceScore =
     metrics.cameraCoveragePercent * 0.60 +
@@ -637,7 +641,8 @@ function evaluateRoute(
     gatedPenalty -
     tskPenalty -
     cdvPenalty -
-    crimePenalty;
+    crimePenalty -
+    tramPenalty;
 
   return {
     rawRoute,
@@ -1168,7 +1173,7 @@ export async function fetchOSRMRoute(
       const tramCheck = validateTramCrossingSafety(c.geometry);
       let score = c.surveillanceScore * 1.5 + (c.childSafetyValid && tramCheck.isTramSafe ? 150 : -200);
       if (!tramCheck.isTramSafe) {
-        score -= 5000; // Striktní zákaz neřízeného přebíhání tramvajových kolejí v režimu Malé děti
+        score -= 100000; // Nekonečná váha / absolutní zákaz neřízeného přebíhání tramvajových kolejí bez semaforu
       }
       if (c.metrics.hasTskClosureConflict) {
         score -= 5000; // Hard veto pro TSK výkopy
@@ -1192,10 +1197,10 @@ export async function fetchOSRMRoute(
     };
 
     const strictlySafe = candidates.filter(isCandidateChildSafe);
-    const tramSafeCandidates = childSafeCandidates.filter(c => validateTramCrossingSafety(c.geometry).isTramSafe);
+    const tramSafeCandidates = candidates.filter(c => validateTramCrossingSafety(c.geometry).isTramSafe);
     const poolA: EvaluatedCandidate[] = strictlySafe.length > 0 
       ? strictlySafe 
-      : (tramSafeCandidates.length > 0 ? tramSafeCandidates : (childSafeCandidates.length > 0 ? childSafeCandidates : candidates));
+      : (tramSafeCandidates.length > 0 ? tramSafeCandidates : candidates);
 
     const candidateA = poolA.reduce((best: EvaluatedCandidate, cur: EvaluatedCandidate) =>
       getChildMaxSafetyScore(cur) > getChildMaxSafetyScore(best) ? cur : best

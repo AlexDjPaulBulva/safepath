@@ -8,21 +8,39 @@ export interface ChildSessionData {
   inCorridor: boolean;
   lastSeen: number;
   timestamp?: number;
+  battery?: number;
   accuracy?: number;
   role?: string;
   isOffline?: boolean;
 }
 
 /**
+ * Získá úroveň nabití baterie zařízení v procentech (0–100).
+ */
+export async function getDeviceBatteryLevel(): Promise<number> {
+  if (typeof navigator !== 'undefined' && 'getBattery' in (navigator as any)) {
+    try {
+      const b = await (navigator as any).getBattery();
+      return Math.round(b.level * 100);
+    } catch {
+      return 85;
+    }
+  }
+  return 85;
+}
+
+/**
  * Zapíše do databáze nový uzel:
- * { code, lat: initialCoords.lat, lng: initialCoords.lng, inCorridor: true, lastSeen: Date.now(), timestamp: Date.now(), role: 'child' }
+ * { code, lat: initialCoords.lat, lng: initialCoords.lng, inCorridor: true, lastSeen: Date.now(), timestamp: Date.now(), battery, role: 'child' }
  */
 export async function startChildSession(
   code: string,
-  initialCoords: { lat: number; lng: number }
+  initialCoords: { lat: number; lng: number },
+  battery?: number
 ): Promise<void> {
   const sessionRef = ref(db, `sessions/${code}`);
   const now = Date.now();
+  const batteryLevel = typeof battery === 'number' ? battery : await getDeviceBatteryLevel();
   await set(sessionRef, {
     code,
     lat: initialCoords.lat,
@@ -30,20 +48,22 @@ export async function startChildSession(
     inCorridor: true,
     lastSeen: now,
     timestamp: now,
+    battery: batteryLevel,
     role: 'child'
   });
 }
 
 /**
- * Pomocí update(ref(db, `sessions/${code}`), { lat, lng, inCorridor, lastSeen: Date.now(), timestamp: Date.now() })
- * posílá polohu dítěte s časovým razítkem.
+ * Pomocí update(ref(db, `sessions/${code}`), { lat, lng, inCorridor, lastSeen: Date.now(), timestamp: Date.now(), battery })
+ * posílá polohu dítěte s časovým razítkem a stavem baterie.
  */
 export async function updateChildPosition(
   code: string,
   lat: number,
   lng: number,
   inCorridor: boolean = true,
-  accuracy?: number
+  accuracy?: number,
+  battery?: number
 ): Promise<void> {
   const sessionRef = ref(db, `sessions/${code}`);
   const now = Date.now();
@@ -56,6 +76,9 @@ export async function updateChildPosition(
   };
   if (typeof accuracy === 'number') {
     updateData.accuracy = accuracy;
+  }
+  if (typeof battery === 'number') {
+    updateData.battery = battery;
   }
   await update(sessionRef, updateData);
 }
@@ -168,10 +191,21 @@ export function startGpsStreaming(
   let currentLng = 14.4378;
   let currentAccuracy: number | undefined = undefined;
   let inCorridor = true;
+  let currentBattery: number = 88;
+
+  // Sledování úrovně baterie zařízení
+  if (typeof navigator !== 'undefined' && 'getBattery' in (navigator as any)) {
+    (navigator as any).getBattery().then((batteryObj: any) => {
+      currentBattery = Math.round(batteryObj.level * 100);
+      batteryObj.addEventListener('levelchange', () => {
+        currentBattery = Math.round(batteryObj.level * 100);
+      });
+    }).catch(() => {});
+  }
 
   const pushUpdate = () => {
     if (isStopped) return;
-    updateChildPosition(code, currentLat, currentLng, inCorridor, currentAccuracy).catch((err) => {
+    updateChildPosition(code, currentLat, currentLng, inCorridor, currentAccuracy, currentBattery).catch((err) => {
       console.warn('Chyba při aktualizaci polohy dítěte do Firebase:', err);
     });
   };

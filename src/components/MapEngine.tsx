@@ -116,12 +116,13 @@ function MapController({
     },
     contextmenu(e) {
       try {
-        if (onMapRightClick) {
-          const { lat, lng } = e.latlng;
-          if (Number.isFinite(lat) && Number.isFinite(lng)) onMapRightClick(lat, lng);
+        // Deaktivace debugovacího listeneru: zamezení výchozího menu prohlížeče i tvorby testovacích kruhů/špendlíků
+        if (e.originalEvent) {
+          e.originalEvent.preventDefault();
+          e.originalEvent.stopPropagation();
         }
       } catch (err) {
-        console.error("Chyba při zpracování pravého kliku:", err);
+        console.error("Chyba při potlačení contextmenu:", err);
       }
     }
   });
@@ -1086,6 +1087,9 @@ export function MapEngine({
                     <p className="text-[11px] text-slate-300 m-0">
                       Poloha: {childLiveLocation.lat.toFixed(5)}, {childLiveLocation.lng.toFixed(5)}
                     </p>
+                    <p className="text-[11px] text-slate-300 m-0 mt-0.5">
+                      Stav baterie: <span className={`font-bold ${((childLiveLocation as any).battery ?? 85) <= 20 ? 'text-red-400' : 'text-emerald-400'}`}>{(childLiveLocation as any).battery ?? 85} %</span>
+                    </p>
                     <div className={`text-[10px] mt-1.5 font-semibold flex items-center gap-1 ${
                       isOffline
                         ? 'text-amber-400'
@@ -1104,28 +1108,6 @@ export function MapEngine({
             </Popup>
           </Marker>
         )}
-
-        {/* Bezpečné Zastávky (Geofencing) */}
-        {safeStops && safeStops.map((stop, idx) => (
-          <React.Fragment key={`safe-stop-${idx}`}>
-            <Circle
-              center={[stop.lat, stop.lng]}
-              radius={75}
-              pathOptions={{
-                color: '#3b82f6',
-                fillColor: '#60a5fa',
-                fillOpacity: 0.2,
-                weight: 2,
-                dashArray: '5, 5'
-              }}
-            />
-            <Marker position={[stop.lat, stop.lng]}>
-              <Popup>{stop.name}</Popup>
-            </Marker>
-          </React.Fragment>
-        ))}
-
-
 
         {/* Vektorové zóny a ulice */}
         {layers.zones && safetyContextActive && currentZoom >= 15 && (pragueVectorData.parks as SafetyZone[]).map((zone) => {
