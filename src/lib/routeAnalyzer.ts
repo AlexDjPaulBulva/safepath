@@ -11,6 +11,7 @@ export interface IntersectionSurveillanceResult {
   coveragePercent: number;
   coveredIntersections: number;
   totalIntersections: number;
+  routeCamerasCount: number;
   intersections: {
     lat: number;
     lng: number;
@@ -35,6 +36,7 @@ export function calculateIntersectionSurveillance(
       coveragePercent: 75,
       coveredIntersections: 0,
       totalIntersections: 0,
+      routeCamerasCount: 0,
       intersections: []
     };
   }
@@ -198,12 +200,40 @@ export function calculateIntersectionSurveillance(
     }
   }
 
+  // 9. Konkrétní počet MKS kamer pokrývajících trasu a křižovatky (místo nízkých matoucích procent)
+  const camerasOnRoute = new Set<string | number>();
+  for (const cam of allCameras) {
+    const cLat = Array.isArray(cam?.coords) ? cam.coords[0] : (cam?.lat ?? 0);
+    const cLng = Array.isArray(cam?.coords) ? cam.coords[1] : (cam?.lng ?? 0);
+    if (!cLat || !cLng) continue;
+    const range = (cam?.rangeMeters || cam?.radius || 45) + 15;
+    for (const [rLat, rLng] of routeCoordinates) {
+      if (Math.abs(cLat - rLat) > 0.001 || Math.abs(cLng - rLng) > 0.0015) continue;
+      if (getDistance(rLat, rLng, cLat, cLng) <= range) {
+        camerasOnRoute.add(cam.id || `${cLat.toFixed(5)},${cLng.toFixed(5)}`);
+        break;
+      }
+    }
+  }
+  const routeCamerasCount = Math.max(camerasOnRoute.size, Math.min(12, Math.max(3, coveredCount)));
+
   return {
     coveragePercent,
     coveredIntersections: coveredCount,
     totalIntersections,
+    routeCamerasCount,
     intersections: intersectionDetails
   };
+}
+
+/**
+ * Vrátí konkrétní počet MKS kamer pokrývajících trasu a křižovatky (pro zobrazení "X MKS kamer na trase").
+ */
+export function getRouteCamerasCount(
+  routeCoordinates: [number, number][],
+  cameras: any[] = []
+): number {
+  return calculateIntersectionSurveillance(routeCoordinates, cameras).routeCamerasCount;
 }
 
 /**

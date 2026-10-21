@@ -999,8 +999,8 @@ export function ParentDashboard({
 
         {/* GPS Recenter Floating Action Button */}
         <div 
-          className="fixed md:absolute right-4 md:right-6 z-[1000] transition-all"
-          style={{ bottom: 'calc(9.75rem + env(safe-area-inset-bottom, 0px))' }}
+          className="fixed md:absolute right-4 md:right-6 z-[1000] transition-all duration-300"
+          style={{ bottom: 'calc(var(--bottom-sheet-height, 9.5rem) + 4.5rem + env(safe-area-inset-bottom, 0px))' }}
         >
           <button
             onClick={handleRecenterGps}
@@ -1034,8 +1034,8 @@ export function ParentDashboard({
 
         {/* Safe Haven FAB Button */}
         <div 
-          className="fixed md:absolute right-4 md:right-6 z-[1000] transition-all"
-          style={{ bottom: 'calc(5.75rem + env(safe-area-inset-bottom, 0px))' }}
+          className="fixed md:absolute right-4 md:right-6 z-[1000] transition-all duration-300"
+          style={{ bottom: 'calc(var(--bottom-sheet-height, 9.5rem) + 12px + env(safe-area-inset-bottom, 0px))' }}
         >
           <SafeHavenButton
             currentLocation={simulatedLocation}

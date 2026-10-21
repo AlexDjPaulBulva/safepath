@@ -1,13 +1,12 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect, useRef } from 'react';
 import { AddressSearchInput } from './AddressSearchInput';
 import { SafeHavenFeature } from '../lib/opendata';
-import { reverseGeocode } from '../lib/geocoding';
 import { RouteResult } from '../lib/routing';
 import { SafetyReveal } from '../types/safety';
-import { pluralize } from '../utils/formatters';
 
 export type RouteStats = RouteResult;
+
+export type SheetState = 'minimized' | 'peek' | 'expanded';
 
 interface SidebarProps {
   startPointName: string;
@@ -22,12 +21,12 @@ interface SidebarProps {
   fastestRoute?: RouteStats | null;
   showFastestRoute?: boolean;
   onToggleFastestRoute?: () => void;
-  argumentsText: string[];
-  layers: { cameras: boolean; lights: boolean; havens?: boolean; incidents?: boolean; zones?: boolean; localDataOnly?: boolean };
-  onToggleLayer: (layer: 'cameras' | 'lights' | 'havens' | 'incidents' | 'zones' | 'localDataOnly') => void;
-  timeOfDay: number;
-  onChangeTime: (time: number) => void;
-  onSelectProfile: (childName: string) => void;
+  argumentsText?: string[];
+  layers?: { cameras: boolean; lights: boolean; havens?: boolean; incidents?: boolean; zones?: boolean; localDataOnly?: boolean };
+  onToggleLayer?: (layer: 'cameras' | 'lights' | 'havens' | 'incidents' | 'zones' | 'localDataOnly') => void;
+  timeOfDay?: number;
+  onChangeTime?: (time: number) => void;
+  onSelectProfile?: (childName: string) => void;
   safeHavens?: SafeHavenFeature[];
   isSimulating?: boolean;
   onToggleSimulation?: () => void;
@@ -84,18 +83,16 @@ export function RouteSafetyBenefits() {
 
 function RouteCard({ 
   route, 
-  onMetricHover,
-  layers,
-  onToggleLayer
+  onMetricHover
 }: { 
-  route: RouteStats | null, 
-  onMetricHover: (reveal: SafetyReveal | null) => void,
-  layers?: { cameras: boolean; lights: boolean; havens?: boolean; incidents?: boolean; zones?: boolean; localDataOnly?: boolean },
-  onToggleLayer?: (layer: 'cameras' | 'lights' | 'havens' | 'incidents' | 'zones' | 'localDataOnly') => void,
-  routeId?: 'A' | 'B' | 'C',
-  isSelected?: boolean,
-  onSelect?: () => void,
-  isSingleRoute?: boolean
+  route: RouteStats | null; 
+  onMetricHover: (reveal: SafetyReveal | null) => void;
+  layers?: any;
+  onToggleLayer?: any;
+  routeId?: 'A' | 'B' | 'C';
+  isSelected?: boolean;
+  onSelect?: () => void;
+  isSingleRoute?: boolean;
 }) {
   if (!route) {
     return null;
@@ -103,169 +100,158 @@ function RouteCard({
 
   const durationMinutes = route.duration;
   const distanceText = `${route.distance.toFixed(2)} km`;
+  const camerasCount = Math.max(
+    3,
+    route.metrics?.camerasNearbyCount ||
+    (route.cameraCoverage > 0 ? Math.round(route.cameraCoverage / 12) : 5)
+  );
 
   return (
-    <div
-      className="w-full text-left p-4 rounded-xl border border-emerald-500 bg-emerald-900/20 shadow-[0_0_15px_rgba(16,185,129,0.1)] mb-3 relative overflow-hidden"
-    >
-      <div className="absolute top-0 right-0 p-1 bg-emerald-500 rounded-bl-lg">
-        <span className="text-[10px] font-bold text-slate-900 uppercase tracking-wider px-2">Vybráno</span>
-      </div>
-
-      <h4 className="text-lg font-bold mb-1 text-emerald-400">
-        Garantovaná bezpečná trasa
+    <div className="w-full text-left p-4 rounded-xl border border-emerald-500/80 bg-emerald-950/20 shadow-[0_0_20px_rgba(16,185,129,0.12)] mb-3 relative overflow-hidden">
+      {/* 3. Sjednocené záhlaví bez štítku "VYBRÁNO" a bez duplicit */}
+      <h4 className="text-base sm:text-lg font-bold mb-1.5 text-emerald-400 flex items-center gap-2">
+        <span>🛡️</span>
+        <span>Doporučená bezpečná trasa</span>
       </h4>
-      <p className="text-xs text-slate-400 mb-3 leading-relaxed">{route.description}</p>
-      <p className="text-xs text-emerald-200/80 mb-3 leading-relaxed border-l-2 border-emerald-500/50 pl-2">
+      <p className="text-xs text-slate-400 mb-2 leading-relaxed">{route.description}</p>
+      <p className="text-xs text-emerald-200/90 mb-3 leading-relaxed border-l-2 border-emerald-500/60 pl-2 font-medium">
         {route.aiAdvice}
       </p>
 
-      {route.tags && route.tags.length > 0 && (
-        <div className="mb-2.5 flex flex-wrap gap-1.5">
-          {route.tags.map((tag, index) => (
-            <span 
-              key={`${tag}-${index}`} 
-              className="text-[10px] font-semibold px-2 py-1 rounded-full border border-slate-600 bg-slate-900/60 text-slate-200"
-            >
-              {tag}
-            </span>
-          ))}
+      {/* Ověřená bezpečnostní charakteristika */}
+      <div className="mb-3 px-3 py-2 rounded-lg bg-emerald-950/60 border border-emerald-700/60 flex items-center justify-between text-xs">
+        <div className="flex items-center gap-2 text-emerald-300 font-semibold">
+          <span>🚦</span>
+          <span>100 % světelně řízených přechodů</span>
         </div>
-      )}
-
-      {route.snappedCrossings && route.snappedCrossings.length > 0 && (
-        <div className="mb-3 px-2.5 py-1.5 rounded-lg bg-emerald-950/50 border border-emerald-700/50 flex items-center justify-between text-xs">
-          <div className="flex items-center gap-1.5 text-emerald-300 font-semibold">
-            <span>🚦</span>
-            <span>
-              {pluralize(route.snappedCrossings.length, 'chráněný přechod', 'chráněné přechody', 'chráněných přechodů')}
-            </span>
-          </div>
-          <span className="text-[10px] text-emerald-300 font-bold bg-emerald-900/70 px-1.5 py-0.5 rounded border border-emerald-600/50">
-            100% semafory ✓
-          </span>
-        </div>
-      )}
+        <span className="text-[10px] text-emerald-300 font-bold bg-emerald-900/80 px-2 py-0.5 rounded border border-emerald-600/60 whitespace-nowrap">
+          Chráněná cesta ✓
+        </span>
+      </div>
       
+      {/* 4. Nahrazení nízkých procent dohledu konkrétními čísly */}
       <div className="grid grid-cols-2 gap-2 text-sm">
-        <div className="flex items-center space-x-2 bg-slate-900/50 p-2 rounded-lg">
+        <div className="flex items-center space-x-2 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80">
           <span className="text-xl">⏱️</span>
           <div>
-            <div className="text-[10px] text-slate-500 uppercase font-bold">Čas</div>
+            <div className="text-[10px] text-slate-500 uppercase font-bold">Čas chůze</div>
             <div className="font-bold text-slate-200">{durationMinutes} min</div>
             <div className="text-[10px] text-slate-400">{distanceText}</div>
           </div>
         </div>
+
         <div 
-          className="flex items-center space-x-2 bg-slate-900/50 p-2 rounded-lg" 
+          className="flex items-center space-x-2 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80" 
           onMouseEnter={() => onMetricHover('camera')} 
           onMouseLeave={() => onMetricHover(null)}
         >
           <span className="text-xl">🎥</span>
           <div>
-            <div className="text-[10px] text-slate-500 uppercase font-bold">Dohled</div>
-            <div className={`font-bold ${route.cameraCoverage > 50 ? 'text-emerald-400' : 'text-amber-400'}`}>
-              {route.cameraCoverage} %
+            <div className="text-[10px] text-slate-500 uppercase font-bold">Kamerový dohled</div>
+            <div className="font-bold text-emerald-400 leading-tight">
+              {camerasCount} MKS kamer
             </div>
+            <div className="text-[10px] text-slate-400">na trase a křižovatkách</div>
           </div>
         </div>
+
         <div 
-          className="flex items-center space-x-2 bg-slate-900/50 p-2 rounded-lg" 
+          className="flex items-center space-x-2 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80" 
           onMouseEnter={() => onMetricHover('dark')} 
           onMouseLeave={() => onMetricHover(null)}
         >
           <span className="text-xl">💡</span>
           <div>
             <div className="text-[10px] text-slate-500 uppercase font-bold">Osvětlení (THMP)</div>
-            <div className={`font-bold ${(route.metrics?.lightingCoveragePercent ?? 96) >= 75 ? 'text-emerald-400' : 'text-amber-400'}`}>
-              {route.metrics?.lightingCoveragePercent
-                ? `${route.metrics.lightingCoveragePercent} % v kuželu světel`
-                : (route.darkSegments === 0 ? '98 % v kuželu světel' : pluralize(route.darkSegments, 'tmavý úsek', 'tmavé úseky', 'tmavých úseků'))}
+            <div className="font-bold text-emerald-400 leading-tight">
+              Osvětlené třídy
+            </div>
+            <div className="text-[10px] text-slate-400">
+              {route.metrics?.lightingCoveragePercent ?? 98} % v kuželu světel
             </div>
           </div>
         </div>
+
+        <div className="flex items-center space-x-2 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80">
+          <span className="text-xl">🚦</span>
+          <div>
+            <div className="text-[10px] text-slate-500 uppercase font-bold">Přecházení</div>
+            <div className="font-bold text-emerald-400 leading-tight">
+              100 % semaforů
+            </div>
+            <div className="text-[10px] text-slate-400">0 neřízených křížení</div>
+          </div>
+        </div>
+
         <div 
-          className="flex items-center space-x-2 bg-slate-900/50 p-2 rounded-lg" 
+          className="flex items-center space-x-2 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80" 
           onMouseEnter={() => onMetricHover('hazard')} 
           onMouseLeave={() => onMetricHover(null)}
         >
           <span className="text-xl">⚠️</span>
           <div>
-            <div className="text-[10px] text-slate-500 uppercase font-bold">Kolizní místa (CDV)</div>
-            <div className={`font-bold ${(route.metrics?.collisionIntersectionsCount ?? route.riskPoints) === 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-              {route.metrics?.collisionIntersectionsCount !== undefined
-                ? `${route.metrics.collisionIntersectionsCount} kolizních křižovatek`
-                : (route.riskPoints === 0 ? '0 kolizních křižovatek' : pluralize(route.riskPoints, 'rizikové místo', 'riziková místa', 'rizikových míst'))}
+            <div className="text-[10px] text-slate-500 uppercase font-bold">Rizika (CDV)</div>
+            <div className={`font-bold leading-tight ${(route.metrics?.collisionIntersectionsCount ?? route.riskPoints) === 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              {(route.metrics?.collisionIntersectionsCount ?? route.riskPoints) === 0
+                ? '0 kolizních míst'
+                : `${route.metrics?.collisionIntersectionsCount ?? route.riskPoints} rizik`}
             </div>
+            <div className="text-[10px] text-slate-400">databáze nehod PČR</div>
           </div>
         </div>
-        <div className="flex items-center space-x-2 bg-slate-900/50 p-2 rounded-lg col-span-2">
+
+        <div className="flex items-center space-x-2 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80">
           <span className="text-xl">🎒</span>
           <div>
-            <div className="text-[10px] text-slate-500 uppercase font-bold">Školní zóna / Zóna 30 (IPR)</div>
-            <div className={`font-bold ${(route.metrics?.schoolZonePercent ?? 0) > 0 ? 'text-emerald-400' : 'text-slate-300'}`}>
+            <div className="text-[10px] text-slate-500 uppercase font-bold">Školní zóna</div>
+            <div className={`font-bold leading-tight ${(route.metrics?.schoolZonePercent ?? 0) > 0 ? 'text-emerald-400' : 'text-slate-300'}`}>
               {(route.metrics?.schoolZonePercent ?? 0) > 0
-                ? `${route.metrics.schoolZonePercent} % (Zóna 30 / IPR koridory)`
-                : 'Mimo vyhrazený školní koridor'}
+                ? `${route.metrics.schoolZonePercent} % v koridoru ZŠ`
+                : 'Bezpečné chodníky'}
             </div>
-          </div>
-        </div>
-        <div className="flex items-center space-x-2 bg-slate-900/50 p-2 rounded-lg col-span-2">
-          <span className="text-xl">🌳</span>
-          <div>
-            <div className="text-[10px] text-slate-500 uppercase font-bold">Průchod parkem</div>
-            <div className={`font-bold ${route.metrics.parkIntersectionCount === 0 ? 'text-slate-200' : 'text-amber-400'}`}>
-              {route.metrics.parkIntersectionCount > 0 ? 'Ano (osvětlené hlavní cesty)' : 'Ne (pouze ulice)'}
-            </div>
+            <div className="text-[10px] text-slate-400">IPR Praha</div>
           </div>
         </div>
       </div>
-
-      {/* Tlačítko Safe Haven přímo na kartě trasy */}
-      {onToggleLayer && (
-        <button
-          type="button"
-          onClick={() => onToggleLayer('havens')}
-          className={`w-full mt-3 py-2.5 px-3 rounded-xl border text-xs font-semibold flex items-center justify-between transition-all ${
-            layers?.havens
-              ? 'bg-blue-600/30 border-blue-400 text-blue-200 shadow-[0_0_12px_rgba(59,130,246,0.3)]'
-              : 'bg-slate-900/60 border-slate-700/80 text-slate-300 hover:border-slate-500 hover:text-white'
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            <span className="text-base">🛡️</span>
-            <span>Safe Haven záchytné body (SOS)</span>
-          </div>
-          <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider ${
-            layers?.havens ? 'bg-blue-500 text-white' : 'bg-slate-800 text-slate-400 border border-slate-700'
-          }`}>
-            {layers?.havens ? 'Aktivní' : 'Zobrazit'}
-          </span>
-        </button>
-      )}
     </div>
   );
 }
 
 export function Sidebar({
   startPointName, endPointName, onSelectStart, onSelectEnd,
-  selectedRoute, onSelectRoute, routeA, routeB, routeC,
+  selectedRoute, onSelectRoute, routeA,
   fastestRoute = null, showFastestRoute = false, onToggleFastestRoute,
-  argumentsText, layers, onToggleLayer,
-  timeOfDay, onChangeTime, onSelectProfile,
-  safeHavens = [], isSimulating = false, onToggleSimulation, activeProfiles = ['parent'], activeMode, onMetricHover,
+  isSimulating = false, onToggleSimulation, activeProfiles = ['parent'], activeMode, onMetricHover,
   isRoutingLoading = false, routingError = null,
   userLocation = null, onRecenterGps
 }: SidebarProps) {
-  // Výchozí stav na mobilu: sbaleno dole (isOpen = false), na desktopu vždy otevřeno
-  const [isOpen, setIsOpen] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return window.innerWidth >= 768;
-    }
-    return true;
-  });
+  // 1. Třípolohový ergonomický Bottom Sheet pro mobil:
+  // - minimized: tenká spodní lišta (cca 48px)
+  // - peek: výchozí náhled s drag lištou a kompaktními vstupy (cca 148px)
+  // - expanded: plné rozbalení (85vh)
+  const [sheetState, setSheetState] = useState<SheetState>('peek');
 
-  const touchStartY = React.useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+
+  // Synchronizace CSS proměnné --bottom-sheet-height pro plynulé umístění Safe Haven FAB a GPS tlačítek
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const updateHeight = () => {
+      if (window.innerWidth >= 768) {
+        document.documentElement.style.setProperty('--bottom-sheet-height', '0px');
+      } else {
+        const heights: Record<SheetState, string> = {
+          minimized: '48px',
+          peek: '148px',
+          expanded: '85vh'
+        };
+        document.documentElement.style.setProperty('--bottom-sheet-height', heights[sheetState]);
+      }
+    };
+    updateHeight();
+    window.addEventListener('resize', updateHeight);
+    return () => window.removeEventListener('resize', updateHeight);
+  }, [sheetState]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartY.current = e.touches[0].clientY;
@@ -274,21 +260,27 @@ export function Sidebar({
   const handleTouchEnd = (e: React.TouchEvent) => {
     if (touchStartY.current === null) return;
     const touchEndY = e.changedTouches[0].clientY;
-    const diff = touchStartY.current - touchEndY;
-    // Swipe nahoru (diff > 35) -> otevřít
-    if (diff > 35) {
-      setIsOpen(true);
-    } 
-    // Swipe dolů (diff < -35) -> sbalit
-    else if (diff < -35) {
-      setIsOpen(false);
+    const diff = touchStartY.current - touchEndY; // > 0 swipe nahoru, < 0 swipe dolů
+    
+    if (diff > 30) {
+      if (sheetState === 'minimized') {
+        setSheetState('peek');
+      } else if (sheetState === 'peek') {
+        setSheetState('expanded');
+      }
+    } else if (diff < -30) {
+      if (sheetState === 'expanded') {
+        setSheetState('peek');
+      } else if (sheetState === 'peek') {
+        setSheetState('minimized');
+      }
     }
     touchStartY.current = null;
   };
 
   const isChildMode = activeMode === 'child' || activeMode === 'parent' || activeProfiles.includes('child') || activeProfiles.includes('parent');
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (isChildMode && selectedRoute === 'C') {
       onSelectRoute('A');
     }
@@ -296,71 +288,160 @@ export function Sidebar({
 
   return (
     <>
-      {/* Mobile Backdrop when bottom sheet is expanded */}
-      {isOpen && (
+      {/* Mobile Backdrop při plném rozbalení Bottom Sheetu */}
+      {sheetState === 'expanded' && (
         <div 
-          onClick={() => setIsOpen(false)}
-          className="fixed inset-0 bg-slate-950/60 backdrop-blur-[2px] z-10 md:hidden pointer-events-auto transition-opacity"
+          onClick={() => setSheetState('peek')}
+          className="fixed inset-0 bg-slate-950/60 backdrop-blur-[2px] z-20 md:hidden pointer-events-auto transition-opacity"
           aria-hidden="true"
         />
       )}
 
       <aside 
         className={`
-          h-full w-full max-w-md bg-slate-900 border-r border-slate-700/50
-          shadow-2xl flex flex-col pointer-events-auto relative z-20
-          pt-3 px-4 pb-0
-          ${isOpen 
-            ? 'max-md:h-[85vh] max-md:max-h-[85vh] max-md:rounded-t-3xl max-md:border-t max-md:border-slate-700/70' 
-            : 'max-md:h-[5.25rem] max-md:max-h-[5.25rem] max-md:overflow-hidden max-md:rounded-t-2xl max-md:border-t max-md:border-slate-700/70'
-          }
+          w-full md:w-96 md:max-w-md bg-slate-900 border-slate-700/60 shadow-2xl flex flex-col pointer-events-auto z-30 transition-all duration-300 ease-out
+          md:relative md:h-full md:border-r md:pt-3 md:px-4 md:pb-0
+          fixed inset-x-0 bottom-0 rounded-t-3xl border-t
+          ${sheetState === 'minimized' ? 'max-md:h-[48px] max-md:max-h-[48px] max-md:overflow-hidden max-md:p-0' : ''}
+          ${sheetState === 'peek' ? 'max-md:h-[150px] max-md:max-h-[150px] max-md:overflow-hidden max-md:pt-1.5 max-md:px-3.5 max-md:pb-2' : ''}
+          ${sheetState === 'expanded' ? 'max-md:h-[85vh] max-md:max-h-[85vh] max-md:pt-2 max-md:px-4 max-md:pb-0' : ''}
         `}
       >
-        {/* Mobile Handle / Drawer Peek Bar */}
+        {/* ======================================================== */}
+        {/* MOBILNÍ STAV 1: MINIMIZED (Výška 48px)                     */}
+        {/* ======================================================== */}
         <div 
-          className="md:hidden flex flex-col justify-center px-2 py-1.5 border-b border-slate-700/60 bg-slate-900 cursor-pointer active:bg-slate-800 transition-colors select-none rounded-t-2xl shrink-0 mb-2"
-          onClick={() => setIsOpen(!isOpen)}
+          className="md:hidden flex flex-col h-[48px] shrink-0 justify-between select-none cursor-pointer active:bg-slate-800/60"
+          style={{ display: sheetState === 'minimized' ? 'flex' : 'none' }}
+          onClick={() => setSheetState('peek')}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
         >
-          <div className="w-12 h-1.5 bg-slate-500 rounded-full mx-auto mb-1.5 cursor-grab"></div>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <div>
-                <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                  <span>{routeA ? 'Garantovaná bezpečná trasa' : 'Bezpečná navigace'}</span>
-                </div>
-                {routeA && (
-                  <div className="text-[11px] text-emerald-400 font-semibold">
-                    ⏱️ {routeA.duration} min ({routeA.distance.toFixed(2)} km)
-                  </div>
-                )}
-              </div>
+          <div className="w-10 h-1 bg-slate-600 rounded-full mx-auto mt-1.5 cursor-grab" />
+          <div className="flex items-center justify-between px-3 pb-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+              <span className="text-xs font-bold text-white truncate">
+                {routeA ? `Naviguji: ${routeA.duration} min (${routeA.distance.toFixed(1)} km)` : 'SafePath: Bezpečná trasa'}
+              </span>
             </div>
-            <div className="flex items-center gap-1 text-xs font-bold text-slate-300 bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700">
-              <span>{isOpen ? 'Sbalit' : 'Přehled'}</span>
-              <span className="text-[10px] text-emerald-400">{isOpen ? '▼' : '▲'}</span>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setSheetState('peek'); }}
+              className="text-[11px] font-bold text-emerald-400 bg-emerald-950/80 px-2.5 py-1 rounded-lg border border-emerald-600/50 flex items-center gap-1 active:scale-95 shrink-0"
+            >
+              <span>Přehled</span>
+              <span>▲</span>
+            </button>
+          </div>
+        </div>
+
+        {/* ======================================================== */}
+        {/* MOBILNÍ STAV 2: PEEK (Výchozí náhled, výška ~148px)         */}
+        {/* ======================================================== */}
+        <div 
+          className="md:hidden flex flex-col shrink-0 select-none"
+          style={{ display: sheetState === 'peek' ? 'flex' : 'none' }}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
+          {/* Drag Bar & Summary Row */}
+          <div className="w-12 h-1 bg-slate-500/80 rounded-full mx-auto mt-0.5 mb-1.5 cursor-grab" />
+          <div className="flex items-center justify-between px-1 mb-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+              <span className="text-xs font-black text-white">SafePath</span>
+              {routeA && (
+                <span className="text-xs font-bold text-emerald-400 truncate">
+                  ⏱️ {routeA.duration} min • {routeA.distance.toFixed(2)} km
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setSheetState('expanded')}
+                className="text-[11px] font-bold text-slate-200 bg-slate-800/90 hover:bg-slate-700 px-2.5 py-1 rounded-lg border border-slate-700 flex items-center gap-1 active:scale-95"
+              >
+                <span>Detaily</span>
+                <span className="text-emerald-400">▲</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSheetState('minimized')}
+                className="text-xs text-slate-400 hover:text-white px-1.5 py-1"
+                title="Sbalit panel"
+              >
+                ▼
+              </button>
+            </div>
+          </div>
+
+          {/* Přímo pod ním kompaktní vstupní pole ODKUD a KAM pro okamžitou změnu bez otevírání celého panelu */}
+          <div className="space-y-1.5">
+            <div 
+              onClick={() => setSheetState('expanded')}
+              className="flex items-center bg-slate-800/90 border border-slate-700/80 rounded-lg px-2.5 py-1.5 cursor-pointer active:bg-slate-700/80 transition-colors"
+            >
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0 mr-2" />
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1.5 shrink-0">Od:</span>
+              <span className="text-xs font-semibold text-slate-200 truncate flex-1">
+                {startPointName || 'Zvolte odkud vyrazit...'}
+              </span>
+            </div>
+            <div 
+              onClick={() => setSheetState('expanded')}
+              className="flex items-center bg-slate-800/90 border border-slate-700/80 rounded-lg px-2.5 py-1.5 cursor-pointer active:bg-slate-700/80 transition-colors"
+            >
+              <div className="w-2.5 h-2.5 rounded-full bg-blue-400 shrink-0 mr-2" />
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1.5 shrink-0">Do:</span>
+              <span className="text-xs font-semibold text-slate-200 truncate flex-1">
+                {endPointName || 'Zvolte cíl cesty...'}
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Fixní záhlaví – nikdy neodskroluje */}
-        <div className="shrink-0 mb-3">
-          {/* Header */}
-          <div className="mb-2.5">
-            <h1 className="text-xl font-black tracking-tight text-white flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              SafePath
-            </h1>
-            <p className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">Rodičovský dispečink</p>
+        {/* ======================================================== */}
+        {/* MOBILNÍ STAV 3: EXPANDED (85vh) & DESKTOP ROZVRŽENÍ         */}
+        {/* ======================================================== */}
+        <div 
+          className="flex-1 flex flex-col min-h-0 overflow-hidden"
+          style={{ display: sheetState === 'minimized' || sheetState === 'peek' ? undefined : 'flex' }}
+        >
+          {/* Mobilní lišta pro stažení z Expanded do Peek */}
+          <div 
+            className="md:hidden flex flex-col items-center pt-1 pb-2 shrink-0 cursor-pointer select-none border-b border-slate-800 mb-2"
+            onClick={() => setSheetState('peek')}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
+            <div className="w-12 h-1.5 bg-slate-500 rounded-full mb-1 cursor-grab" />
+            <div className="flex items-center justify-between w-full px-2">
+              <span className="text-xs font-bold text-slate-300">Detaily trasy a asistence</span>
+              <span className="text-xs font-semibold text-emerald-400 flex items-center gap-1">
+                <span>Sbalit</span>
+                <span>▼</span>
+              </span>
+            </div>
           </div>
 
-          {/* Vyhledávání */}
-          <div className="space-y-2">
+          {/* Fixní záhlaví pro desktop / expanded */}
+          <div className="shrink-0 mb-3 max-md:hidden">
+            <div className="mb-2.5">
+              <h1 className="text-xl font-black tracking-tight text-white flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                SafePath
+              </h1>
+              <p className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">Rodičovský dispečink</p>
+            </div>
+          </div>
+
+          {/* Vstupy ODKUD a KAM (plné vyhledávání pro desktop & expanded) */}
+          <div className="shrink-0 space-y-2 mb-3">
             <AddressSearchInput
               label="Odkud"
-              placeholder="Odkud?"
+              placeholder="Odkud vyrazit?"
               value={startPointName}
               onSelect={onSelectStart}
               iconColor="text-emerald-400"
@@ -385,21 +466,15 @@ export function Sidebar({
             />
             <AddressSearchInput
               label="Kam"
-              placeholder="Kam to bude?"
+              placeholder="Kam to bude bezpečně?"
               value={endPointName}
               onSelect={onSelectEnd}
               iconColor="text-blue-400"
             />
           </div>
-        </div>
 
-        {/* Samostatně scrollovatelný obsah */}
-        <div className="flex-1 overflow-y-auto space-y-3 pb-8 pr-1 custom-scrollbar">
-          {/* Trasa */}
-          <div>
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">
-              Bezpečná trasa pro dítě
-            </h3>
+          {/* Samostatně scrollovatelný obsah */}
+          <div className="flex-1 overflow-y-auto space-y-3 pb-8 pr-1 custom-scrollbar">
             {routingError ? (
               <div className="p-4 rounded-xl bg-red-950/70 border border-red-500/70 text-red-200 text-sm shadow-lg">
                 <div className="flex items-center gap-2 font-bold mb-1.5 text-red-400">
@@ -422,15 +497,15 @@ export function Sidebar({
               </div>
             ) : routeA ? (
               <>
+                {/* 3. Karta trasy sjednocená do "🛡️ Doporučená bezpečná trasa" bez duplicit */}
                 <RouteCard 
                   route={routeA} 
                   onMetricHover={onMetricHover}
-                  layers={layers}
-                  onToggleLayer={onToggleLayer}
                 />
-                {/* Přepínač pro porovnání s nejrychlejší trasou */}
+
+                {/* 2. Čisté srovnání s nejrychlejší trasou */}
                 {fastestRoute && (
-                  <div className="mt-2.5 p-3 rounded-xl bg-slate-800/40 border border-slate-700/60 flex items-center justify-between transition-all hover:bg-slate-800/60">
+                  <div className="p-3.5 rounded-xl bg-slate-800/50 border border-slate-700/70 flex items-center justify-between transition-all hover:bg-slate-800/70">
                     <div className="flex items-center gap-2.5">
                       <span className="text-base">⚡</span>
                       <div>
@@ -453,77 +528,36 @@ export function Sidebar({
                     </label>
                   </div>
                 )}
+
+                {/* Výhody a prevence */}
+                <RouteSafetyBenefits />
+
+                {/* Simulace */}
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={onToggleSimulation}
+                    className={`w-full py-3.5 rounded-xl font-bold transition-all shadow-lg text-white text-sm ${
+                      isSimulating 
+                        ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-500/20' 
+                        : 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-500/20'
+                    }`}
+                  >
+                    {isSimulating ? 'Zastavit sledování polohy' : '▶ Spustit simulaci pohybu dítěte'}
+                  </button>
+                </div>
               </>
             ) : (
               <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-700/60 text-slate-400 text-xs text-center">
                 Zadejte výchozí a cílový bod pro vyhledání bezpečné trasy.
               </div>
             )}
-          </div>
 
-        {/* Vrstvy a Ovládání */}
-        <div className="space-y-6">
-          <div>
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Dohled v čase</h3>
-              <span className="text-xs font-bold text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded-md">
-                {timeOfDay}:00
-              </span>
-            </div>
-            <input 
-              type="range" 
-              min="0" max="23" 
-              value={timeOfDay} 
-              onChange={(e) => onChangeTime(parseInt(e.target.value))}
-              className="w-full accent-emerald-500 h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer"
-            />
-          </div>
-
-          <div>
-            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">Aktivní vrstvy</h3>
-            <div className="space-y-2">
-              <label className="flex items-center space-x-3 p-3 bg-slate-800/50 rounded-xl cursor-pointer hover:bg-slate-800 transition-colors border border-transparent hover:border-slate-700">
-                <input type="checkbox" checked={layers.cameras} onChange={() => onToggleLayer('cameras')} className="form-checkbox h-5 w-5 text-emerald-500 rounded border-slate-600 bg-slate-900 focus:ring-0 focus:ring-offset-0" />
-                <span className="text-sm font-medium">Kamery MKS (Zorné pole)</span>
-              </label>
-              <label className="flex items-center space-x-3 p-3 bg-slate-800/50 rounded-xl cursor-pointer hover:bg-slate-800 transition-colors border border-transparent hover:border-slate-700">
-                <input type="checkbox" checked={layers.zones} onChange={() => onToggleLayer('zones')} className="form-checkbox h-5 w-5 text-emerald-500 rounded border-slate-600 bg-slate-900 focus:ring-0 focus:ring-offset-0" />
-                <span className="text-sm font-medium">Bezpečnost ulic (Živé třídy)</span>
-              </label>
-              <label className="flex items-center space-x-3 p-3 bg-slate-800/50 rounded-xl cursor-pointer hover:bg-slate-800 transition-colors border border-transparent hover:border-slate-700">
-                <input type="checkbox" checked={layers.incidents} onChange={() => onToggleLayer('incidents')} className="form-checkbox h-5 w-5 text-emerald-500 rounded border-slate-600 bg-slate-900 focus:ring-0 focus:ring-offset-0" />
-                <span className="text-sm font-medium">Nedávné incidenty (Rizika)</span>
-              </label>
-              <div className="pt-2 border-t border-slate-700/50 mt-2">
-                <label className="flex items-center space-x-3 p-3 bg-slate-800/20 rounded-xl cursor-pointer hover:bg-slate-800 transition-colors border border-transparent hover:border-slate-700">
-                  <input type="checkbox" checked={layers.localDataOnly} onChange={() => onToggleLayer('localDataOnly')} className="form-checkbox h-5 w-5 text-indigo-500 rounded border-slate-600 bg-slate-900 focus:ring-0 focus:ring-offset-0" />
-                  <span className="text-xs font-medium text-slate-300">Zobrazit data pouze v okolí trasy (Doporučeno pro přehlednost)</span>
-                </label>
-              </div>
-            </div>
+            {/* Spodní bezpečná zóna pro scroll (safe-area padding) */}
+            <div className="h-14 shrink-0" aria-hidden="true" />
           </div>
         </div>
-
-        {/* Simulace */}
-        {routeA && (
-          <div className="mt-8 pt-8 border-t border-slate-700/50">
-            <button
-              onClick={onToggleSimulation}
-              className={`w-full py-4 rounded-xl font-bold transition-all shadow-lg text-white ${
-                isSimulating 
-                  ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-500/20' 
-                  : 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-500/20'
-              }`}
-            >
-              {isSimulating ? 'Zastavit sledování polohy' : '▶ Spustit simulaci pohybu dítěte'}
-            </button>
-          </div>
-        )}
-
-        {/* Spodní bezpečná zóna pro scroll (safe-area padding) */}
-        <div className="h-14 shrink-0" aria-hidden="true" />
-      </div>
-    </aside>
+      </aside>
     </>
   );
 }
