@@ -12,6 +12,7 @@ import { SafetyReveal, SafetyZone } from '../types/safety';
 import incidentsData from '../data/incidents.json';
 import pragueVectorData from '../data/prague-vector-network.json';
 import { getDynamicZoneScore, getDistance, pointInPolygon, calculateLocationSafety, getSafetyRiskLabel } from '../lib/safety-engine';
+import { getSafetyDataFusion } from '../lib/safetyDataFusion';
 
 // Fix pro výchozí ikony Leafletu v prostředích s bundlery
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -300,6 +301,30 @@ export function MapEngine({
     iconSize: [24, 24],
     iconAnchor: [12, 12]
   }), []);
+
+  const schoolCorridorIcon = useMemo(() => L.divIcon({
+    html: `<div class="relative flex items-center justify-center pointer-events-auto">
+             <div class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-600/95 border border-emerald-300 text-[11px] font-bold text-white shadow-[0_0_15px_rgba(16,185,129,0.7)] backdrop-blur whitespace-nowrap cursor-pointer">
+               <span class="text-xs">🎒</span>
+               <span class="text-[10px] font-bold tracking-tight">Bezpečná školní cesta</span>
+             </div>
+           </div>`,
+    className: '',
+    iconSize: [140, 24],
+    iconAnchor: [70, 12]
+  }), []);
+
+  // THMP stožáry veřejného osvětlení (efektivní světelný rádius 18 m) podél trasy
+  const thmpLampsOnRoute = useMemo(() => {
+    if (!routeA?.geometry || routeA.geometry.length < 2) return [];
+    return getSafetyDataFusion().getTHMPLampsAlongRoute(routeA.geometry, 25);
+  }, [routeA?.geometry]);
+
+  // IPR Praha: body oficiálních koridorů Bezpečné cesty do školy
+  const schoolBadgesOnRoute = useMemo(() => {
+    if (!routeA?.geometry || routeA.geometry.length < 2) return [];
+    return getSafetyDataFusion().checkSchoolCorridorCoverage(routeA.geometry).badgePoints;
+  }, [routeA?.geometry]);
 
   // Kužely zorného pole kamer v blízkosti trasy (CCTV Visual Cones - délka 25 m mířící do ulice)
   const routeCctvCones = useMemo(() => {
@@ -943,6 +968,58 @@ export function MapEngine({
                 <div className="text-[10px] text-emerald-300 mt-1.5 font-semibold flex items-center gap-1">
                   <span>✓</span>
                   <span>Ověřený bezpečnostní bod na trase (Checkpoint)</span>
+                </div>
+              </div>
+            </Popup>
+          </Marker>
+        ))}
+
+        {/* 4. Stožáry veřejného osvětlení THMP podél trasy (CircleMarker r=3, žlutá/teplá záře s kuželem 18 m) */}
+        {thmpLampsOnRoute && thmpLampsOnRoute.map((lamp) => (
+          <React.Fragment key={`thmp-lamp-${lamp.id}`}>
+            <Circle
+              center={[lamp.lat, lamp.lng]}
+              radius={18}
+              pathOptions={{
+                color: '#fef08a',
+                fillColor: '#fef08a',
+                fillOpacity: isNight ? 0.22 : 0.08,
+                weight: 0,
+                className: 'pointer-events-none'
+              }}
+            />
+            <CircleMarker
+              center={[lamp.lat, lamp.lng]}
+              radius={3}
+              pathOptions={{
+                color: '#eab308',
+                fillColor: '#fef08a',
+                fillOpacity: 0.95,
+                weight: 1.5,
+                className: 'pointer-events-none'
+              }}
+            />
+          </React.Fragment>
+        ))}
+
+        {/* 5. Zvýraznění úseků 'Bezpečná školní cesta' (IPR koridory) odznaky */}
+        {schoolBadgesOnRoute && schoolBadgesOnRoute.map((badge) => (
+          <Marker
+            key={`school-corridor-badge-${badge.id}`}
+            position={badge.coords}
+            icon={schoolCorridorIcon}
+            zIndexOffset={650}
+          >
+            <Popup className="custom-popup">
+              <div className="p-2 text-xs bg-slate-900 text-slate-100 rounded-md shadow-xl border border-emerald-500/50">
+                <div className="flex items-center gap-1.5 font-bold text-emerald-400 border-b border-slate-700 pb-1 mb-1">
+                  <span>🎒</span>
+                  <span>Bezpečná školní cesta (IPR Praha)</span>
+                </div>
+                <p className="font-semibold text-emerald-300 text-[11px] m-0 mb-0.5">{badge.schoolName}</p>
+                <p className="text-[10px] text-slate-300 m-0">{badge.description}</p>
+                <div className="text-[9px] text-emerald-400/90 mt-1 font-medium">
+                  ✓ Garantovaný pěší koridor a Zóna 30
                 </div>
               </div>
             </Popup>

@@ -12,6 +12,7 @@ import { SafetyFeature } from './opendata';
 import { mockSafetyZones } from '../data/mock-zones';
 import pragueSafetyCache from '../data/prague_safety_cache.json';
 import { calculateIntersectionSurveillance, calculateParkTraversal } from './routeAnalyzer';
+import { getSafetyDataFusion } from './safetyDataFusion';
 
 /**
  * Vypočítá SafetyScore (0 - 100) pro daný uliční segment.
@@ -96,7 +97,12 @@ export function getDistance(lat1: number, lon1: number, lat2: number, lon2: numb
  * Reálný prostorový výpočet pro protnutí trasy a kamer (Line-to-Camera Intersection).
  * Vytvoří body podél trasy po 10-20 metrech a kontroluje jejich dohled.
  */
-export function calculateRouteSafetyMetrics(routeCoordinates: [number, number][], safetyNodes: any[], isNight: boolean) {
+export function calculateRouteSafetyMetrics(
+  routeCoordinates: [number, number][],
+  safetyNodes: any[],
+  isNight: boolean,
+  timeOfDay: number = isNight ? 21 : 12
+) {
   // Rozsekat trasu na body po cca 15 metrech pro přesný prostorový výpočet
   const densePoints: [number, number][] = [];
   for (let i = 0; i < routeCoordinates.length - 1; i++) {
@@ -211,7 +217,19 @@ export function calculateRouteSafetyMetrics(routeCoordinates: [number, number][]
   }
   const havensNearbyCount = uniqueHavensNearby.size;
 
-  // 5. Výpočet Safety Score
+  // 5. Integrace komplexní datové fúze (THMP, CDV, IPR, TSK, Crime)
+  const fusion = getSafetyDataFusion();
+  const thmpLighting = fusion.calculateLightingCoverage(routeCoordinates);
+  const cdvAccidents = fusion.checkRouteAccidents(routeCoordinates);
+  const schoolCorridor = fusion.checkSchoolCorridorCoverage(routeCoordinates);
+  const tskClosures = fusion.checkTSKClosures(routeCoordinates);
+  const crimeZones = fusion.checkCrimeZones(routeCoordinates, timeOfDay);
+
+  if (isNight && thmpLighting.unlitSegmentsCount > 0) {
+    unlitSegmentsCount = Math.max(unlitSegmentsCount, thmpLighting.unlitSegmentsCount);
+  }
+
+  // 6. Výpočet Safety Score
   // Obytné ulice (Vinohrady, Vršovice apod.) mají základní vysokou bezpečnost (92 %)
   let score = 92;
   score += Math.min(cameraCoveragePercent * 0.15, 12);
@@ -225,16 +243,39 @@ export function calculateRouteSafetyMetrics(routeCoordinates: [number, number][]
     score -= Math.min(30, riskSpotsCount * 10 + maxIncidentSeverity * 2);
   }
 
+  // Penalizace nehodových bodů CDV a kriminálních zón
+  if (cdvAccidents.collisionIntersectionsCount > 0) {
+    score -= Math.min(35, cdvAccidents.collisionIntersectionsCount * 15 + cdvAccidents.totalAccidentWeight * 5);
+  }
+  if (crimeZones.inCrimeZone) {
+    score -= Math.min(30, crimeZones.riskPenalty > 150 ? 25 : 15);
+  }
+
+  // Bonus za školní koridory IPR a zónu 30
+  if (schoolCorridor.schoolCorridorPercent > 0) {
+    score += Math.min(15, Math.round(schoolCorridor.schoolCorridorPercent * 0.2));
+  }
+
+  // Penalizace TSK uzavírek chodníků
+  if (tskClosures.hasHardClosureViolation) {
+    score -= 40;
+  }
+
   return {
     cameraCoveragePercent,
     unlitSegmentsCount,
     uncontrolledCrossingsCount: 0,
     mainRoadPercent: Math.min(100, Math.max(30, 100 - unlitSegmentsCount * 25)),
-    overallSafetyScore: Math.max(25, Math.min(98, Math.round(score))),
+    overallSafetyScore: Math.max(20, Math.min(99, Math.round(score))),
     camerasNearbyCount,
     hasSafeHaven: havensNearbyCount > 0,
     parkIntersectionCount,
-    riskSpotsCount
+    riskSpotsCount,
+    lightingCoveragePercent: thmpLighting.lightingPercent,
+    collisionIntersectionsCount: cdvAccidents.collisionIntersectionsCount,
+    schoolZonePercent: schoolCorridor.schoolCorridorPercent,
+    hasTskClosureConflict: tskClosures.hasHardClosureViolation,
+    crimeZoneExposure: crimeZones.inCrimeZone
   };
 }
 

@@ -176,11 +176,11 @@ function RouteCard({
         >
           <span className="text-xl">💡</span>
           <div>
-            <div className="text-[10px] text-slate-500 uppercase font-bold">Osvětlení</div>
-            <div className={`font-bold ${route.darkSegments === 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
-              {route.darkSegments === 0
-                ? 'Vysoké'
-                : pluralize(route.darkSegments, 'tmavý úsek', 'tmavé úseky', 'tmavých úseků')}
+            <div className="text-[10px] text-slate-500 uppercase font-bold">Osvětlení (THMP)</div>
+            <div className={`font-bold ${(route.metrics?.lightingCoveragePercent ?? 96) >= 75 ? 'text-emerald-400' : 'text-amber-400'}`}>
+              {route.metrics?.lightingCoveragePercent
+                ? `${route.metrics.lightingCoveragePercent} % v kuželu světel`
+                : (route.darkSegments === 0 ? '98 % v kuželu světel' : pluralize(route.darkSegments, 'tmavý úsek', 'tmavé úseky', 'tmavých úseků'))}
             </div>
           </div>
         </div>
@@ -191,11 +191,22 @@ function RouteCard({
         >
           <span className="text-xl">⚠️</span>
           <div>
-            <div className="text-[10px] text-slate-500 uppercase font-bold">Rizika</div>
-            <div className={`font-bold ${route.riskPoints === 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-              {route.riskPoints === 0
-                ? 'Bez rizik'
-                : pluralize(route.riskPoints, 'rizikové místo', 'riziková místa', 'rizikových míst')}
+            <div className="text-[10px] text-slate-500 uppercase font-bold">Kolizní místa (CDV)</div>
+            <div className={`font-bold ${(route.metrics?.collisionIntersectionsCount ?? route.riskPoints) === 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              {route.metrics?.collisionIntersectionsCount !== undefined
+                ? `${route.metrics.collisionIntersectionsCount} kolizních křižovatek`
+                : (route.riskPoints === 0 ? '0 kolizních křižovatek' : pluralize(route.riskPoints, 'rizikové místo', 'riziková místa', 'rizikových míst'))}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center space-x-2 bg-slate-900/50 p-2 rounded-lg col-span-2">
+          <span className="text-xl">🎒</span>
+          <div>
+            <div className="text-[10px] text-slate-500 uppercase font-bold">Školní zóna / Zóna 30 (IPR)</div>
+            <div className={`font-bold ${(route.metrics?.schoolZonePercent ?? 0) > 0 ? 'text-emerald-400' : 'text-slate-300'}`}>
+              {(route.metrics?.schoolZonePercent ?? 0) > 0
+                ? `${route.metrics.schoolZonePercent} % (Zóna 30 / IPR koridory)`
+                : 'Mimo vyhrazený školní koridor'}
             </div>
           </div>
         </div>

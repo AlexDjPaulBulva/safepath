@@ -14,6 +14,7 @@ import {
   createSafeTurfLineString
 } from './pedestrianGeometryEngine';
 import { fetchAndIndexCrossings, PedestrianCrossing, getGlobalCrossingIndex } from './crossings';
+import { getSafetyDataFusion } from './safetyDataFusion';
 
 export {
   getDistance,
@@ -58,6 +59,11 @@ export interface RouteMetrics {
   riskSpotsCount: number;
   snappedCrossingsCount?: number;
   childSafetyValid?: boolean;
+  lightingCoveragePercent?: number;
+  collisionIntersectionsCount?: number;
+  schoolZonePercent?: number;
+  hasTskClosureConflict?: boolean;
+  crimeZoneExposure?: boolean;
 }
 
 export interface RouteResult {
@@ -83,6 +89,10 @@ export interface RouteResult {
   uncontrolledCrossingsCount?: number;
   warningHazardPoints?: [number, number][];
   warningViolations?: Array<{ roadName: string; point: [number, number]; description: string }>;
+  lightingCoveragePercent?: number;
+  collisionIntersectionsCount?: number;
+  schoolZonePercent?: number;
+  hasTskClosureConflict?: boolean;
 }
 
 const ROUTE_FETCH_TIMEOUT_MS = 8000;
@@ -400,7 +410,8 @@ function evaluateRoute(
   isNight: boolean,
   profiles: string[],
   startPoint: [number, number],
-  endPoint: [number, number]
+  endPoint: [number, number],
+  timeOfDay: number = isNight ? 21 : 12
 ): EvaluatedCandidate {
   // 2. Přímé předání geometrie z pěšího routingu:
   // Geometrie trasy předávaná do Leaflet <Polyline> MUSÍ být čisté, nezmutované pole [lat, lng] přímo z pěšího OSRM (profil foot)
@@ -536,7 +547,7 @@ function evaluateRoute(
   const effectiveDistance = Math.max(rawRoute.distance, microResult.totalDistanceMeters);
   let metrics: ReturnType<typeof calculateRouteSafetyMetrics>;
   try {
-    metrics = calculateRouteSafetyMetrics(displayGeometry, safetyNodes, isNight);
+    metrics = calculateRouteSafetyMetrics(displayGeometry, safetyNodes, isNight, timeOfDay);
   } catch (metricErr) {
     console.warn('calculateRouteSafetyMetrics failed, using base metrics:', metricErr);
     metrics = {
@@ -548,7 +559,12 @@ function evaluateRoute(
       camerasNearbyCount: 2,
       hasSafeHaven: false,
       parkIntersectionCount: 0,
-      riskSpotsCount: 0
+      riskSpotsCount: 0,
+      lightingCoveragePercent: 95,
+      collisionIntersectionsCount: 0,
+      schoolZonePercent: 0,
+      hasTskClosureConflict: false,
+      crimeZoneExposure: false
     };
   }
 
@@ -568,14 +584,34 @@ function evaluateRoute(
     }
   }
 
-  // Bonus za bezpečné přechody a validaci dětské bezpečnosti (včetně tramvají a nočních bran)
+  // Komplexní bezpečnostní kontroly fúze dat (TSK výkopy, CDV nehody, IPR školy, kriminalita)
+  const fusion = getSafetyDataFusion();
+  const tskCheck = fusion.checkTSKClosures(displayGeometry);
+  const cdvCheck = fusion.checkRouteAccidents(displayGeometry);
+  const crimeCheck = fusion.checkCrimeZones(displayGeometry, timeOfDay);
+  const schoolCheck = fusion.checkSchoolCorridorCoverage(displayGeometry);
+
+  // Hard veto pro TSK výkopy a zábory chodníků nutící do vozovky
+  const tskPenalty = tskCheck.hasHardClosureViolation ? 5000 : 0;
+  // +300% penalizace za nehodová místa CDV se srážkou chodce
+  const cdvPenalty = cdvCheck.collisionIntersectionsCount * 300 + cdvCheck.totalAccidentWeight * 50;
+  // +300% penalizace pro kriminální zóny ve večerních a nočních hodinách
+  const crimePenalty = (isNight && crimeCheck.inCrimeZone) ? crimeCheck.riskPenalty * 3 : 0;
+  // -40% váhový bonus pro IPR školní koridory a zóny 30
+  const schoolBonus = Math.round(schoolCheck.schoolCorridorPercent * 1.5);
+
+  // Bonus za bezpečné přechody a validaci dětské bezpečnosti (včetně tramvají, nočních bran, TSK a CDV)
   const tramSafety = validateTramCrossingSafety(displayGeometry);
   const isTramSafe = tramSafety.isTramSafe;
-  const isChildSafe = (microResult.childSafety?.isChildSafe ?? true) && isTramSafe && !hasGatedNightBreach;
+  const isChildSafe = (microResult.childSafety?.isChildSafe ?? true) &&
+    isTramSafe &&
+    !hasGatedNightBreach &&
+    !tskCheck.hasHardClosureViolation &&
+    (cdvCheck.collisionIntersectionsCount === 0);
+
   const crossingsBonus = (microResult.snappedCrossings?.length || 0) * 4;
-  const childSafetyBonus = isChildSafe ? 15 : (isTramSafe ? -100 : -600);
+  const childSafetyBonus = isChildSafe ? 25 : (isTramSafe ? -150 : -600);
   const gatedPenalty = hasGatedNightBreach ? 150 : 0;
-  const tramPenalty = isTramSafe ? 0 : 500;
 
   const livelyScore =
     metrics.overallSafetyScore * 0.55 +
@@ -584,16 +620,24 @@ function evaluateRoute(
     (isNight ? metrics.parkIntersectionCount * 12 : 0) -
     metrics.riskSpotsCount * 6 +
     crossingsBonus +
-    childSafetyBonus -
-    gatedPenalty;
+    childSafetyBonus +
+    schoolBonus -
+    gatedPenalty -
+    tskPenalty -
+    cdvPenalty -
+    crimePenalty;
 
   const surveillanceScore =
     metrics.cameraCoveragePercent * 0.60 +
     metrics.camerasNearbyCount * 4 +
     (metrics.hasSafeHaven ? 15 : 0) +
     metrics.overallSafetyScore * 0.30 +
-    crossingsBonus -
-    gatedPenalty;
+    crossingsBonus +
+    schoolBonus -
+    gatedPenalty -
+    tskPenalty -
+    cdvPenalty -
+    crimePenalty;
 
   return {
     rawRoute,
@@ -605,7 +649,12 @@ function evaluateRoute(
       ...metrics,
       durationMinutes,
       snappedCrossingsCount: microResult.snappedCrossings?.length || 0,
-      childSafetyValid: isChildSafe
+      childSafetyValid: isChildSafe,
+      lightingCoveragePercent: metrics.lightingCoveragePercent ?? 96,
+      collisionIntersectionsCount: cdvCheck.collisionIntersectionsCount,
+      schoolZonePercent: schoolCheck.schoolCorridorPercent,
+      hasTskClosureConflict: tskCheck.hasHardClosureViolation,
+      crimeZoneExposure: crimeCheck.inCrimeZone
     },
     livelyScore,
     surveillanceScore,
@@ -646,7 +695,11 @@ function candidateToRouteResult(
     },
     tags,
     snappedCrossings: candidate.snappedCrossings,
-    childSafetyValid: candidate.childSafetyValid
+    childSafetyValid: candidate.childSafetyValid,
+    lightingCoveragePercent: candidate.metrics.lightingCoveragePercent,
+    collisionIntersectionsCount: candidate.metrics.collisionIntersectionsCount,
+    schoolZonePercent: candidate.metrics.schoolZonePercent,
+    hasTskClosureConflict: candidate.metrics.hasTskClosureConflict
   };
 }
 
@@ -944,20 +997,30 @@ export async function fetchOSRMRoute(
     throw new Error('Neplatné souřadnice počátku nebo cíle.');
   }
 
-  // 1. Asynchronní příprava / vytěžení přechodů pro aktivní oblast
+  // 1. RÚIAN First/Last Mile Snapping na uliční čáru chodníku (do 60 m)
+  const fusion = getSafetyDataFusion();
+  const snappedStart = fusion.snapToNearestRuianEntrance(sLat, sLng, 60);
+  const snappedEnd = fusion.snapToNearestRuianEntrance(eLat, eLng, 60);
+
+  const routeSLat = snappedStart ? snappedStart.lat : sLat;
+  const routeSLng = snappedStart ? snappedStart.lng : sLng;
+  const routeELat = snappedEnd ? snappedEnd.lat : eLat;
+  const routeELng = snappedEnd ? snappedEnd.lng : eLng;
+
+  // 2. Asynchronní příprava / vytěžení přechodů pro aktivní oblast
   const bbox = {
-    south: Math.min(sLat, eLat) - 0.008,
-    west: Math.min(sLng, eLng) - 0.012,
-    north: Math.max(sLat, eLat) + 0.008,
-    east: Math.max(sLng, eLng) + 0.012
+    south: Math.min(routeSLat, routeELat) - 0.008,
+    west: Math.min(routeSLng, routeELng) - 0.012,
+    north: Math.max(routeSLat, routeELat) + 0.008,
+    east: Math.max(routeSLng, routeELng) + 0.012
   };
   fetchAndIndexCrossings(bbox).catch(() => {});
 
   const isNight = timeOfDay >= 18 || timeOfDay <= 6;
   const isNightGirl = profiles.includes('night_girl');
 
-  // 2. Načtení základních pěších alternativ
-  let rawRoutes = await fetchFootAlternatives(sLng, sLat, eLng, eLat);
+  // 3. Načtení základních pěších alternativ
+  let rawRoutes = await fetchFootAlternatives(routeSLng, routeSLat, routeELng, routeELat);
 
   if (!rawRoutes || rawRoutes.length === 0) {
     throw new Error('Nelze nalézt pěší trasu po komunikacích. Zkuste body posunout blíže ke komunikaci.');
@@ -967,7 +1030,7 @@ export async function fetchOSRMRoute(
   const rawFastest = rawRoutes[0];
   let fastestRoute: RouteResult | null = null;
   try {
-    const fastestCandidate = evaluateRoute(rawFastest, safetyNodes, isNight, profiles, [sLat, sLng], [eLat, eLng]);
+    const fastestCandidate = evaluateRoute(rawFastest, safetyNodes, isNight, profiles, [routeSLat, routeSLng], [routeELat, routeELng], timeOfDay);
     fastestRoute = candidateToRouteResult(
       fastestCandidate,
       'routeC',
@@ -980,12 +1043,12 @@ export async function fetchOSRMRoute(
     console.warn('Evaluace fastestRoute se nezdařila:', fastestErr);
   }
 
-  // 3. Aktivní bezpečnostní trasování přes bezpečné uzly (Safe Transit Hubs)
+  // 4. Aktivní bezpečnostní trasování přes bezpečné uzly (Safe Transit Hubs)
   // Pokud cesta vede bočními uličkami, odkloníme trasu na osvětlený bulvár s MKS kamerami a světelnými přechody (max 25% prodloužení)
   try {
-    const transitHubs = findSafeTransitHubs(sLat, sLng, eLat, eLng, safetyNodes, rawFastest.distance);
+    const transitHubs = findSafeTransitHubs(routeSLat, routeSLng, routeELat, routeELng, safetyNodes, rawFastest.distance);
     for (const hub of transitHubs.slice(0, 3)) {
-      const hubRoutes = await fetchFootRouteWithWaypoint(sLng, sLat, hub.coords[1], hub.coords[0], eLng, eLat);
+      const hubRoutes = await fetchFootRouteWithWaypoint(routeSLng, routeSLat, hub.coords[1], hub.coords[0], routeELng, routeELat);
       if (hubRoutes && hubRoutes.length > 0) {
         const candidateHubRoute = hubRoutes[0];
         if (candidateHubRoute.distance <= rawFastest.distance * 1.25) {
@@ -998,32 +1061,36 @@ export async function fetchOSRMRoute(
     console.warn('Aktivní bezpečnostní trasování přes koridor selhalo, pokračuji se standardními trasami:', hubErr);
   }
 
-  // 4. Child Safety Constraint validace a re-routing přes světelnou křižovatku (včetně tramvajových linek)
+  // 5. Child Safety Constraint & TSK uzávěrky: validace a re-routing přes světelnou křižovatku nebo obcházku výkopu
   try {
     const primaryRouteCoords: [number, number][] = rawRoutes[0].geometry.coordinates.map(
       ([lng, lat]: [number, number]) => [lat, lng]
     );
     const safetyCheck = validateChildSafetyConstraint(primaryRouteCoords, getGlobalCrossingIndex());
     const tramCheck = validateTramCrossingSafety(primaryRouteCoords);
+    const tskCheck = fusion.checkTSKClosures(primaryRouteCoords);
 
     let suggestedWp = safetyCheck.suggestedWaypoint;
     if (!tramCheck.isTramSafe && tramCheck.tramViolations.length > 0) {
       suggestedWp = tramCheck.tramViolations[0].nearestSignalizedCrossing.coords;
+    } else if (tskCheck.hasHardClosureViolation && tskCheck.closureViolations.length > 0) {
+      const vPt = tskCheck.closureViolations[0].point;
+      suggestedWp = [vPt[0] + 0.0006, vPt[1] + 0.0006];
     }
 
-    if ((!safetyCheck.isChildSafe || !tramCheck.isTramSafe) && suggestedWp) {
+    if ((!safetyCheck.isChildSafe || !tramCheck.isTramSafe || tskCheck.hasHardClosureViolation) && suggestedWp) {
       const wp = suggestedWp;
-      const wpRoutes = await fetchFootRouteWithWaypoint(sLng, sLat, wp[1], wp[0], eLng, eLat);
+      const wpRoutes = await fetchFootRouteWithWaypoint(routeSLng, routeSLat, wp[1], wp[0], routeELng, routeELat);
       if (wpRoutes && wpRoutes.length > 0) {
-        // Vložíme bezpečnou trasu vedenou přes světelnou křižovatku jako prioritní variantu
+        // Vložíme bezpečnou trasu vedenou přes světelnou křižovatku nebo obcházku výkopu jako prioritní variantu
         rawRoutes.unshift(wpRoutes[0]);
       }
     }
   } catch (safetyErr) {
-    console.warn('Child safety routing check failed, continuing with direct routes:', safetyErr);
+    console.warn('Child safety / TSK routing check failed, continuing with direct routes:', safetyErr);
   }
 
-  // 4. Nalezení minimální fyzické délky trasy a vyřazení neúměrných zacházek
+  // 6. Nalezení minimální fyzické délky trasy a vyřazení neúměrných zacházek
   const minDistance = Math.min(...rawRoutes.map(r => r.distance));
   const maxAllowedDistance = minDistance * MAX_DETOUR_RATIO;
 
@@ -1032,15 +1099,15 @@ export async function fetchOSRMRoute(
     eligibleRoutes = [rawRoutes.reduce((best, cur) => (cur.distance < best.distance ? cur : best))];
   }
 
-  // 5. Rekonstrukce mikrogeometrie a vyhodnocení pro každou alternativu
+  // 7. Rekonstrukce mikrogeometrie a vyhodnocení pro každou alternativu
   const candidates: EvaluatedCandidate[] = eligibleRoutes.map(r => {
     try {
-      return evaluateRoute(r, safetyNodes, isNight, profiles, [sLat, sLng], [eLat, eLng]);
+      return evaluateRoute(r, safetyNodes, isNight, profiles, [routeSLat, routeSLng], [routeELat, routeELng], timeOfDay);
     } catch (evalErr) {
       console.warn('evaluateRoute failed for candidate, using raw geometry fallback:', evalErr);
       const rawCoords: [number, number][] = r.geometry.coordinates;
       const geometry: [number, number][] = rawCoords.map(([lng, lat]) => [lat, lng]);
-      const metrics = calculateRouteSafetyMetrics(geometry, safetyNodes, isNight);
+      const metrics = calculateRouteSafetyMetrics(geometry, safetyNodes, isNight, timeOfDay);
       const durationMinutes = getWalkingDurationMinutes(r.distance, STANDARD_WALK_SPEED_KMH);
       return {
         rawRoute: r,
@@ -1069,7 +1136,7 @@ export async function fetchOSRMRoute(
 
   const childSafeCandidates = candidates.filter(c => c.childSafetyValid);
 
-  // 6. Vyhodnocení a filtrace tras podle aktivního režimu
+  // 8. Vyhodnocení a filtrace tras podle aktivního režimu
   const isChildMode = activeMode === 'child' || profiles.includes('child') || activeMode === 'parent' || profiles.includes('parent');
 
   if (isChildMode) {
@@ -1081,12 +1148,18 @@ export async function fetchOSRMRoute(
     // - nesmí obsahovat nechráněné přechody přes víceproudé komunikace ani tramvajové pásy (křížení tramvaje MUSÍ mít crossing=traffic_signals)
     // - nulový výskyt rizikových zón
     // - nulový výskyt neřízených přechodů na hlavních komunikacích
+    // - nulový konflikt s TSK výkopy na chodníku (Hard Veto)
+    // - nulový výskyt nehodových lokalit CDV se srážkou chodce
     const isCandidateChildSafe = (c: EvaluatedCandidate) => {
       const tramCheck = validateTramCrossingSafety(c.geometry);
+      const tskCheck = fusion.checkTSKClosures(c.geometry);
+      const cdvCheck = fusion.checkRouteAccidents(c.geometry);
       const childSafeCrossing = c.childSafetyValid === true && tramCheck.isTramSafe;
       const noRiskSpots = (c.metrics.riskSpotsCount ?? 0) === 0;
       const noUncontrolledCrossings = (c.metrics.uncontrolledCrossingsCount ?? 0) === 0;
-      return childSafeCrossing && noRiskSpots && noUncontrolledCrossings;
+      const noTskClosure = !tskCheck.hasHardClosureViolation;
+      const noCdvAccidents = cdvCheck.collisionIntersectionsCount === 0;
+      return childSafeCrossing && noRiskSpots && noUncontrolledCrossings && noTskClosure && noCdvAccidents;
     };
 
     // 2. Trasa A (Doporučená – Bezpečí):
@@ -1096,6 +1169,15 @@ export async function fetchOSRMRoute(
       let score = c.surveillanceScore * 1.5 + (c.childSafetyValid && tramCheck.isTramSafe ? 150 : -200);
       if (!tramCheck.isTramSafe) {
         score -= 5000; // Striktní zákaz neřízeného přebíhání tramvajových kolejí v režimu Malé děti
+      }
+      if (c.metrics.hasTskClosureConflict) {
+        score -= 5000; // Hard veto pro TSK výkopy
+      }
+      if ((c.metrics.collisionIntersectionsCount ?? 0) > 0) {
+        score -= (c.metrics.collisionIntersectionsCount ?? 0) * 500;
+      }
+      if ((c.metrics.schoolZonePercent ?? 0) > 0) {
+        score += (c.metrics.schoolZonePercent ?? 0) * 3;
       }
       score += (c.metrics.cameraCoveragePercent || 0) * 2;
       score -= (c.metrics.riskSpotsCount || 0) * 100;

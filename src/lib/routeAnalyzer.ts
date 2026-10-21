@@ -5,6 +5,7 @@ import { mockSafetyZones } from '../data/mock-zones';
 import pragueVectorData from '../data/prague-vector-network.json';
 import pragueStaticSafety from '../data/pragueStaticSafety.json';
 import pragueSafetyCache from '../data/prague_safety_cache.json';
+import { getSafetyDataFusion } from './safetyDataFusion';
 
 export interface IntersectionSurveillanceResult {
   coveragePercent: number;
@@ -308,5 +309,47 @@ export function calculateParkTraversal(
     hasParkTraversal,
     distanceInMeters: Math.round(totalMetersInPark),
     visitedParks: Array.from(visitedParksSet)
+  };
+}
+
+export interface ComprehensiveSafetyAnalysis {
+  lightingCoveragePercent: number;
+  unlitSegmentsCount: number;
+  collisionIntersectionsCount: number;
+  totalAccidentWeight: number;
+  schoolZonePercent: number;
+  hasTskClosureConflict: boolean;
+  crimeZoneExposure: boolean;
+  parkTraversal: ParkTraversalResult;
+  surveillance: IntersectionSurveillanceResult;
+}
+
+/**
+ * Komplexní bezpečnostní analýza fúzí dat (THMP osvětlení, CDV nehody, IPR školy, TSK uzavírky, kriminalita).
+ */
+export function analyzeRouteComprehensiveSafety(
+  routeCoords: [number, number][],
+  cameras: any[] = [],
+  timeOfDay: number = 18
+): ComprehensiveSafetyAnalysis {
+  const fusion = getSafetyDataFusion();
+  const lighting = fusion.calculateLightingCoverage(routeCoords);
+  const accidents = fusion.checkRouteAccidents(routeCoords);
+  const school = fusion.checkSchoolCorridorCoverage(routeCoords);
+  const tsk = fusion.checkTSKClosures(routeCoords);
+  const crime = fusion.checkCrimeZones(routeCoords, timeOfDay);
+  const parkTraversal = calculateParkTraversal(routeCoords, 40);
+  const surveillance = calculateIntersectionSurveillance(routeCoords, cameras);
+
+  return {
+    lightingCoveragePercent: lighting.lightingPercent,
+    unlitSegmentsCount: lighting.unlitSegmentsCount,
+    collisionIntersectionsCount: accidents.collisionIntersectionsCount,
+    totalAccidentWeight: accidents.totalAccidentWeight,
+    schoolZonePercent: school.schoolCorridorPercent,
+    hasTskClosureConflict: tsk.hasHardClosureViolation,
+    crimeZoneExposure: crime.inCrimeZone,
+    parkTraversal,
+    surveillance
   };
 }
