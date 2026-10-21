@@ -66,6 +66,18 @@ export interface RouteMetrics {
   crimeZoneExposure?: boolean;
 }
 
+export interface NavigationStep {
+  id: string;
+  lat: number;
+  lng: number;
+  type: string;
+  modifier?: string;
+  streetName?: string;
+  distanceMeters?: number;
+  durationSeconds?: number;
+  instruction?: string;
+}
+
 export interface RouteResult {
   id: string;
   name: string;
@@ -93,6 +105,7 @@ export interface RouteResult {
   collisionIntersectionsCount?: number;
   schoolZonePercent?: number;
   hasTskClosureConflict?: boolean;
+  navigationSteps?: NavigationStep[];
 }
 
 const ROUTE_FETCH_TIMEOUT_MS = 8000;
@@ -668,6 +681,36 @@ function evaluateRoute(
   };
 }
 
+function extractNavigationSteps(rawRoute: any): NavigationStep[] {
+  if (!rawRoute?.legs || !Array.isArray(rawRoute.legs)) return [];
+  const result: NavigationStep[] = [];
+  let idx = 0;
+  for (const leg of rawRoute.legs) {
+    if (!Array.isArray(leg.steps)) continue;
+    for (const step of leg.steps) {
+      idx++;
+      const mLoc = step.maneuver?.location;
+      const lat = mLoc ? mLoc[1] : (step.geometry?.coordinates?.[0]?.[1] ?? 0);
+      const lng = mLoc ? mLoc[0] : (step.geometry?.coordinates?.[0]?.[0] ?? 0);
+      const name = (step.name || '').trim();
+      const type = step.maneuver?.type || 'turn';
+      const modifier = step.maneuver?.modifier || '';
+
+      result.push({
+        id: `nav_step_${idx}_${lat.toFixed(5)}_${lng.toFixed(5)}`,
+        lat,
+        lng,
+        type,
+        modifier,
+        streetName: name,
+        distanceMeters: step.distance,
+        durationSeconds: step.duration
+      });
+    }
+  }
+  return result;
+}
+
 function candidateToRouteResult(
   candidate: EvaluatedCandidate,
   id: 'routeA' | 'routeB' | 'routeC',
@@ -704,7 +747,8 @@ function candidateToRouteResult(
     lightingCoveragePercent: candidate.metrics.lightingCoveragePercent,
     collisionIntersectionsCount: candidate.metrics.collisionIntersectionsCount,
     schoolZonePercent: candidate.metrics.schoolZonePercent,
-    hasTskClosureConflict: candidate.metrics.hasTskClosureConflict
+    hasTskClosureConflict: candidate.metrics.hasTskClosureConflict,
+    navigationSteps: extractNavigationSteps(candidate.rawRoute)
   };
 }
 

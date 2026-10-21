@@ -1,9 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import staticSafetyData from '../data/pragueStaticSafety.json';
 import { MapEngine, MapEngineProps } from './MapEngine';
 import { MapErrorBoundary, MapErrorFallback } from './MapErrorBoundary';
 import { useAppStore } from '../store/useAppStore';
 import { subscribeToChildSession, ChildSessionData } from '../lib/liveSync';
+import { getPointAlongRoute } from '../lib/routing';
+import { useVoiceNavigation } from '../hooks/useVoiceNavigation';
+import { AudioNavToggle } from './AudioNavToggle';
 
 export { MapEngine, MapErrorBoundary, MapErrorFallback };
 export type { MapEngineProps };
@@ -100,8 +103,88 @@ export function Map(props: MapEngineProps) {
       }
     : null;
 
+  // Aktivní trasa
+  const activeRoute = props.selectedRoute === 'A' 
+    ? props.routeA 
+    : props.selectedRoute === 'B' 
+      ? props.routeB 
+      : props.routeC;
+
+  // Efektivní aktuální poloha pro navigaci (simulace, Firebase dítě, nebo GPS zařízení)
+  const currentNavPosition = useMemo(() => {
+    if (props.isSimulating && activeRoute?.segments) {
+      const pt = getPointAlongRoute(activeRoute.segments, props.simulationProgress ?? 0);
+      if (pt) return { lat: pt[0], lng: pt[1], accuracy: 5 };
+    }
+    if (childData && typeof childData.lat === 'number' && typeof childData.lng === 'number') {
+      return { lat: childData.lat, lng: childData.lng, accuracy: 5 };
+    }
+    if (props.childLiveLocation && typeof props.childLiveLocation.lat === 'number') {
+      return { lat: props.childLiveLocation.lat, lng: props.childLiveLocation.lng, accuracy: 5 };
+    }
+    if (props.userLocation) {
+      return { lat: props.userLocation.lat, lng: props.userLocation.lng, accuracy: props.userLocation.accuracy };
+    }
+    return null;
+  }, [props.isSimulating, props.simulationProgress, activeRoute, childData, props.childLiveLocation, props.userLocation]);
+
+  // Hlasová a haptická turn-by-turn navigace pro děti
+  const {
+    isVoiceEnabled,
+    toggleVoice,
+    lastSpokenText
+  } = useVoiceNavigation({
+    currentLocation: currentNavPosition,
+    activeRoute: activeRoute ?? null,
+    snappedCrossings: activeRoute?.snappedCrossings,
+    staticCrossings: staticSafetyData?.crossings as any[]
+  });
+
+  // Vizuální bublina naposledy vyhlášeného navigačního pokynu (auto-hide po 4.5s)
+  const [visibleSpokenText, setVisibleSpokenText] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (lastSpokenText) {
+      setVisibleSpokenText(lastSpokenText);
+      const timer = setTimeout(() => {
+        setVisibleSpokenText(null);
+      }, 4500);
+      return () => clearTimeout(timer);
+    }
+  }, [lastSpokenText]);
+
   return (
     <div className="relative w-full h-full">
+      {/* Vizuální notifikace naposledy proneseného hlasového pokynu */}
+      {isVoiceEnabled && visibleSpokenText && (
+        <div 
+          className="fixed top-16 md:top-20 left-1/2 -translate-x-1/2 z-[2500] max-w-sm w-[90%] bg-slate-900/95 border-2 border-emerald-400 text-white px-4 py-2.5 rounded-2xl shadow-2xl backdrop-blur-md flex items-center gap-3 animate-fadeIn pointer-events-auto"
+          role="status"
+        >
+          <span className="text-xl animate-pulse flex-shrink-0">🔊</span>
+          <span className="text-xs font-bold text-slate-100 flex-1 leading-snug">{visibleSpokenText}</span>
+          <button 
+            type="button" 
+            onClick={() => setVisibleSpokenText(null)}
+            className="text-slate-400 hover:text-white text-xs px-1.5 py-0.5 rounded"
+            aria-label="Zavřít"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Plovoucí přepínač hlasových pokynů na mapě (nad terčíkem polohy) */}
+      <div 
+        className="fixed md:absolute right-4 md:right-6 z-[1000] transition-all duration-300 pointer-events-auto"
+        style={{ bottom: 'calc(var(--bottom-sheet-height, 9.5rem) + 8.25rem + env(safe-area-inset-bottom, 0px))' }}
+      >
+        <AudioNavToggle
+          isVoiceEnabled={isVoiceEnabled}
+          onToggle={toggleVoice}
+        />
+      </div>
+
       {/* Červené výstražné upozornění na displeji rodiče: "Dítě se odchýlilo z trasy!" */}
       {isDeviated && (
         <div 
