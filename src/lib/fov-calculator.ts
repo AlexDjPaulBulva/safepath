@@ -24,9 +24,10 @@ function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
 
 export function calculateFOVPolygon(
   camera: OSMSurveillanceFeature, 
-  routeSegments?: RouteSegment[]
+  routeSegments?: RouteSegment[],
+  customRadiusMeters: number = 25
 ): [number, number][] {
-  const safeRadius = Math.min(camera.rangeMeters, 35); // 35m
+  const safeRadius = customRadiusMeters; // standardně 25 metrů
   const lat = camera.lat;
   const lng = camera.lng;
   const radiusMeters = safeRadius;

@@ -274,7 +274,7 @@ export function MapEngine({
 
   const trafficSignalIcon = useMemo(() => L.divIcon({
     html: `<div class="relative flex items-center justify-center">
-             <div class="h-6 w-6 rounded-full flex items-center justify-center bg-slate-900 border-2 border-emerald-400 text-xs shadow-[0_0_12px_rgba(16,185,129,0.8)]">
+             <div class="w-6 h-6 rounded-full flex items-center justify-center bg-slate-900 border-2 border-emerald-400 text-xs shadow-[0_0_8px_rgba(52,211,153,0.8)] cursor-pointer select-none" title="Chráněný světelný přechod se semaforem">
                🚦
              </div>
            </div>`,
@@ -285,7 +285,7 @@ export function MapEngine({
 
   const zebraCrossingIcon = useMemo(() => L.divIcon({
     html: `<div class="relative flex items-center justify-center">
-             <div class="h-6 w-6 rounded-full flex items-center justify-center bg-slate-900 border-2 border-cyan-400 text-xs shadow-[0_0_12px_rgba(6,182,212,0.8)]">
+             <div class="w-6 h-6 rounded-full flex items-center justify-center bg-slate-900 border-2 border-emerald-400 text-xs shadow-[0_0_8px_rgba(16,185,129,0.8)] cursor-pointer select-none" title="Vyznačený přechod pro chodce">
                🚸
              </div>
            </div>`,
@@ -293,6 +293,44 @@ export function MapEngine({
     iconSize: [24, 24],
     iconAnchor: [12, 12]
   }), []);
+
+  // Kužely zorného pole kamer v blízkosti trasy (CCTV Visual Cones - délka 25 m mířící do ulice)
+  const routeCctvCones = useMemo(() => {
+    if (!layers.cameras || !routeA?.geometry || routeA.geometry.length < 2 || !osmCameras || osmCameras.length === 0) {
+      return [];
+    }
+
+    const routeCoords = routeA.geometry;
+    const maxDistanceMeters = 60; // Kamery do 60 m od trasy
+
+    const nearCams = osmCameras.filter(cam => {
+      for (let i = 0; i < routeCoords.length; i++) {
+        const [rLat, rLng] = routeCoords[i];
+        const dLat = (cam.lat - rLat) * 111320;
+        const dLng = (cam.lng - rLng) * 111320 * Math.cos(rLat * Math.PI / 180);
+        if (dLat * dLat + dLng * dLng <= maxDistanceMeters * maxDistanceMeters) {
+          return true;
+        }
+      }
+      return false;
+    });
+
+    return nearCams.map(cam => ({
+      id: cam.id,
+      lat: cam.lat,
+      lng: cam.lng,
+      description: cam.description,
+      positions: calculateFOVPolygon(cam, routeA.segments || activeSegments, 25)
+    }));
+  }, [layers.cameras, routeA?.geometry, routeA?.segments, osmCameras, activeSegments]);
+
+  const routeConeStyle = {
+    color: '#38bdf8',
+    fillColor: '#38bdf8',
+    fillOpacity: 0.2,
+    weight: 1,
+    className: 'pointer-events-none'
+  };
 
   const fovFeatures = useMemo(() => {
     if (!layers.cameras || !cameraRevealActive) return [];
@@ -459,14 +497,14 @@ export function MapEngine({
   }, [layers.cameras, cameraRevealActive, fovFeatures, visibleCameras, proximityPoint, isNight, currentZoom]);
 
   const havensLayer = useMemo(() => {
-    if (layers.havens === false || !proximityPoint) return null;
+    if (!layers.havens && !proximityPoint) return null;
 
     const visibleHavens = safeHavens.filter(h => {
       const p = [h.lat, h.lng] as [number, number];
       if (!mapBounds || !mapBounds.contains(p)) return false;
       if (layers.localDataOnly && !routeBounds) return false;
       if (layers.localDataOnly && routeBounds && !routeBounds.contains(p)) return false;
-      return isNearProximity(h.lat, h.lng);
+      return !proximityPoint || isNearProximity(h.lat, h.lng);
     });
 
     if (visibleHavens.length === 0) return null;
@@ -736,27 +774,40 @@ export function MapEngine({
           </Marker>
         )}
 
-        {/* Garantovaná bezpečná trasa A (Google Maps styl: smaragdová linie se stínem) */}
+        {/* Garantovaná bezpečná trasa A se světelným bezpečnostním koridorem (Safety Aura) */}
         {routeA?.geometry && routeA.geometry.length >= 2 && (
           <React.Fragment key="route-active-A">
-            {/* Spodní vrstva (casing/stín) - Google Maps styl */}
+            {/* 1. Světelný bezpečnostní koridor (Safety Aura) - chráněný tunel */}
             <Polyline
               positions={routeA.geometry}
               pathOptions={{
-                color: '#0f766e',
+                color: '#10b981',
+                weight: 24,
+                opacity: 0.15,
+                lineCap: 'round',
+                lineJoin: 'round'
+              }}
+              smoothFactor={1}
+              className="pointer-events-none"
+            />
+            {/* Spodní vrstva (casing/stín) */}
+            <Polyline
+              positions={routeA.geometry}
+              pathOptions={{
+                color: '#064e3b',
                 weight: 8,
-                opacity: 0.4,
+                opacity: 0.35,
                 lineCap: 'round',
                 lineJoin: 'round'
               }}
               smoothFactor={1}
               className="transition-all duration-300 pointer-events-none"
             />
-            {/* Horní vrstva (aktivní stopa) - Google Maps styl */}
+            {/* Hlavní trasa na popředí jako výrazná smaragdová linka */}
             <Polyline
               positions={routeA.geometry}
               pathOptions={{
-                color: '#10b981',
+                color: '#34d399',
                 weight: 5,
                 opacity: 1.0,
                 lineCap: 'round',
@@ -774,21 +825,49 @@ export function MapEngine({
           </React.Fragment>
         )}
 
-        {/* Přechody a semafory jako vizuální ověření (Checkpoints) */}
+        {/* 2. Kužely zorného pole kamer v blízkosti trasy (CCTV Visual Cones) */}
+        {routeCctvCones && routeCctvCones.map((cone) => (
+          <React.Fragment key={`route-cctv-cone-${cone.id}`}>
+            <Polygon
+              positions={cone.positions}
+              pathOptions={routeConeStyle}
+            />
+            <CircleMarker
+              center={[cone.lat, cone.lng]}
+              radius={4}
+              pathOptions={{
+                color: '#38bdf8',
+                fillColor: '#38bdf8',
+                fillOpacity: 0.85,
+                weight: 1
+              }}
+            >
+              <Popup className="custom-popup">
+                <div className="p-1.5 text-xs bg-slate-900 text-slate-100 rounded">
+                  <p className="font-bold text-sky-400 mb-0.5">📹 Městský kamerový systém (MKS)</p>
+                  <p className="text-[11px] text-slate-300 m-0">{cone.description || 'Monitorovaný bezpečnostní koridor'}</p>
+                </div>
+              </Popup>
+            </CircleMarker>
+          </React.Fragment>
+        ))}
+
+        {/* 3. Ikony chráněných přechodů přímo na trase (Checkpoints) */}
         {activeRoute?.snappedCrossings && activeRoute.snappedCrossings.map((crossing) => (
           <Marker
             key={`snapped-crossing-${crossing.id}`}
             position={[crossing.lat, crossing.lng]}
-            icon={crossing.crossingType === 'traffic_signals' ? trafficSignalIcon : zebraCrossingIcon}
+            icon={(crossing.hasSignals || crossing.crossingType === 'traffic_signals') ? trafficSignalIcon : zebraCrossingIcon}
+            zIndexOffset={500}
           >
             <Popup className="custom-popup">
               <div className="p-2 text-xs bg-slate-900 text-slate-100 rounded-md shadow-xl border border-slate-700">
                 <div className="flex items-center gap-1.5 font-bold text-emerald-400 border-b border-slate-700 pb-1 mb-1">
-                  <span>{crossing.crossingType === 'traffic_signals' ? '🚦' : '🚸'}</span>
-                  <span>{crossing.crossingType === 'traffic_signals' ? 'Řízený světelný přechod' : 'Vyznačená zebra'}</span>
+                  <span>{(crossing.hasSignals || crossing.crossingType === 'traffic_signals') ? '🚦' : '🚸'}</span>
+                  <span>{(crossing.hasSignals || crossing.crossingType === 'traffic_signals') ? 'Řízený světelný přechod (semafor)' : 'Vyznačený přechod pro chodce'}</span>
                 </div>
                 <p className="text-[11px] text-slate-300 m-0">
-                  {crossing.streetName || 'Bezpečný uzel pro přecházení komunikace'}
+                  {crossing.streetName || 'Bezpečný chráněný uzel pro přecházení komunikace'}
                 </p>
                 <div className="text-[10px] text-emerald-300 mt-1.5 font-semibold flex items-center gap-1">
                   <span>✓</span>

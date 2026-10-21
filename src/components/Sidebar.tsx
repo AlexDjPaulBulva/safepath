@@ -81,10 +81,14 @@ export function RouteSafetyBenefits() {
 
 function RouteCard({ 
   route, 
-  onMetricHover
+  onMetricHover,
+  layers,
+  onToggleLayer
 }: { 
   route: RouteStats | null, 
   onMetricHover: (reveal: SafetyReveal | null) => void,
+  layers?: { cameras: boolean; lights: boolean; havens?: boolean; incidents?: boolean; zones?: boolean; localDataOnly?: boolean },
+  onToggleLayer?: (layer: 'cameras' | 'lights' | 'havens' | 'incidents' | 'zones' | 'localDataOnly') => void,
   routeId?: 'A' | 'B' | 'C',
   isSelected?: boolean,
   onSelect?: () => void,
@@ -202,6 +206,29 @@ function RouteCard({
           </div>
         </div>
       </div>
+
+      {/* Tlačítko Safe Haven přímo na kartě trasy */}
+      {onToggleLayer && (
+        <button
+          type="button"
+          onClick={() => onToggleLayer('havens')}
+          className={`w-full mt-3 py-2.5 px-3 rounded-xl border text-xs font-semibold flex items-center justify-between transition-all ${
+            layers?.havens
+              ? 'bg-blue-600/30 border-blue-400 text-blue-200 shadow-[0_0_12px_rgba(59,130,246,0.3)]'
+              : 'bg-slate-900/60 border-slate-700/80 text-slate-300 hover:border-slate-500 hover:text-white'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-base">🛡️</span>
+            <span>Safe Haven záchytné body (SOS)</span>
+          </div>
+          <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider ${
+            layers?.havens ? 'bg-blue-500 text-white' : 'bg-slate-800 text-slate-400 border border-slate-700'
+          }`}>
+            {layers?.havens ? 'Aktivní' : 'Zobrazit'}
+          </span>
+        </button>
+      )}
     </div>
   );
 }
@@ -391,36 +418,18 @@ export function Sidebar({
               </div>
             </div>
           ) : routeA ? (
-            <>
-              <RouteCard 
-                route={routeA} 
-                onMetricHover={onMetricHover}
-              />
-              <RouteSafetyBenefits />
-            </>
+            <RouteCard 
+              route={routeA} 
+              onMetricHover={onMetricHover}
+              layers={layers}
+              onToggleLayer={onToggleLayer}
+            />
           ) : (
             <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-700/60 text-slate-400 text-xs text-center">
               Zadejte výchozí a cílový bod pro vyhledání bezpečné trasy.
             </div>
           )}
         </div>
-
-        {/* Argumentace AI */}
-        {argumentsText.length > 0 && (
-          <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-2xl p-5 mb-8">
-            <h3 className="text-sm font-bold text-emerald-400 mb-3 flex items-center gap-2">
-              <span className="text-lg">🤖</span> AI Asistent {isChildMode ? '(Jak to vysvětlit dítěti)' : '(Bezpečnostní doporučení)'}
-            </h3>
-            <ul className="space-y-3">
-              {argumentsText.map((arg, idx) => (
-                <li key={idx} className="text-sm text-emerald-100 flex items-start gap-2">
-                  <span className="text-emerald-500 mt-0.5">•</span>
-                  <span className="leading-relaxed">{arg}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
 
         {/* Vrstvy a Ovládání */}
         <div className="space-y-6">
