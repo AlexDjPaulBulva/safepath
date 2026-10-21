@@ -11,6 +11,7 @@ import incidentsData from '../data/incidents.json';
 import { SafetyFeature } from './opendata';
 import { mockSafetyZones } from '../data/mock-zones';
 import pragueSafetyCache from '../data/prague_safety_cache.json';
+import { calculateIntersectionSurveillance, calculateParkTraversal } from './routeAnalyzer';
 
 /**
  * Vypočítá SafetyScore (0 - 100) pro daný uliční segment.
@@ -122,82 +123,54 @@ export function calculateRouteSafetyMetrics(routeCoordinates: [number, number][]
   const nodeCameras = (safetyNodes || []).filter((n: any) => n.type === 'camera');
   const allCameras = nodeCameras.length >= 10 ? nodeCameras : (pragueSafetyCache.cameras || []);
 
-  let pointsUnderCamera = 0;
   const camerasNearby = new Set<string | number>();
 
   for (const point of densePoints) {
     const lat = point[0];
     const lng = point[1];
 
-    let hasCamera = false;
     for (const cam of allCameras) {
       const camLat = Array.isArray(cam?.coords) ? cam.coords[0] : (cam?.lat ?? 0);
       const camLng = Array.isArray(cam?.coords) ? cam.coords[1] : (cam?.lng ?? 0);
-      const range = cam?.radius || cam?.rangeMeters || 45;
 
       // Rychlý bbox check (cca 80m)
       if (Math.abs(camLat - lat) > 0.001 || Math.abs(camLng - lng) > 0.0015) continue;
 
       const d = getDistance(lat, lng, camLat, camLng);
-      if (d <= range) {
-        hasCamera = true;
-      }
       if (d <= 55) {
         camerasNearby.add(cam.id);
       }
     }
-
-    if (hasCamera) pointsUnderCamera++;
   }
 
-  const cameraCoveragePercent = Math.round((pointsUnderCamera / totalPoints) * 100);
+  // Přepočet dohledu podle reálného pokrytí křižovatek a hlavních bodů zlomu trasy
+  // Vzorec: (počet_křižovatek_s_kamerou_nebo_semaforem / celkový_počet_křížení_silnice) * 100
+  const surveillanceResult = calculateIntersectionSurveillance(routeCoordinates, allCameras);
+  const cameraCoveragePercent = surveillanceResult.coveragePercent;
   const camerasNearbyCount = camerasNearby.size;
 
-  // 2. Tmavé úseky (Dark segments):
-  // Ve dne je přirozené světlo (0 tmavých úseků).
-  // V noci standardní ulice v Praze osvětluje veřejné osvětlení; tmavé úseky tvoří neosvětlené parky a podchody.
-  let unlitSegmentsCount = 0;
-  let parkIntersectionCount = 0;
-  const visitedParks = new Set<string>();
+  // 2. Tmavé úseky a prostorová detekce parků (s prahem 40 metrů)
+  const parkResult = calculateParkTraversal(routeCoordinates, 40);
+  const parkIntersectionCount = parkResult.hasParkTraversal ? Math.max(1, parkResult.visitedParks.length) : 0;
 
+  let unlitSegmentsCount = 0;
   if (isNight) {
-    let consecutiveDark = 0;
-    for (const point of densePoints) {
-      let isDarkPoint = false;
-      for (const zone of mockSafetyZones) {
-        if ((zone.type === 'park' && !zone.factors.wellLit) || zone.type === 'underpass') {
+    if (parkResult.hasParkTraversal) {
+      // Park v noci se počítá jako tmavý úsek podle délky průchodu
+      unlitSegmentsCount += Math.max(1, Math.floor(parkResult.distanceInMeters / 60));
+    }
+    // Kontrola neosvětlených podchodů
+    for (const zone of mockSafetyZones) {
+      if (zone.type === 'underpass') {
+        for (const point of densePoints) {
           if (pointInPolygon([point[0], point[1]], zone.coordinates)) {
-            isDarkPoint = true;
-            visitedParks.add(zone.id);
+            unlitSegmentsCount++;
             break;
           }
         }
       }
-
-      if (isDarkPoint) {
-        consecutiveDark++;
-      } else {
-        if (consecutiveDark >= 2) {
-          unlitSegmentsCount++;
-        }
-        consecutiveDark = 0;
-      }
-    }
-    if (consecutiveDark >= 2) {
-      unlitSegmentsCount++;
-    }
-  } else {
-    // Ve dne pouze zaznamenáme průchod parkem
-    for (const point of densePoints) {
-      for (const zone of mockSafetyZones) {
-        if (zone.type === 'park' && pointInPolygon([point[0], point[1]], zone.coordinates)) {
-          visitedParks.add(zone.id);
-        }
-      }
     }
   }
-
-  parkIntersectionCount = visitedParks.size;
 
   // 3. Riziková místa (Unikátní incidenty do 80 m od geometrie trasy)
   const uniqueIncidents = new Set<string>();

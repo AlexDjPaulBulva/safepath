@@ -953,6 +953,7 @@ export function ParentDashboard({
         )}
         <MapErrorBoundary fallback={<MapErrorFallback />}>
           <Map 
+            isSosActive={sosAlert.active || Boolean(activeSafeHaven)}
             routeA={routeA}
             routeB={routeB}
             routeC={routeC}

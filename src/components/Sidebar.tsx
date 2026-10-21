@@ -165,7 +165,7 @@ function RouteCard({
           <div>
             <div className="text-[10px] text-slate-500 uppercase font-bold">Dohled</div>
             <div className={`font-bold ${route.cameraCoverage > 50 ? 'text-emerald-400' : 'text-amber-400'}`}>
-              {route.cameraCoverage}%
+              {route.cameraCoverage} %
             </div>
           </div>
         </div>
@@ -204,7 +204,7 @@ function RouteCard({
           <div>
             <div className="text-[10px] text-slate-500 uppercase font-bold">Průchod parkem</div>
             <div className={`font-bold ${route.metrics.parkIntersectionCount === 0 ? 'text-slate-200' : 'text-amber-400'}`}>
-              {route.metrics.parkIntersectionCount > 0 ? 'Ano (bezpečné osvětlené cesty)' : 'Ne (pouze ulice)'}
+              {route.metrics.parkIntersectionCount > 0 ? 'Ano (osvětlené hlavní cesty)' : 'Ne (pouze ulice)'}
             </div>
           </div>
         </div>
@@ -336,23 +336,13 @@ export function Sidebar({
 
         {/* Fixní záhlaví – nikdy neodskroluje */}
         <div className="shrink-0 mb-3">
-          {/* Header a Profil */}
-          <div className="flex items-center justify-between mb-2.5">
-            <div>
-              <h1 className="text-xl font-black tracking-tight text-white flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                SafePath
-              </h1>
-              <p className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">Rodičovský Dispečink</p>
-            </div>
-            <div className="bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700/80 flex items-center gap-1.5">
-              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Režim:</span>
-              <span className="text-xs font-black text-white">
-                {isChildMode && activeProfiles.length === 1 && '👨‍👧 Malé děti'}
-                {!isChildMode && activeProfiles.length === 1 && activeProfiles.includes('night_girl') && '🌙 Dívky 14+'}
-                {activeProfiles.length > 1 && `🔄 Kombinovaný (${activeProfiles.length})`}
-              </span>
-            </div>
+          {/* Header */}
+          <div className="mb-2.5">
+            <h1 className="text-xl font-black tracking-tight text-white flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              SafePath
+            </h1>
+            <p className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">Rodičovský dispečink</p>
           </div>
 
           {/* Vyhledávání */}

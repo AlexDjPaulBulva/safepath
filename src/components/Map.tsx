@@ -56,6 +56,9 @@ export function Map(props: MapEngineProps) {
   // Kontrola odchýlení z trasy (inCorridor === false)
   const isDeviated = childData !== null && childData.inCorridor === false;
 
+  const storeSafeHaven = useAppStore((state) => state.activeSafeHaven);
+  const isSos = Boolean(props.isSosActive || storeSafeHaven);
+
   return (
     <div className="relative w-full h-full">
       {/* Červené výstražné upozornění na displeji rodiče: "Dítě se odchýlilo z trasy!" */}
@@ -99,6 +102,7 @@ export function Map(props: MapEngineProps) {
       <MapErrorBoundary fallback={<MapErrorFallback />}>
         <MapEngine 
           {...props} 
+          isSosActive={isSos}
           childLiveLocation={childData || props.childLiveLocation}
         />
       </MapErrorBoundary>

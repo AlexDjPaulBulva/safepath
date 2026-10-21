@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Popup, Polyline, Circle, useMap, GeoJSON, Circ
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import * as turf from '@turf/turf';
 import { SafetyFeature, SafeHavenFeature } from '../lib/opendata';
 import { RouteResult, RouteSegment, getPointAlongRoute } from '../lib/routing';
 import { OSMSurveillanceFeature } from '../lib/osm-surveillance-harvester';
@@ -182,6 +183,7 @@ export interface MapEngineProps {
   onRouteProximityChange?: (point: [number, number] | null) => void;
   onSelectRoute?: (route: 'A' | 'B' | 'C') => void;
   childLiveLocation?: { lat: number; lng: number; inCorridor?: boolean; lastSeen?: number } | null;
+  isSosActive?: boolean;
 }
 
 export function MapEngine({ 
@@ -218,7 +220,8 @@ export function MapEngine({
   reveal = null,
   proximityPoint = null,
   onRouteProximityChange,
-  onSelectRoute
+  onSelectRoute,
+  isSosActive = false
 }: MapEngineProps) {
   const [mapBounds, setMapBounds] = useState<L.LatLngBounds | null>(null);
   const [currentZoom, setCurrentZoom] = useState(15);
@@ -501,14 +504,38 @@ export function MapEngine({
   }, [layers.cameras, cameraRevealActive, fovFeatures, visibleCameras, proximityPoint, isNight, currentZoom]);
 
   const havensLayer = useMemo(() => {
-    if (!layers.havens && !proximityPoint) return null;
+    if (!isSosActive && !layers.havens && !proximityPoint) return null;
+
+    // Zákaz plošného vykreslování po celém městě v běžném provozu:
+    // Vykreslíme VÝHRADNĚ body do 150 metrů od linie bezpečné trasy (turf.pointToLineDistance).
+    // Pokud trasa neexistuje a SOS není aktivní, skryjeme všechny body.
+    let routeLine: ReturnType<typeof turf.lineString> | null = null;
+    if (!isSosActive) {
+      const activeCoords = routeA?.geometry;
+      if (!activeCoords || activeCoords.length < 2) {
+        return null;
+      }
+      routeLine = turf.lineString(activeCoords.map(([lat, lng]) => [lng, lat]));
+    }
 
     const visibleHavens = safeHavens.filter(h => {
       const p = [h.lat, h.lng] as [number, number];
       if (!mapBounds || !mapBounds.contains(p)) return false;
       if (layers.localDataOnly && !routeBounds) return false;
       if (layers.localDataOnly && routeBounds && !routeBounds.contains(p)) return false;
-      return !proximityPoint || isNearProximity(h.lat, h.lng);
+      if (proximityPoint && !isNearProximity(h.lat, h.lng)) return false;
+
+      // V SOS režimu se zobrazí všechny záchytné body ve viewportu
+      if (isSosActive) return true;
+
+      // V běžném režimu VÝHRADNĚ ty do vzdálenosti 150 metrů od linie trasy
+      if (routeLine) {
+        const pt = turf.point([h.lng, h.lat]);
+        const dist = turf.pointToLineDistance(pt, routeLine, { units: 'meters' });
+        return dist <= 150;
+      }
+
+      return false;
     });
 
     if (visibleHavens.length === 0) return null;
@@ -546,7 +573,7 @@ export function MapEngine({
         ))}
       </MarkerClusterGroup>
     );
-  }, [layers.havens, layers.localDataOnly, safeHavens, currentZoom, mapBounds, routeBounds, proximityPoint]);
+  }, [layers.havens, layers.localDataOnly, safeHavens, currentZoom, mapBounds, routeBounds, proximityPoint, isSosActive, routeA]);
 
   const incidentIcon = L.divIcon({
     html: `<div class="relative flex items-center justify-center">
