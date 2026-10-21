@@ -61,7 +61,8 @@ export function Map(props: MapEngineProps) {
       {/* Červené výstražné upozornění na displeji rodiče: "Dítě se odchýlilo z trasy!" */}
       {isDeviated && (
         <div 
-          className="absolute top-4 left-1/2 -translate-x-1/2 z-[3000] w-[92%] max-w-lg bg-rose-600/95 text-white px-5 py-3.5 rounded-2xl shadow-2xl border-2 border-rose-300 backdrop-blur-md flex items-center gap-3 animate-bounce"
+          className="fixed z-[3000] w-[90vw] max-w-md bg-rose-600/95 text-white px-5 py-3.5 rounded-2xl shadow-2xl border-2 border-rose-300 backdrop-blur-md flex items-center gap-3 animate-bounce pointer-events-auto"
+          style={{ top: '1rem', left: '50%', transform: 'translateX(-50%)' }}
           role="alert"
         >
           <span className="text-3xl animate-pulse flex-shrink-0">🚨</span>

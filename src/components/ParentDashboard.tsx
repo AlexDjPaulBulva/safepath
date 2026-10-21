@@ -122,7 +122,7 @@ export function ParentDashboard({
     setMapToast({ message, type, id });
     toastTimerRef.current = setTimeout(() => {
       setMapToast(prev => (prev?.id === id ? null : prev));
-    }, 4000);
+    }, 3500);
   };
 
   // Aktivní sledování GPS v reálném čase s ochranou proti zbytečnému re-routování (40m guard)
@@ -420,13 +420,17 @@ export function ParentDashboard({
 
   const handleSelectEnd = (lat: number, lng: number, name: string) => {
     setEndPoint({lat, lng, name});
-    if (!startPoint) setMapCenter([lat, lng]);
+    if (!startPoint) {
+      setMapCenter([lat, lng]);
+      if (locationPermissionDenied || !userLocation) {
+        showMapToast('Cíl nastaven. Zvolte start klepnutím do mapy', 'info');
+      }
+    }
   };
 
   const [childDeviation, setChildDeviation] = useState<{lat: number, lng: number} | null>(null);
   const [deviationTimer, setDeviationTimer] = useState<number>(0);
   const [activeSafeHaven, setActiveSafeHaven] = useState<{ haven: SafeHavenPOI; distance: number } | null>(null);
-  const [showTestControls, setShowTestControls] = useState(false);
 
   const handleNavigateToHaven = (haven: SafeHavenPOI, distanceMeters: number) => {
     setActiveSafeHaven({ haven, distance: distanceMeters });
@@ -520,7 +524,7 @@ export function ParentDashboard({
 
       // One-Tap Routing: Pokud máme živou polohu uživatele a startPoint ještě nebyl inicializován
       let effectiveStart = startPoint;
-      if (!effectiveStart && userLocation) {
+      if (!effectiveStart && userLocation && !locationPermissionDenied) {
         effectiveStart = { lat: userLocation.lat, lng: userLocation.lng, name: 'Moje aktuální poloha' };
         setStartPoint(effectiveStart);
       }
@@ -534,11 +538,15 @@ export function ParentDashboard({
         // Jediné klepnutí rovnou nastaví CÍL a spustí navigaci od aktuální polohy!
         applyInstantPoint('end', lat, lng, name);
         setSelectedRoute('A');
-        showMapToast('Cíl nastaven. Počítám bezpečnou trasu z vaší polohy...', 'success');
+        if (locationPermissionDenied || !userLocation) {
+          showMapToast('Cíl nastaven. Zvolte start klepnutím do mapy', 'info');
+        } else {
+          showMapToast('Cíl nastaven. Počítám bezpečnou trasu z vaší polohy...', 'success');
+        }
         return;
       } else {
         // Pokud navigujeme od GPS polohy, klepnutí do mapy změní cíl; v manuálním režimu resetuje trasu
-        if (effectiveStart.name === 'Moje aktuální poloha' && userLocation) {
+        if (effectiveStart.name === 'Moje aktuální poloha' && userLocation && !locationPermissionDenied) {
           applyInstantPoint('end', lat, lng, name);
           setSelectedRoute('A');
           showMapToast('Cíl aktualizován. Přepočítávám trasu...', 'success');
@@ -800,115 +808,115 @@ export function ParentDashboard({
         className="fixed inset-0 md:relative md:flex-1 z-0 w-full h-full pointer-events-auto"
         style={{ touchAction: 'pan-x pan-y' }}
       >
-        {/* Klikatelná karta pro odblokování GPS při PERMISSION_DENIED */}
-        <AnimatePresence>
-          {locationPermissionDenied && !userLocation && (
-            <motion.div
-              initial={{ opacity: 0, y: -20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -15, scale: 0.95 }}
-              transition={{ duration: 0.25 }}
-              className="absolute top-16 left-4 right-4 md:top-4 md:left-1/2 md:-translate-x-1/2 md:right-auto md:w-auto z-[1150] flex justify-center"
-            >
-              <div 
-                onClick={() => setShowPermissionModal(true)}
-                className="bg-slate-900/95 border-2 border-amber-500/90 hover:border-amber-400 text-white px-4 py-2.5 rounded-2xl shadow-[0_10px_25px_rgba(0,0,0,0.6),0_0_15px_rgba(245,158,11,0.3)] backdrop-blur-md flex items-center justify-between gap-3 cursor-pointer group transition-all"
+        {/* JEDNOTNÝ KONTEJNER PRO NOTIFIKACE A TOASTY (Centrovaně nahoře, bez kolize s přepínačem režimu a tlačítkem Zpět) */}
+        <div 
+          className="fixed z-[2500] pointer-events-none flex flex-col items-center gap-2 max-w-[90vw] md:max-w-md w-full"
+          style={{ top: '1rem', left: '50%', transform: 'translateX(-50%)' }}
+        >
+          {/* 1. Karta pro odblokování GPS při PERMISSION_DENIED */}
+          <AnimatePresence>
+            {locationPermissionDenied && !userLocation && (
+              <motion.div
+                initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -15, scale: 0.95 }}
+                transition={{ duration: 0.25 }}
+                className="w-full flex justify-center pointer-events-auto"
               >
-                <div className="flex items-center gap-2.5">
-                  <span className="flex h-3 w-3 relative shrink-0">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
-                  </span>
-                  <span className="text-xs md:text-sm font-bold tracking-wide text-amber-300 group-hover:text-amber-200">
-                    Poloha je zablokována. Klepněte pro návod k odblokování.
-                  </span>
+                <div 
+                  onClick={() => setShowPermissionModal(true)}
+                  className="bg-slate-900/95 border-2 border-amber-500/90 hover:border-amber-400 text-white px-4 py-2.5 rounded-2xl shadow-[0_10px_25px_rgba(0,0,0,0.6),0_0_15px_rgba(245,158,11,0.3)] backdrop-blur-md flex items-center justify-between gap-3 cursor-pointer group transition-all"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex h-3 w-3 relative shrink-0">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+                    </span>
+                    <span className="text-xs md:text-sm font-bold tracking-wide text-amber-300 group-hover:text-amber-200">
+                      Poloha je zablokována. Klepněte pro návod k odblokování.
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRetryLocation();
+                      }}
+                      disabled={isRetryingLocation}
+                      className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 hover:text-white border border-amber-500/40 text-xs font-bold transition-colors flex items-center gap-1 active:scale-95"
+                    >
+                      {isRetryingLocation ? (
+                        <span className="animate-spin text-xs">⟳</span>
+                      ) : (
+                        <span className="text-xs">⟳</span>
+                      )}
+                      <span>Zkusit znovu</span>
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setLocationPermissionDenied(false);
+                      }}
+                      className="text-slate-400 hover:text-white text-xs px-1 font-bold transition-colors"
+                      aria-label="Zavřít"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* 2. Horní lišta Toast (Auto-dismiss po 3.5 sekundách) */}
+          <AnimatePresence>
+            {mapToast && (
+              <motion.div
+                initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -15, scale: 0.95 }}
+                transition={{ duration: 0.25 }}
+                className="w-full flex justify-center pointer-events-auto"
+              >
+                <div className="bg-slate-900/95 border-2 border-emerald-500/90 text-white px-5 py-2.5 rounded-2xl shadow-[0_10px_25px_rgba(0,0,0,0.6),0_0_15px_rgba(16,185,129,0.3)] backdrop-blur-md flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex h-2.5 w-2.5 relative shrink-0">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                    </span>
+                    <span className="text-xs md:text-sm font-bold tracking-wide text-emerald-300">
+                      {mapToast.message}
+                    </span>
+                  </div>
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRetryLocation();
-                    }}
-                    disabled={isRetryingLocation}
-                    className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 hover:text-white border border-amber-500/40 text-xs font-bold transition-colors flex items-center gap-1 active:scale-95"
-                  >
-                    {isRetryingLocation ? (
-                      <span className="animate-spin text-xs">⟳</span>
-                    ) : (
-                      <span className="text-xs">⟳</span>
-                    )}
-                    <span>Zkusit znovu</span>
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setLocationPermissionDenied(false);
-                    }}
-                    className="text-slate-400 hover:text-white text-xs px-1 font-bold transition-colors"
-                    aria-label="Zavřít"
+                    onClick={() => setMapToast(null)}
+                    className="text-slate-400 hover:text-white text-xs px-1 font-bold ml-1 transition-colors"
+                    aria-label="Zavřít oznámení"
                   >
                     ✕
                   </button>
                 </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-        {/* Horní lišta Toast (Mobile & Desktop) */}
-        <AnimatePresence>
-          {mapToast && (
-            <motion.div
-              initial={{ opacity: 0, y: -20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -15, scale: 0.95 }}
-              transition={{ duration: 0.25 }}
-              className={`absolute left-4 right-4 md:left-1/2 md:-translate-x-1/2 md:right-auto md:w-auto z-[1100] pointer-events-none flex justify-center ${
-                locationPermissionDenied && !userLocation ? 'top-32 md:top-20' : 'top-16 md:top-4'
-              }`}
-            >
-              <div className="bg-slate-900/95 border-2 border-emerald-500/90 text-white px-5 py-2.5 rounded-2xl shadow-[0_10px_25px_rgba(0,0,0,0.6),0_0_15px_rgba(16,185,129,0.3)] backdrop-blur-md flex items-center justify-between gap-3 pointer-events-auto">
-                <div className="flex items-center gap-2.5">
-                  <span className="flex h-2.5 w-2.5 relative">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-                  </span>
-                  <span className="text-xs md:text-sm font-bold tracking-wide text-emerald-300">
-                    {mapToast.message}
-                  </span>
-                </div>
-                <button
-                  onClick={() => setMapToast(null)}
-                  className="text-slate-400 hover:text-white text-xs px-1 font-bold ml-1 transition-colors"
-                  aria-label="Zavřít oznámení"
-                >
-                  ✕
-                </button>
+          {/* 3. Child Status Banner */}
+          {isSimulating && (
+            <div className="pointer-events-auto flex flex-col items-center">
+              <div className={`px-5 py-2.5 rounded-2xl shadow-2xl border font-bold text-xs md:text-sm flex items-center gap-2.5 backdrop-blur-md transition-colors duration-500
+                ${childStatus === 'ON_ROUTE' ? 'bg-emerald-900/90 text-emerald-300 border-emerald-500 shadow-emerald-500/20' : ''}
+                ${childStatus === 'AT_SAFE_STOP' ? 'bg-blue-900/90 text-blue-300 border-blue-500 shadow-blue-500/20' : ''}
+                ${childStatus === 'DEVIATED' ? 'bg-amber-900/90 text-amber-300 border-amber-500 shadow-amber-500/20' : ''}
+                ${childStatus === 'ALERT' ? 'bg-red-900/90 text-red-100 border-red-500 shadow-red-500/50 animate-pulse' : ''}
+              `}>
+                {childStatus === 'ON_ROUTE' && <><span className="text-lg">✅</span> Na bezpečné trase</>}
+                {childStatus === 'AT_SAFE_STOP' && <><span className="text-lg">☕</span> Na povolené zastávce (Tichý stav)</>}
+                {childStatus === 'DEVIATED' && <><span className="text-lg">⚠️</span> Opuštění trasy ({Math.max(0, 120 - Math.floor(deviationTimer))}s do poplachu)</>}
+                {childStatus === 'ALERT' && <><span className="text-lg">🚨</span> ZÁVAŽNÁ ODCHYLKA! ALARM!</>}
               </div>
-            </motion.div>
+            </div>
           )}
-        </AnimatePresence>
-
-        {/* Child Status Banner */}
-        {isSimulating && (
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] flex flex-col items-center">
-             <div className={`px-6 py-3 rounded-2xl shadow-2xl border font-bold text-sm flex items-center gap-3 backdrop-blur-md transition-colors duration-500
-               ${childStatus === 'ON_ROUTE' ? 'bg-emerald-900/90 text-emerald-300 border-emerald-500 shadow-emerald-500/20' : ''}
-               ${childStatus === 'AT_SAFE_STOP' ? 'bg-blue-900/90 text-blue-300 border-blue-500 shadow-blue-500/20' : ''}
-               ${childStatus === 'DEVIATED' ? 'bg-amber-900/90 text-amber-300 border-amber-500 shadow-amber-500/20' : ''}
-               ${childStatus === 'ALERT' ? 'bg-red-900/90 text-red-100 border-red-500 shadow-red-500/50 animate-pulse' : ''}
-             `}>
-               {childStatus === 'ON_ROUTE' && <><span className="text-xl">✅</span> Na bezpečné trase</>}
-               {childStatus === 'AT_SAFE_STOP' && <><span className="text-xl">☕</span> Na povolené zastávce (Tichý stav)</>}
-               {childStatus === 'DEVIATED' && <><span className="text-xl">⚠️</span> Opuštění trasy - Mimo povolenou zónu ({Math.max(0, 120 - Math.floor(deviationTimer))}s do poplachu)</>}
-               {childStatus === 'ALERT' && <><span className="text-xl">🚨</span> ZÁVAŽNÁ ODCHYLKA! ALARM!</>}
-             </div>
-             
-             <div className="mt-2 bg-slate-900/80 px-4 py-1.5 rounded-full text-xs text-slate-400 border border-slate-700 backdrop-blur-sm">
-                💡 Tip pro testování: Pravý klik na mapu přidá povolenou zastávku. Levý klik teleportuje dítě!
-             </div>
-          </div>
-        )}
+        </div>
 
         {/* Záhlaví a přepínač režimů: Mobilní šipka Zpět / Desktopová lišta */}
         <Header 
@@ -1031,65 +1039,6 @@ export function ParentDashboard({
             onCancelHaven={handleCancelHaven}
             extraHavens={safeHavens}
           />
-        </div>
-
-        {/* Intervenční Testovací Panel (Pouze na desktopu) */}
-        <div className="hidden md:flex absolute top-16 right-4 z-[1000] flex-col items-end">
-          <button
-            onClick={() => setShowTestControls(!showTestControls)}
-            className="bg-slate-800/90 hover:bg-slate-700 text-xs text-slate-300 hover:text-white px-3 py-1.5 rounded-xl border border-slate-600 backdrop-blur shadow-md flex items-center gap-1.5 font-semibold transition-all"
-          >
-            <span>🧪</span>
-            <span>{showTestControls ? 'Skrýt testy anomálií' : 'Testy anomálií'}</span>
-          </button>
-          {showTestControls && (
-            <div className="mt-2 bg-slate-900/95 border border-slate-700 rounded-2xl p-3 shadow-2xl backdrop-blur-md flex flex-col gap-1.5 w-60 text-xs">
-              <div className="font-bold text-slate-200 pb-1 border-b border-slate-800">
-                Simulace anomálií a intervencí
-              </div>
-              <button
-                onClick={motionAnomaly.triggerFallSimulation}
-                className="text-left px-2.5 py-1.5 bg-red-950/60 hover:bg-red-900/80 text-red-200 rounded-lg border border-red-800/60 font-medium transition-colors"
-              >
-                💥 Test pádu (náraz &gt;25 m/s²)
-              </button>
-              <button
-                onClick={motionAnomaly.triggerRunningSimulation}
-                className="text-left px-2.5 py-1.5 bg-amber-950/60 hover:bg-amber-900/80 text-amber-200 rounded-lg border border-amber-800/60 font-medium transition-colors"
-              >
-                🏃‍♀️ Test úprku (rychlost &gt;12 km/h)
-              </button>
-              <button
-                onClick={motionAnomaly.triggerStuckSimulation}
-                className="text-left px-2.5 py-1.5 bg-indigo-950/60 hover:bg-indigo-900/80 text-indigo-200 rounded-lg border border-indigo-800/60 font-medium transition-colors"
-              >
-                ⏱️ Test uváznutí ve tmě (&gt;90 s)
-              </button>
-              <button
-                onClick={() => {
-                  if (activeGeometry && activeGeometry.length > 0) {
-                    const midPt = activeGeometry[Math.floor(activeGeometry.length / 2)];
-                    setChildDeviation({ lat: midPt[0] + 0.0008, lng: midPt[1] + 0.0008 });
-                  } else {
-                    setChildDeviation({ lat: 50.078, lng: 14.442 });
-                  }
-                }}
-                className="text-left px-2.5 py-1.5 bg-rose-950/60 hover:bg-rose-900/80 text-rose-200 rounded-lg border border-rose-800/60 font-medium transition-colors"
-              >
-                ⚠️ Test odchylky (&gt;35 m od trasy)
-              </button>
-              <button
-                onClick={() => {
-                  motionAnomaly.resetAnomalies();
-                  setChildDeviation(null);
-                  geofence.resetGeofence();
-                }}
-                className="text-center px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded text-[11px] font-semibold mt-1 transition-colors"
-              >
-                Resetovat všechny testy
-              </button>
-            </div>
-          )}
         </div>
 
         {/* Modální okna a bannery detekovaných anomálií */}

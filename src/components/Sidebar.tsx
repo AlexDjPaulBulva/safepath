@@ -273,7 +273,7 @@ export function Sidebar({
             : 'translate-y-0 h-[5.25rem] max-h-[5.25rem] overflow-hidden rounded-t-2xl border-t border-slate-700/70 md:border-t-0 md:rounded-none'
           }
         `}
-        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+        style={{ paddingBottom: 'calc(3.5rem + env(safe-area-inset-bottom, 0px))' }}
       >
       {/* Mobile Handle / Drawer Peek Bar */}
       <div 
@@ -304,7 +304,10 @@ export function Sidebar({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+      <div 
+        className="flex-1 overflow-y-auto overflow-x-hidden p-6 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent"
+        style={{ paddingBottom: '3.5rem' }}
+      >
         {/* Header a Profil */}
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -477,6 +480,9 @@ export function Sidebar({
             </button>
           </div>
         )}
+
+        {/* Spodní bezpečná zóna pro scroll (safe-area padding) */}
+        <div className="h-14 shrink-0" aria-hidden="true" />
       </div>
     </aside>
     </>
