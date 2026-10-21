@@ -5,6 +5,7 @@ import { getAuth } from 'firebase/auth';
 const firebaseConfig = {
   apiKey: "AIzaSyDn3SJo1t-IwGnA2ahSorACuA64uucRwac",
   authDomain: "safe-path-77823.firebaseapp.com",
+  databaseURL: "https://safe-path-77823-default-rtdb.europe-west1.firebasedatabase.app",
   projectId: "safe-path-77823",
   storageBucket: "safe-path-77823.firebasestorage.app",
   messagingSenderId: "917917105422",
