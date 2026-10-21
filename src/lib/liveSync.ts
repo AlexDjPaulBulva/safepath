@@ -7,45 +7,57 @@ export interface ChildSessionData {
   lng: number;
   inCorridor: boolean;
   lastSeen: number;
+  timestamp?: number;
+  accuracy?: number;
   role?: string;
+  isOffline?: boolean;
 }
 
 /**
  * Zapíše do databáze nový uzel:
- * { code, lat: initialCoords.lat, lng: initialCoords.lng, inCorridor: true, lastSeen: Date.now(), role: 'child' }
+ * { code, lat: initialCoords.lat, lng: initialCoords.lng, inCorridor: true, lastSeen: Date.now(), timestamp: Date.now(), role: 'child' }
  */
 export async function startChildSession(
   code: string,
   initialCoords: { lat: number; lng: number }
 ): Promise<void> {
   const sessionRef = ref(db, `sessions/${code}`);
+  const now = Date.now();
   await set(sessionRef, {
     code,
     lat: initialCoords.lat,
     lng: initialCoords.lng,
     inCorridor: true,
-    lastSeen: Date.now(),
+    lastSeen: now,
+    timestamp: now,
     role: 'child'
   });
 }
 
 /**
- * Pomocí update(ref(db, `sessions/${code}`), { lat, lng, inCorridor, lastSeen: Date.now() })
- * posílá polohu dítěte.
+ * Pomocí update(ref(db, `sessions/${code}`), { lat, lng, inCorridor, lastSeen: Date.now(), timestamp: Date.now() })
+ * posílá polohu dítěte s časovým razítkem.
  */
 export async function updateChildPosition(
   code: string,
   lat: number,
   lng: number,
-  inCorridor: boolean = true
+  inCorridor: boolean = true,
+  accuracy?: number
 ): Promise<void> {
   const sessionRef = ref(db, `sessions/${code}`);
-  await update(sessionRef, {
+  const now = Date.now();
+  const updateData: Record<string, any> = {
     lat,
     lng,
     inCorridor,
-    lastSeen: Date.now()
-  });
+    lastSeen: now,
+    timestamp: now
+  };
+  if (typeof accuracy === 'number') {
+    updateData.accuracy = accuracy;
+  }
+  await update(sessionRef, updateData);
 }
 
 /**
@@ -154,11 +166,12 @@ export function startGpsStreaming(
 
   let currentLat = 50.0755;
   let currentLng = 14.4378;
+  let currentAccuracy: number | undefined = undefined;
   let inCorridor = true;
 
   const pushUpdate = () => {
     if (isStopped) return;
-    updateChildPosition(code, currentLat, currentLng, inCorridor).catch((err) => {
+    updateChildPosition(code, currentLat, currentLng, inCorridor, currentAccuracy).catch((err) => {
       console.warn('Chyba při aktualizaci polohy dítěte do Firebase:', err);
     });
   };
@@ -166,8 +179,14 @@ export function startGpsStreaming(
   if (typeof window !== 'undefined' && 'geolocation' in navigator) {
     watchId = navigator.geolocation.watchPosition(
       (pos) => {
+        // GPS Noise Filter: Ignoruj GPS souřadnice, jejichž hodnota coords.accuracy je horší než 25 metrů
+        if (typeof pos.coords.accuracy === 'number' && pos.coords.accuracy > 25) {
+          console.log(`LiveSync Noise Filter: Ignoruji vzorek s accuracy ${pos.coords.accuracy}m > 25m`);
+          return;
+        }
         currentLat = pos.coords.latitude;
         currentLng = pos.coords.longitude;
+        currentAccuracy = pos.coords.accuracy;
         onPositionChange?.({ lat: currentLat, lng: currentLng });
         pushUpdate();
       },

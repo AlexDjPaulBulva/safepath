@@ -293,6 +293,103 @@ export const PRAGUE_GATED_NIGHT_ZONES: GatedNightZone[] = [
   }
 ];
 
+export interface TramSafetyCheckResult {
+  isTramSafe: boolean;
+  tramViolationsCount: number;
+  tramViolations: Array<{
+    roadName: string;
+    intersectionPoint: [number, number];
+    nearestSignalizedCrossing: {
+      id: string;
+      name: string;
+      coords: [number, number];
+      distanceMeters: number;
+    };
+  }>;
+}
+
+/**
+ * Striktní bezpečnostní pravidlo pro tramvaje (režim Malé děti):
+ * - Pokud trasa protíná linii railway=tram, bod křížení MUSÍ mít tag crossing=traffic_signals.
+ * - Přebíhání tramvajových kolejí přes nechráněné přechody nebo volnou vozovku je v režimu Malé děti striktně zakázáno.
+ */
+export function validateTramCrossingSafety(
+  routeGeometry: [number, number][],
+  corridors: typeof PRAGUE_ROAD_CORRIDORS = PRAGUE_ROAD_CORRIDORS
+): TramSafetyCheckResult {
+  if (!routeGeometry || !Array.isArray(routeGeometry) || routeGeometry.length < 2) {
+    return { isTramSafe: true, tramViolationsCount: 0, tramViolations: [] };
+  }
+
+  const validRouteCoords = routeGeometry.filter(
+    (pt) => Array.isArray(pt) && pt.length === 2 && Number.isFinite(pt[0]) && Number.isFinite(pt[1])
+  );
+  if (validRouteCoords.length < 2) {
+    return { isTramSafe: true, tramViolationsCount: 0, tramViolations: [] };
+  }
+
+  const turfCoords = validRouteCoords.map(([lat, lng]) => [lng, lat]);
+  let routeLine: ReturnType<typeof turf.lineString> | null = null;
+  try {
+    routeLine = turf.lineString(turfCoords);
+  } catch {
+    return { isTramSafe: true, tramViolationsCount: 0, tramViolations: [] };
+  }
+
+  const tramCorridors = corridors.filter(
+    (c) => c.hasTram && c.coordinates && c.coordinates.length >= 2
+  );
+  const tramViolations: TramSafetyCheckResult['tramViolations'] = [];
+
+  for (const corridor of tramCorridors) {
+    try {
+      const roadLine = turf.lineString(corridor.coordinates.map(([lat, lng]) => [lng, lat]));
+      const intersects = turf.lineIntersect(routeLine, roadLine);
+      if (!intersects || !intersects.features || intersects.features.length === 0) continue;
+
+      for (const feat of intersects.features) {
+        if (!feat.geometry || !feat.geometry.coordinates) continue;
+        const [intLng, intLat] = feat.geometry.coordinates;
+        if (!Number.isFinite(intLng) || !Number.isFinite(intLat)) continue;
+
+        // Každé křížení s tramvajovou tratí (railway=tram) MUSÍ mít tag crossing=traffic_signals
+        let nearestSignal = corridor.signalizedCrossings[0];
+        let minSignalDist = Infinity;
+
+        for (const sig of corridor.signalizedCrossings) {
+          const d = getDistance(intLat, intLng, sig.coords[0], sig.coords[1]);
+          if (d < minSignalDist) {
+            minSignalDist = d;
+            nearestSignal = sig;
+          }
+        }
+
+        // Přebíhání kolejí mimo semafor (tolerance max 18 m od středu světelného přechodu)
+        if (minSignalDist > 18 && nearestSignal) {
+          tramViolations.push({
+            roadName: `${corridor.name} (tramvajová trať)`,
+            intersectionPoint: [intLat, intLng],
+            nearestSignalizedCrossing: {
+              id: nearestSignal.id,
+              name: nearestSignal.name,
+              coords: nearestSignal.coords,
+              distanceMeters: Math.round(minSignalDist)
+            }
+          });
+        }
+      }
+    } catch {
+      // Ignorovat výjimku lineIntersect pro daný koridor
+    }
+  }
+
+  return {
+    isTramSafe: tramViolations.length === 0,
+    tramViolationsCount: tramViolations.length,
+    tramViolations
+  };
+}
+
 /**
  * Dynamické bezpečnostní vyhodnocení uliční geometrie z OSRM
  * a aplikace chodeckého mikrogeometrického enginu.
@@ -471,11 +568,14 @@ function evaluateRoute(
     }
   }
 
-  // Bonus za bezpečné přechody a validaci dětské bezpečnosti (včetně nočních bran)
-  const isChildSafe = (microResult.childSafety?.isChildSafe ?? true) && !hasGatedNightBreach;
+  // Bonus za bezpečné přechody a validaci dětské bezpečnosti (včetně tramvají a nočních bran)
+  const tramSafety = validateTramCrossingSafety(displayGeometry);
+  const isTramSafe = tramSafety.isTramSafe;
+  const isChildSafe = (microResult.childSafety?.isChildSafe ?? true) && isTramSafe && !hasGatedNightBreach;
   const crossingsBonus = (microResult.snappedCrossings?.length || 0) * 4;
-  const childSafetyBonus = isChildSafe ? 12 : -100;
+  const childSafetyBonus = isChildSafe ? 15 : (isTramSafe ? -100 : -600);
   const gatedPenalty = hasGatedNightBreach ? 150 : 0;
+  const tramPenalty = isTramSafe ? 0 : 500;
 
   const livelyScore =
     metrics.overallSafetyScore * 0.55 +
@@ -898,15 +998,21 @@ export async function fetchOSRMRoute(
     console.warn('Aktivní bezpečnostní trasování přes koridor selhalo, pokračuji se standardními trasami:', hubErr);
   }
 
-  // 4. Child Safety Constraint validace a re-routing přes světelnou křižovatku
+  // 4. Child Safety Constraint validace a re-routing přes světelnou křižovatku (včetně tramvajových linek)
   try {
     const primaryRouteCoords: [number, number][] = rawRoutes[0].geometry.coordinates.map(
       ([lng, lat]: [number, number]) => [lat, lng]
     );
     const safetyCheck = validateChildSafetyConstraint(primaryRouteCoords, getGlobalCrossingIndex());
+    const tramCheck = validateTramCrossingSafety(primaryRouteCoords);
 
-    if (!safetyCheck.isChildSafe && safetyCheck.suggestedWaypoint) {
-      const wp = safetyCheck.suggestedWaypoint;
+    let suggestedWp = safetyCheck.suggestedWaypoint;
+    if (!tramCheck.isTramSafe && tramCheck.tramViolations.length > 0) {
+      suggestedWp = tramCheck.tramViolations[0].nearestSignalizedCrossing.coords;
+    }
+
+    if ((!safetyCheck.isChildSafe || !tramCheck.isTramSafe) && suggestedWp) {
+      const wp = suggestedWp;
       const wpRoutes = await fetchFootRouteWithWaypoint(sLng, sLat, wp[1], wp[0], eLng, eLat);
       if (wpRoutes && wpRoutes.length > 0) {
         // Vložíme bezpečnou trasu vedenou přes světelnou křižovatku jako prioritní variantu
@@ -972,11 +1078,12 @@ export async function fetchOSRMRoute(
     const routeC: RouteResult | null = null;
 
     // Pomocná funkce pro ověření bezpečnostních kritérií pro dítě:
-    // - nesmí obsahovat nechráněné přechody přes víceproudé komunikace/tramvaje
+    // - nesmí obsahovat nechráněné přechody přes víceproudé komunikace ani tramvajové pásy (křížení tramvaje MUSÍ mít crossing=traffic_signals)
     // - nulový výskyt rizikových zón
     // - nulový výskyt neřízených přechodů na hlavních komunikacích
     const isCandidateChildSafe = (c: EvaluatedCandidate) => {
-      const childSafeCrossing = c.childSafetyValid === true;
+      const tramCheck = validateTramCrossingSafety(c.geometry);
+      const childSafeCrossing = c.childSafetyValid === true && tramCheck.isTramSafe;
       const noRiskSpots = (c.metrics.riskSpotsCount ?? 0) === 0;
       const noUncontrolledCrossings = (c.metrics.uncontrolledCrossingsCount ?? 0) === 0;
       return childSafeCrossing && noRiskSpots && noUncontrolledCrossings;
@@ -985,7 +1092,11 @@ export async function fetchOSRMRoute(
     // 2. Trasa A (Doporučená – Bezpečí):
     // Primárně klidnější ulice s kamerami MKS a 100% přechodů řízených světly
     const getChildMaxSafetyScore = (c: EvaluatedCandidate) => {
-      let score = c.surveillanceScore * 1.5 + (c.childSafetyValid ? 100 : -100);
+      const tramCheck = validateTramCrossingSafety(c.geometry);
+      let score = c.surveillanceScore * 1.5 + (c.childSafetyValid && tramCheck.isTramSafe ? 150 : -200);
+      if (!tramCheck.isTramSafe) {
+        score -= 5000; // Striktní zákaz neřízeného přebíhání tramvajových kolejí v režimu Malé děti
+      }
       score += (c.metrics.cameraCoveragePercent || 0) * 2;
       score -= (c.metrics.riskSpotsCount || 0) * 100;
       score -= (c.metrics.unlitSegmentsCount || 0) * 25;
@@ -999,7 +1110,10 @@ export async function fetchOSRMRoute(
     };
 
     const strictlySafe = candidates.filter(isCandidateChildSafe);
-    const poolA: EvaluatedCandidate[] = strictlySafe.length > 0 ? strictlySafe : (childSafeCandidates.length > 0 ? childSafeCandidates : candidates);
+    const tramSafeCandidates = childSafeCandidates.filter(c => validateTramCrossingSafety(c.geometry).isTramSafe);
+    const poolA: EvaluatedCandidate[] = strictlySafe.length > 0 
+      ? strictlySafe 
+      : (tramSafeCandidates.length > 0 ? tramSafeCandidates : (childSafeCandidates.length > 0 ? childSafeCandidates : candidates));
 
     const candidateA = poolA.reduce((best: EvaluatedCandidate, cur: EvaluatedCandidate) =>
       getChildMaxSafetyScore(cur) > getChildMaxSafetyScore(best) ? cur : best

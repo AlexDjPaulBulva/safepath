@@ -30,7 +30,7 @@ export interface GeofenceState {
  * - Při trvání > 45 s nastaví stav ALERT a simuluje push notifikaci na dispečink rodiče.
  */
 export function useRouteGeofence(
-  currentLocation: { lat: number; lng: number } | null,
+  currentLocation: { lat: number; lng: number; accuracy?: number } | null,
   routeGeometry: [number, number][] | null,
   options: UseRouteGeofenceOptions = {}
 ): GeofenceState {
@@ -53,9 +53,12 @@ export function useRouteGeofence(
   const hasVibratedRef = useRef(false);
   const hasAlertedRef = useRef(false);
 
+  // Vyhlazovací fronta posledních 3 validních měření proti falešným poplachům
+  const recentSamplesRef = useRef<number[]>([]);
+
   // Throttling reference (max 1x za 3 sekundy)
   const lastCalculationTimeRef = useRef<number>(0);
-  const pendingLocationRef = useRef<{ lat: number; lng: number } | null>(null);
+  const pendingLocationRef = useRef<{ lat: number; lng: number; accuracy?: number } | null>(null);
   const throttleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Prostorový výpočet trasy: POUZE JEDNOU při přijetí nové geometrie z routovacího enginu
@@ -72,8 +75,15 @@ export function useRouteGeofence(
     }
   }, [routeGeometry]);
 
-  const evaluateCorridorDistance = (loc: { lat: number; lng: number }) => {
+  const evaluateCorridorDistance = (loc: { lat: number; lng: number; accuracy?: number }) => {
     if (!routeLineString) return;
+
+    // 1. GPS Accuracy Filter: Ignoruj GPS souřadnice, jejichž hodnota coords.accuracy je horší než 25 metrů
+    if (typeof loc.accuracy === 'number' && loc.accuracy > 25) {
+      console.log(`Geofence Jitter Filter: Ignorován vzorek s nízkou přesností (${loc.accuracy} m > 25 m)`);
+      return;
+    }
+
     try {
       const pt = turf.point([loc.lng, loc.lat]);
       const dist = turf.pointToLineDistance(pt, routeLineString, { units: 'meters' });
@@ -90,9 +100,25 @@ export function useRouteGeofence(
       });
 
       if (inSafeStop) {
+        recentSamplesRef.current = [];
         setIsDeviated(false);
+        lastCalculationTimeRef.current = Date.now();
+        return;
+      }
+
+      // 2. Vyhlazovací fronta posledních 3 měření
+      recentSamplesRef.current.push(dist);
+      if (recentSamplesRef.current.length > 3) {
+        recentSamplesRef.current.shift();
+      }
+
+      // Vyhodnoť odchylku z trasy až tehdy, pokud jsou 3 po sobě jdoucí validní vzorky vzdáleny více než 35 metrů od koridoru
+      if (recentSamplesRef.current.length >= 3) {
+        const allThreeDeviated = recentSamplesRef.current.every(d => d > corridorMeters);
+        setIsDeviated(allThreeDeviated);
       } else {
-        setIsDeviated(dist > corridorMeters);
+        // Méně než 3 vzorky - čekáme na potvrzení stability, nehlásíme jednorázový falešný poplach
+        setIsDeviated(false);
       }
       lastCalculationTimeRef.current = Date.now();
     } catch (e) {
@@ -105,6 +131,12 @@ export function useRouteGeofence(
     if (!enabled || !currentLocation || !routeLineString) {
       setDistanceMeters(0);
       setIsDeviated(false);
+      recentSamplesRef.current = [];
+      return;
+    }
+
+    // Odfiltrování vzorků s chybou přesnosti horší než 25 m ihned na vstupu
+    if (typeof currentLocation.accuracy === 'number' && currentLocation.accuracy > 25) {
       return;
     }
 
@@ -189,6 +221,7 @@ export function useRouteGeofence(
   }, [enabled, isDeviated, warningThresholdSec, alertThresholdSec, currentLocation, distanceMeters, setChildStatus]);
 
   const resetGeofence = () => {
+    recentSamplesRef.current = [];
     setDeviationSeconds(0);
     setWarningActive(false);
     setAlertActive(false);
