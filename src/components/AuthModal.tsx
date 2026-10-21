@@ -79,12 +79,14 @@ export function AuthModal({
     setPairedChildrenList
   } = useAppStore();
 
-  // Právní disclaimer pro rodiče
+  // Právní disclaimer pro rodiče a smluvní podmínky
   const [disclaimerAccepted, setDisclaimerAccepted] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     return localStorage.getItem('safepath_disclaimer_accepted') === 'true';
   });
   const [hasCheckedConsent, setHasCheckedConsent] = useState(false);
+  const [registerConsent, setRegisterConsent] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
 
   // 1. Sledování stavu přihlášení (onAuthStateChanged)
   useEffect(() => {
@@ -232,7 +234,7 @@ export function AuthModal({
     }
   };
 
-  // REGISTRACE RODIČE (E-mail + Heslo + Potvrzení)
+  // REGISTRACE RODIČE (E-mail + Heslo + Potvrzení + Smluvní podmínky)
   const handleParentRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!emailInput.trim()) {
@@ -244,7 +246,11 @@ export function AuthModal({
       return;
     }
     if (passwordInput !== confirmPasswordInput) {
-      setAuthError('Zadaná hesla se neshodují');
+      setAuthError('Zadaná hesla se neshodují.');
+      return;
+    }
+    if (!registerConsent) {
+      setAuthError('Pro vytvoření účtu musíte zaškrtnout souhlas se smluvními podmínkami a právní doložkou.');
       return;
     }
 
@@ -256,6 +262,8 @@ export function AuthModal({
       const user = await registerParent(emailInput, passwordInput);
       setCurrentUser({ uid: user.uid, email: user.email });
       setAuthError(null);
+      localStorage.setItem('safepath_disclaimer_accepted', 'true');
+      setDisclaimerAccepted(true);
     } catch (error: any) {
       setAuthError(getAuthErrorMessage(error));
     } finally {
@@ -364,8 +372,13 @@ export function AuthModal({
 
   // Vstup do aplikace bez spárování
   const handleEnterParentWithoutPairing = () => {
+    if (!disclaimerAccepted && !hasCheckedConsent) {
+      setAuthError('Před vstupem do mapy musíte potvrdit právní upozornění níže.');
+      return;
+    }
     localStorage.setItem('safepath_mode', 'parent');
     localStorage.setItem('safepath_disclaimer_accepted', 'true');
+    setDisclaimerAccepted(true);
     setActiveMode('parent');
     if (onSelectProfiles) onSelectProfiles(['parent']);
     if (onSelectMode) onSelectMode('parent');
@@ -785,6 +798,41 @@ export function AuthModal({
                       />
                     </div>
 
+                    {/* Vždy viditelné povinné potvrzení smluvních podmínek při registraci */}
+                    <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-700/80 text-xs space-y-2 mt-1">
+                      <p className="text-amber-200/90 text-[11px] leading-relaxed">
+                        <span className="font-bold text-amber-400">Právní doložka:</span> SafePath je asistenční technologický nástroj a nenahrazuje osobní dohled zákonného zástupce.
+                      </p>
+                      <label className="flex items-start gap-2.5 cursor-pointer text-slate-300 hover:text-white select-none">
+                        <input
+                          type="checkbox"
+                          id="register-consent-checkbox"
+                          required
+                          checked={registerConsent}
+                          onChange={(e) => {
+                            setRegisterConsent(e.target.checked);
+                            setAuthError(null);
+                          }}
+                          className="mt-0.5 h-4 w-4 rounded border-slate-600 bg-slate-900 text-cyan-500 focus:ring-cyan-500 shrink-0 cursor-pointer"
+                        />
+                        <span className="text-xs leading-snug">
+                          Souhlasím se{' '}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setShowTermsModal(true);
+                            }}
+                            className="text-cyan-400 hover:text-cyan-300 font-semibold underline underline-offset-2 cursor-pointer inline"
+                          >
+                            smluvními podmínkami
+                          </button>{' '}
+                          a beru na vědomí právní doložku o odpovědnosti.
+                        </span>
+                      </label>
+                    </div>
+
                     {authError && (
                       <div className="p-3 rounded-xl bg-rose-950/50 border border-rose-500/50 text-rose-300 text-xs font-medium">
                         {authError}
@@ -918,6 +966,48 @@ export function AuthModal({
           </div>
         )}
       </div>
+
+      {/* Modální okno Smluvní podmínky */}
+      {showTermsModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-lg w-full p-6 shadow-2xl relative">
+            <button
+              onClick={() => setShowTermsModal(false)}
+              className="absolute top-5 right-5 text-slate-400 hover:text-white bg-slate-800 rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold border border-slate-700 transition-colors"
+              title="Zavřít"
+            >
+              ✕
+            </button>
+            <div className="flex items-center gap-2.5 mb-4">
+              <span className="text-2xl">📜</span>
+              <h3 className="text-lg font-bold text-white">Smluvní podmínky a právní doložka</h3>
+            </div>
+            <div className="space-y-3 text-xs text-slate-300 leading-relaxed max-h-[60vh] overflow-y-auto pr-2">
+              <p>
+                <strong className="text-white">1. Účel asistenčního systému:</strong> Aplikace SafePath je pokročilý geolokační a bezpečnostní asistenční nástroj určený k usnadnění bezpečného návratu dětí a zranitelných osob domů v městském prostředí.
+              </p>
+              <p>
+                <strong className="text-white">2. Odpovědnost a dohled:</strong> SafePath v žádném případě nenahrazuje osobní péči, zákonný dohled rodičů ani záchranné složky IZS (Policii ČR, ZZS, HZS). Uživatel bere na vědomí, že technická selhání, výpadek signálu GPS či internetového připojení mohou dočasně ovlivnit přenos dat.
+              </p>
+              <p>
+                <strong className="text-white">3. Ochrana osobních údajů:</strong> Geolokační data jsou zpracovávána výhradně za účelem poskytování bezpečnostního dohledu autorizovaným rodičovským účtem a nejsou poskytována třetím stranám pro marketingové účely.
+              </p>
+              <p>
+                <strong className="text-white">4. Souhlas:</strong> Registrací a používáním služby potvrzujete, že jste se seznámili s těmito podmínkami a v plném rozsahu s nimi souhlasíte.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setRegisterConsent(true);
+                setShowTermsModal(false);
+              }}
+              className="w-full mt-5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-md active:scale-95"
+            >
+              Rozumím a přijímám podmínky
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
