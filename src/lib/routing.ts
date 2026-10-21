@@ -747,7 +747,7 @@ export async function fetchOSRMRoute(
   timeOfDay: number,
   profiles: string[] = ['parent'],
   activeMode?: 'parent' | 'night_girl' | 'child'
-): Promise<{ routeA: RouteResult; routeB: RouteResult | null; routeC: RouteResult | null }> {
+): Promise<{ routeA: RouteResult; routeB: RouteResult | null; routeC: RouteResult | null; fastestRoute: RouteResult | null }> {
   const { sLng, sLat, eLng, eLat } = normalizeCoordinates(startLat, startLng, endLat, endLng);
 
   if (![sLat, sLng, eLat, eLng].every(Number.isFinite)) {
@@ -771,6 +771,23 @@ export async function fetchOSRMRoute(
 
   if (!rawRoutes || rawRoutes.length === 0) {
     throw new Error('Nelze nalézt pěší trasu po komunikacích. Zkuste body posunout blíže ke komunikaci.');
+  }
+
+  // Surová nejkratší pěší trasa (OSRM foot bez bezpečnostních penalizací a obcházek)
+  const rawFastest = rawRoutes[0];
+  let fastestRoute: RouteResult | null = null;
+  try {
+    const fastestCandidate = evaluateRoute(rawFastest, safetyNodes, isNight, profiles, [sLat, sLng], [eLat, eLng]);
+    fastestRoute = candidateToRouteResult(
+      fastestCandidate,
+      'routeC',
+      'Nejrychlejší trasa',
+      'Běžná nejkratší pěší trasa bez bezpečnostních obcházek.',
+      'Trasa standardní navigace bez zohlednění kamer a bezpečných přechodů.',
+      ['[Běžná navigace]', '[Nejkratší]', '[Rychlá]']
+    );
+  } catch (fastestErr) {
+    console.warn('Evaluace fastestRoute se nezdařila:', fastestErr);
   }
 
   // 3. Child Safety Constraint validace a re-routing přes světelnou křižovatku
@@ -892,7 +909,7 @@ export async function fetchOSRMRoute(
     routeA.isWarningRoute = false;
     routeA.childSafetyValid = true;
 
-    return { routeA, routeB: null, routeC: null };
+    return { routeA, routeB: null, routeC: null, fastestRoute };
   }
 
   // STANDARDNÍ / NOČNÍ REŽIM
@@ -910,7 +927,7 @@ export async function fetchOSRMRoute(
     ['[Garantované bezpečí]', '[Vysoká frekvence lidí]', '[Dobré osvětlení]', '[Dohled kamer]']
   );
 
-  return { routeA, routeB: null, routeC: null };
+  return { routeA, routeB: null, routeC: null, fastestRoute };
 }
 
 /**

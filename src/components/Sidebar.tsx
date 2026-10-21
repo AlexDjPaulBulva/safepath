@@ -19,6 +19,9 @@ interface SidebarProps {
   routeA: RouteStats | null;
   routeB: RouteStats | null;
   routeC: RouteStats | null;
+  fastestRoute?: RouteStats | null;
+  showFastestRoute?: boolean;
+  onToggleFastestRoute?: () => void;
   argumentsText: string[];
   layers: { cameras: boolean; lights: boolean; havens?: boolean; incidents?: boolean; zones?: boolean; localDataOnly?: boolean };
   onToggleLayer: (layer: 'cameras' | 'lights' | 'havens' | 'incidents' | 'zones' | 'localDataOnly') => void;
@@ -236,6 +239,7 @@ function RouteCard({
 export function Sidebar({
   startPointName, endPointName, onSelectStart, onSelectEnd,
   selectedRoute, onSelectRoute, routeA, routeB, routeC,
+  fastestRoute = null, showFastestRoute = false, onToggleFastestRoute,
   argumentsText, layers, onToggleLayer,
   timeOfDay, onChangeTime, onSelectProfile,
   safeHavens = [], isSimulating = false, onToggleSimulation, activeProfiles = ['parent'], activeMode, onMetricHover,
@@ -294,142 +298,170 @@ export function Sidebar({
         className={`
           bg-slate-900/95 backdrop-blur-md border-r border-slate-700/50
           w-full md:w-96 shadow-2xl flex flex-col pointer-events-auto relative z-20
-          transition-all duration-300 ease-out md:translate-y-0 md:h-full
+          transition-all duration-300 ease-out md:translate-y-0 md:h-full pt-0
           ${isOpen 
             ? 'translate-y-0 h-[85vh] max-h-[85vh] rounded-t-3xl border-t border-slate-700/70 md:border-t-0 md:rounded-none' 
             : 'translate-y-0 h-[5.25rem] max-h-[5.25rem] overflow-hidden rounded-t-2xl border-t border-slate-700/70 md:border-t-0 md:rounded-none'
           }
         `}
-        style={{ paddingBottom: 'calc(3.5rem + env(safe-area-inset-bottom, 0px))' }}
       >
-      {/* Mobile Handle / Drawer Peek Bar */}
-      <div 
-        className="md:hidden flex flex-col justify-center px-4 py-2 border-b border-slate-700/60 bg-slate-900/95 cursor-pointer active:bg-slate-800 transition-colors select-none rounded-t-2xl"
-        onClick={() => setIsOpen(!isOpen)}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-      >
-        <div className="w-12 h-1.5 bg-slate-500 rounded-full mx-auto mb-1.5 cursor-grab"></div>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-            <div>
-              <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                <span>{routeA ? 'Garantovaná bezpečná trasa' : 'Bezpečná navigace'}</span>
-              </div>
-              {routeA && (
-                <div className="text-[11px] text-emerald-400 font-semibold">
-                  ⏱️ {routeA.duration} min ({routeA.distance.toFixed(2)} km)
+        {/* Mobile Handle / Drawer Peek Bar */}
+        <div 
+          className="md:hidden flex flex-col justify-center px-4 py-2 border-b border-slate-700/60 bg-slate-900/95 cursor-pointer active:bg-slate-800 transition-colors select-none rounded-t-2xl shrink-0"
+          onClick={() => setIsOpen(!isOpen)}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
+          <div className="w-12 h-1.5 bg-slate-500 rounded-full mx-auto mb-1.5 cursor-grab"></div>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <div>
+                <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <span>{routeA ? 'Garantovaná bezpečná trasa' : 'Bezpečná navigace'}</span>
                 </div>
-              )}
+                {routeA && (
+                  <div className="text-[11px] text-emerald-400 font-semibold">
+                    ⏱️ {routeA.duration} min ({routeA.distance.toFixed(2)} km)
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-1 text-xs font-bold text-slate-300 bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700">
-            <span>{isOpen ? 'Sbalit' : 'Přehled'}</span>
-            <span className="text-[10px] text-emerald-400">{isOpen ? '▼' : '▲'}</span>
-          </div>
-        </div>
-      </div>
-
-      <div 
-        className="flex-1 overflow-y-auto overflow-x-hidden p-6 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent"
-        style={{ paddingBottom: '3.5rem' }}
-      >
-        {/* Header a Profil */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-2xl font-black tracking-tight text-white flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
-              SafePath
-            </h1>
-            <p className="text-xs text-slate-400 mt-1 uppercase tracking-widest font-semibold">Rodičovský Dispečink</p>
-          </div>
-          <div className="bg-slate-800/50 px-3 py-1.5 rounded-xl border border-slate-700 flex items-center gap-2 mt-4 md:mt-0">
-            <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Aktivní režim:</span>
-            <span className="text-sm font-black text-white">
-              {isChildMode && activeProfiles.length === 1 && '👨‍👧 Malé děti'}
-              {!isChildMode && activeProfiles.length === 1 && activeProfiles.includes('night_girl') && '🌙 Dívky 14+'}
-              {activeProfiles.length > 1 && `🔄 Kombinovaný (${activeProfiles.length})`}
-            </span>
+            <div className="flex items-center gap-1 text-xs font-bold text-slate-300 bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700">
+              <span>{isOpen ? 'Sbalit' : 'Přehled'}</span>
+              <span className="text-[10px] text-emerald-400">{isOpen ? '▼' : '▲'}</span>
+            </div>
           </div>
         </div>
 
-        {/* Vyhledávání */}
-        <div className="space-y-3 mb-8">
-          <AddressSearchInput
-            label="Odkud"
-            placeholder="Odkud?"
-            value={startPointName}
-            onSelect={onSelectStart}
-            iconColor="text-emerald-400"
-            showCurrentLocation={true}
-            onUseCurrentLocation={() => {
-              if (userLocation) {
-                onSelectStart(userLocation.lat, userLocation.lng, 'Moje aktuální poloha');
-                onRecenterGps?.();
-              } else if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                  (position) => {
-                    const lat = position.coords.latitude;
-                    const lng = position.coords.longitude;
-                    onSelectStart(lat, lng, 'Moje aktuální poloha');
-                    onRecenterGps?.();
-                  },
-                  () => {
-                    // Fallback na reverzní geokódování pokud se nezdaří
-                  },
-                  { enableHighAccuracy: true, timeout: 10000, maximumAge: 2000 }
-                );
-              }
-            }}
-          />
-          <AddressSearchInput
-            label="Kam"
-            placeholder="Kam to bude?"
-            value={endPointName}
-            onSelect={onSelectEnd}
-            iconColor="text-blue-400"
-          />
-        </div>
+        {/* Pevná hlavička (Logo SafePath + vstupy ODKUD / KAM) bez scrollování */}
+        <div className="shrink-0 px-5 pt-3 pb-3 border-b border-slate-800/80 bg-slate-900/95">
+          {/* Header a Profil */}
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h1 className="text-xl font-black tracking-tight text-white flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                SafePath
+              </h1>
+              <p className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">Rodičovský Dispečink</p>
+            </div>
+            <div className="bg-slate-800/60 px-2.5 py-1 rounded-lg border border-slate-700/80 flex items-center gap-1.5">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Režim:</span>
+              <span className="text-xs font-black text-white">
+                {isChildMode && activeProfiles.length === 1 && '👨‍👧 Malé děti'}
+                {!isChildMode && activeProfiles.length === 1 && activeProfiles.includes('night_girl') && '🌙 Dívky 14+'}
+                {activeProfiles.length > 1 && `🔄 Kombinovaný (${activeProfiles.length})`}
+              </span>
+            </div>
+          </div>
 
-        {/* Trasa */}
-        <div className="mb-8">
-          <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">
-            Bezpečná trasa pro dítě
-          </h3>
-          {routingError ? (
-            <div className="p-4 rounded-xl bg-red-950/70 border border-red-500/70 text-red-200 text-sm shadow-lg">
-              <div className="flex items-center gap-2 font-bold mb-1.5 text-red-400">
-                <span className="text-base">⚠️</span>
-                <span>Chyba při výpočtu trasy</span>
-              </div>
-              <p className="text-xs text-red-300 leading-relaxed mb-2.5">{routingError}</p>
-              <p className="text-[11px] text-slate-400">Zvolte jiný cíl nebo posuňte bod blíže k silnici či pěší komunikaci.</p>
-            </div>
-          ) : isRoutingLoading ? (
-            <div className="space-y-3">
-              <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-4 animate-pulse">
-                <div className="h-4 bg-slate-700/50 rounded w-1/3 mb-2"></div>
-                <div className="h-3 bg-slate-700/50 rounded w-2/3"></div>
-              </div>
-              <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-4 animate-pulse">
-                <div className="h-4 bg-slate-700/50 rounded w-1/3 mb-2"></div>
-                <div className="h-3 bg-slate-700/50 rounded w-2/3"></div>
-              </div>
-            </div>
-          ) : routeA ? (
-            <RouteCard 
-              route={routeA} 
-              onMetricHover={onMetricHover}
-              layers={layers}
-              onToggleLayer={onToggleLayer}
+          {/* Vyhledávání */}
+          <div className="space-y-2">
+            <AddressSearchInput
+              label="Odkud"
+              placeholder="Odkud?"
+              value={startPointName}
+              onSelect={onSelectStart}
+              iconColor="text-emerald-400"
+              showCurrentLocation={true}
+              onUseCurrentLocation={() => {
+                if (userLocation) {
+                  onSelectStart(userLocation.lat, userLocation.lng, 'Moje aktuální poloha');
+                  onRecenterGps?.();
+                } else if (navigator.geolocation) {
+                  navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                      const lat = position.coords.latitude;
+                      const lng = position.coords.longitude;
+                      onSelectStart(lat, lng, 'Moje aktuální poloha');
+                      onRecenterGps?.();
+                    },
+                    () => {},
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 2000 }
+                  );
+                }
+              }}
             />
-          ) : (
-            <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-700/60 text-slate-400 text-xs text-center">
-              Zadejte výchozí a cílový bod pro vyhledání bezpečné trasy.
-            </div>
-          )}
+            <AddressSearchInput
+              label="Kam"
+              placeholder="Kam to bude?"
+              value={endPointName}
+              onSelect={onSelectEnd}
+              iconColor="text-blue-400"
+            />
+          </div>
         </div>
+
+        {/* Samostatně scrollovatelný zbytek obsahu */}
+        <div 
+          className="flex-1 overflow-y-auto overflow-x-hidden px-5 py-4 space-y-5"
+          style={{ paddingBottom: '3.5rem' }}
+        >
+          {/* Trasa */}
+          <div>
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">
+              Bezpečná trasa pro dítě
+            </h3>
+            {routingError ? (
+              <div className="p-4 rounded-xl bg-red-950/70 border border-red-500/70 text-red-200 text-sm shadow-lg">
+                <div className="flex items-center gap-2 font-bold mb-1.5 text-red-400">
+                  <span className="text-base">⚠️</span>
+                  <span>Chyba při výpočtu trasy</span>
+                </div>
+                <p className="text-xs text-red-300 leading-relaxed mb-2.5">{routingError}</p>
+                <p className="text-[11px] text-slate-400">Zvolte jiný cíl nebo posuňte bod blíže k silnici či pěší komunikaci.</p>
+              </div>
+            ) : isRoutingLoading ? (
+              <div className="space-y-3">
+                <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-4 animate-pulse">
+                  <div className="h-4 bg-slate-700/50 rounded w-1/3 mb-2"></div>
+                  <div className="h-3 bg-slate-700/50 rounded w-2/3"></div>
+                </div>
+                <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-4 animate-pulse">
+                  <div className="h-4 bg-slate-700/50 rounded w-1/3 mb-2"></div>
+                  <div className="h-3 bg-slate-700/50 rounded w-2/3"></div>
+                </div>
+              </div>
+            ) : routeA ? (
+              <>
+                <RouteCard 
+                  route={routeA} 
+                  onMetricHover={onMetricHover}
+                  layers={layers}
+                  onToggleLayer={onToggleLayer}
+                />
+                {/* Přepínač pro porovnání s nejrychlejší trasou */}
+                {fastestRoute && (
+                  <div className="mt-2.5 p-3 rounded-xl bg-slate-800/40 border border-slate-700/60 flex items-center justify-between transition-all hover:bg-slate-800/60">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-base">⚡</span>
+                      <div>
+                        <div className="text-xs font-bold text-slate-200">
+                          Porovnat s nejrychlejší trasou
+                        </div>
+                        <div className="text-[11px] text-slate-400 font-medium">
+                          {fastestRoute.duration} min • {fastestRoute.distance.toFixed(2)} km (běžná navigace)
+                        </div>
+                      </div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer select-none">
+                      <input 
+                        type="checkbox" 
+                        checked={!!showFastestRoute} 
+                        onChange={onToggleFastestRoute}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-slate-500"></div>
+                    </label>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-700/60 text-slate-400 text-xs text-center">
+                Zadejte výchozí a cílový bod pro vyhledání bezpečné trasy.
+              </div>
+            )}
+          </div>
 
         {/* Vrstvy a Ovládání */}
         <div className="space-y-6">

@@ -256,6 +256,8 @@ export function ParentDashboard({
   const [routeA, setRouteA] = useState<RouteResult | null>(null);
   const [routeB, setRouteB] = useState<RouteResult | null>(null);
   const [routeC, setRouteC] = useState<RouteResult | null>(null);
+  const [fastestRoute, setFastestRoute] = useState<RouteResult | null>(null);
+  const [showFastestRoute, setShowFastestRoute] = useState<boolean>(false);
   const [selectedRoute, setSelectedRoute] = useState<'A' | 'B' | 'C'>('A');
   const [safetyReveal, setSafetyReveal] = useState<SafetyReveal | null>(null);
   const [routeProximityPoint, setRouteProximityPoint] = useState<[number, number] | null>(null);
@@ -331,6 +333,7 @@ export function ParentDashboard({
       setRouteA(null);
       setRouteB(null);
       setRouteC(null);
+      setFastestRoute(null);
       return;
     }
 
@@ -363,7 +366,7 @@ export function ParentDashboard({
 
         const isChildMode = activeMode === 'child' || activeMode === 'parent' || activeProfiles.includes('child') || activeProfiles.includes('parent');
 
-        const { routeA: rA } = await fetchOSRMRoute(
+        const { routeA: rA, fastestRoute: fR } = await fetchOSRMRoute(
           startPoint.lat, startPoint.lng,
           endPoint.lat, endPoint.lng,
           combinedSafetyNodes,
@@ -376,6 +379,7 @@ export function ParentDashboard({
         setRouteA(rA);
         setRouteB(null);
         setRouteC(null);
+        setFastestRoute(fR || null);
         setSelectedRoute('A');
         setArgumentsText(generateParentArguments({ safeRoute: rA.metrics }, isChildMode));
       } catch (err) {
@@ -557,6 +561,7 @@ export function ParentDashboard({
           setRouteA(null);
           setRouteB(null);
           setRouteC(null);
+          setFastestRoute(null);
           setSelectedRoute('A');
           showMapToast('Start nastaven. Nyní klepněte na cíl.', 'success');
         }
@@ -581,6 +586,7 @@ export function ParentDashboard({
         setRouteA(null);
         setRouteB(null);
         setRouteC(null);
+        setFastestRoute(null);
       }
     } catch (e) {
       console.error(e);
@@ -602,6 +608,7 @@ export function ParentDashboard({
     setRouteA(null);
     setRouteB(null);
     setRouteC(null);
+    setFastestRoute(null);
     setSelectedRoute('A');
     setIsSimulating(false);
     setSimulationProgress(0);
@@ -782,6 +789,9 @@ export function ParentDashboard({
             routeA={routeA}
             routeB={routeB}
             routeC={routeC}
+            fastestRoute={fastestRoute}
+            showFastestRoute={showFastestRoute}
+            onToggleFastestRoute={() => setShowFastestRoute(prev => !prev)}
             argumentsText={argumentsText}
             layers={layers}
             onToggleLayer={toggleLayer}
@@ -948,6 +958,8 @@ export function ParentDashboard({
             routeA={routeA}
             routeB={routeB}
             routeC={routeC}
+            fastestRoute={fastestRoute}
+            showFastestRoute={showFastestRoute}
             selectedRoute={selectedRoute}
             startPoint={startPoint}
             endPoint={endPoint}

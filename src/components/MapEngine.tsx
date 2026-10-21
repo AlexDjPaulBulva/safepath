@@ -151,6 +151,8 @@ export interface MapEngineProps {
   routeA?: RouteResult | null;
   routeB?: RouteResult | null;
   routeC?: RouteResult | null;
+  fastestRoute?: RouteResult | null;
+  showFastestRoute?: boolean;
   selectedRoute: 'A' | 'B' | 'C';
   startPoint?: {lat: number, lng: number; name?: string} | null;
   endPoint?: {lat: number, lng: number; name?: string} | null;
@@ -186,6 +188,8 @@ export function MapEngine({
   routeA,
   routeB,
   routeC,
+  fastestRoute,
+  showFastestRoute = false,
   selectedRoute,
   startPoint,
   endPoint,
@@ -772,6 +776,23 @@ export function MapEngine({
         {endPoint && (
           <Marker position={[endPoint.lat, endPoint.lng]} icon={endIcon} zIndexOffset={1000}>
           </Marker>
+        )}
+
+        {/* Volitelné srovnání s nejrychlejší trasou (kontrastní Google Maps linie běžné navigace) */}
+        {showFastestRoute && fastestRoute?.geometry && fastestRoute.geometry.length >= 2 && (
+          <Polyline
+            key="route-fastest-comparison"
+            positions={fastestRoute.geometry}
+            pathOptions={{
+              color: '#94a3b8',
+              weight: 4,
+              dashArray: '6, 8',
+              opacity: 0.75,
+              lineCap: 'round'
+            }}
+            smoothFactor={1}
+            className="pointer-events-none"
+          />
         )}
 
         {/* Garantovaná bezpečná trasa A se světelným bezpečnostním koridorem (Safety Aura) */}
