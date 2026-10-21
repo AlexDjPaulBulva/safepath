@@ -1,6 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import App from './components/SafePathApp'
+import App from './App'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import './index.css'
 

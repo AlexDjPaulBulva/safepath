@@ -9,6 +9,7 @@ import {
   registerParent,
   loginParent,
   logoutParent,
+  resetParentPassword,
   subscribeToAuthChanges,
   savePairedChildToParent,
   removePairedChildFromParent,
@@ -21,15 +22,19 @@ export interface AuthModalProps {
   onSelectProfiles?: (profiles: string[]) => void;
   onClose?: () => void;
   initialTab?: 'parent' | 'child';
+  initialEmail?: string;
+  initialToastMessage?: string;
 }
 
 export function AuthModal({
   onSelectMode,
   onSelectProfiles,
   onClose,
-  initialTab = 'parent'
+  initialTab = 'parent',
+  initialEmail = '',
+  initialToastMessage = ''
 }: AuthModalProps) {
-  const [activeTab, setActiveTab] = useState<'parent' | 'child'>('parent');
+  const [activeTab, setActiveTab] = useState<'parent' | 'child'>(initialTab);
   
   // DĚTSKÝ KÓD
   const [childCode, setChildCode] = useState<string>('');
@@ -37,12 +42,25 @@ export function AuthModal({
   const [childIsEntering, setChildIsEntering] = useState(false);
 
   // RODIČ - AUTENTIZACE (E-mail + Heslo)
-  const [isRegistering, setIsRegistering] = useState(false);
-  const [emailInput, setEmailInput] = useState('');
+  const [authView, setAuthView] = useState<'login' | 'register' | 'forgot_password'>('login');
+  const [emailInput, setEmailInput] = useState(initialEmail);
   const [passwordInput, setPasswordInput] = useState('');
   const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [authSuccessMessage, setAuthSuccessMessage] = useState<string | null>(initialToastMessage || null);
+
+  useEffect(() => {
+    if (initialEmail) {
+      setEmailInput(initialEmail);
+    }
+  }, [initialEmail]);
+
+  useEffect(() => {
+    if (initialToastMessage) {
+      setAuthSuccessMessage(initialToastMessage);
+    }
+  }, [initialToastMessage]);
 
   // RODIČ - PÁROVÁNÍ
   const [parentInputCode, setParentInputCode] = useState<string>('');
@@ -201,6 +219,7 @@ export function AuthModal({
 
     setAuthLoading(true);
     setAuthError(null);
+    setAuthSuccessMessage(null);
 
     try {
       const user = await loginParent(emailInput, passwordInput);
@@ -231,11 +250,34 @@ export function AuthModal({
 
     setAuthLoading(true);
     setAuthError(null);
+    setAuthSuccessMessage(null);
 
     try {
       const user = await registerParent(emailInput, passwordInput);
       setCurrentUser({ uid: user.uid, email: user.email });
       setAuthError(null);
+    } catch (error: any) {
+      setAuthError(getAuthErrorMessage(error));
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  // OBNOVENÍ ZAPOMENUTÉHO HESLA RODIČE
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!emailInput.trim()) {
+      setAuthError('Zadejte prosím e-mailovou adresu.');
+      return;
+    }
+
+    setAuthLoading(true);
+    setAuthError(null);
+    setAuthSuccessMessage(null);
+
+    try {
+      await resetParentPassword(emailInput);
+      setAuthSuccessMessage('Odkaz pro obnovení hesla byl odeslán na váš e-mail. Zkontrolujte prosím svoji doručenou poštu i složku se spamem.');
     } catch (error: any) {
       setAuthError(getAuthErrorMessage(error));
     } finally {
@@ -574,25 +616,29 @@ export function AuthModal({
             ) : (
               /* Stav 2: Rodič není přihlášený (Formulář Přihlášení / Registrace) */
               <div className="flex flex-col">
-                {/* FORMULÁŘ PRO PŘIHLÁŠENÍ RODIČE (!isRegistering) */}
-                {!isRegistering ? (
-                  <form onSubmit={handleParentLogin} className="flex flex-col gap-3.5">
+                {/* FORMULÁŘ PRO PŘIHLÁŠENÍ RODIČE (authView === 'login') */}
+                {authView === 'login' && (
+                  <form method="post" onSubmit={handleParentLogin} className="flex flex-col gap-3.5">
                     <div className="text-center mb-1">
                       <h2 className="text-xl font-bold text-white mb-0.5">Přihlášení rodiče</h2>
                       <p className="text-xs text-slate-400">Přihlaste se ke svému účtu pro správu dětí a bezpečný dispečink</p>
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      <label htmlFor="parent-login-email" className="block text-xs font-semibold text-slate-300 mb-1">
                         E-mail
                       </label>
                       <input
+                        id="parent-login-email"
+                        name="email"
                         type="email"
+                        autoComplete="username"
                         required
                         value={emailInput}
                         onChange={(e) => {
                           setEmailInput(e.target.value);
                           setAuthError(null);
+                          setAuthSuccessMessage(null);
                         }}
                         placeholder="rodic@email.cz"
                         className="w-full bg-slate-950 border border-slate-700 focus:border-cyan-500 rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition-colors"
@@ -600,11 +646,27 @@ export function AuthModal({
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        Heslo
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label htmlFor="parent-login-password" className="block text-xs font-semibold text-slate-300">
+                          Heslo
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAuthView('forgot_password');
+                            setAuthError(null);
+                            setAuthSuccessMessage(null);
+                          }}
+                          className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors cursor-pointer"
+                        >
+                          Zapomenuté heslo?
+                        </button>
+                      </div>
                       <input
+                        id="parent-login-password"
+                        name="password"
                         type="password"
+                        autoComplete="current-password"
                         required
                         value={passwordInput}
                         onChange={(e) => {
@@ -622,6 +684,13 @@ export function AuthModal({
                       </div>
                     )}
 
+                    {authSuccessMessage && (
+                      <div className="p-3.5 rounded-xl bg-emerald-950/60 border border-emerald-500/60 text-emerald-300 text-xs font-medium flex items-start gap-2.5">
+                        <span className="text-base leading-none text-emerald-400">✓</span>
+                        <span>{authSuccessMessage}</span>
+                      </div>
+                    )}
+
                     <button
                       type="submit"
                       disabled={authLoading}
@@ -634,33 +703,40 @@ export function AuthModal({
                     <button
                       type="button"
                       onClick={() => {
-                        setIsRegistering(true);
+                        setAuthView('register');
                         setAuthError(null);
+                        setAuthSuccessMessage(null);
                       }}
                       className="text-xs text-cyan-400 hover:text-cyan-300 font-semibold underline underline-offset-4 text-center mt-2 cursor-pointer transition-colors"
                     >
                       Nemáte ještě rodičovský účet? Zaregistrujte se
                     </button>
                   </form>
-                ) : (
-                  /* FORMULÁŘ PRO REGISTRACI RODIČE (isRegistering === true) */
-                  <form onSubmit={handleParentRegister} className="flex flex-col gap-3.5">
+                )}
+
+                {/* FORMULÁŘ PRO REGISTRACI RODIČE (authView === 'register') */}
+                {authView === 'register' && (
+                  <form method="post" onSubmit={handleParentRegister} className="flex flex-col gap-3.5">
                     <div className="text-center mb-1">
                       <h2 className="text-xl font-bold text-white mb-0.5">Vytvořit účet rodiče</h2>
                       <p className="text-xs text-slate-400">Zaregistrujte se pro trvalé párování dětí a živý dohled</p>
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      <label htmlFor="parent-register-email" className="block text-xs font-semibold text-slate-300 mb-1">
                         E-mail
                       </label>
                       <input
+                        id="parent-register-email"
+                        name="email"
                         type="email"
+                        autoComplete="username"
                         required
                         value={emailInput}
                         onChange={(e) => {
                           setEmailInput(e.target.value);
                           setAuthError(null);
+                          setAuthSuccessMessage(null);
                         }}
                         placeholder="rodic@email.cz"
                         className="w-full bg-slate-950 border border-slate-700 focus:border-cyan-500 rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition-colors"
@@ -668,11 +744,14 @@ export function AuthModal({
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      <label htmlFor="parent-register-password" className="block text-xs font-semibold text-slate-300 mb-1">
                         Heslo
                       </label>
                       <input
+                        id="parent-register-password"
+                        name="new-password"
                         type="password"
+                        autoComplete="new-password"
                         required
                         minLength={6}
                         value={passwordInput}
@@ -686,11 +765,14 @@ export function AuthModal({
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      <label htmlFor="parent-register-confirm" className="block text-xs font-semibold text-slate-300 mb-1">
                         Potvrzení hesla
                       </label>
                       <input
+                        id="parent-register-confirm"
+                        name="confirm-password"
                         type="password"
+                        autoComplete="new-password"
                         required
                         minLength={6}
                         value={confirmPasswordInput}
@@ -721,12 +803,77 @@ export function AuthModal({
                     <button
                       type="button"
                       onClick={() => {
-                        setIsRegistering(false);
+                        setAuthView('login');
                         setAuthError(null);
+                        setAuthSuccessMessage(null);
                       }}
                       className="text-xs text-cyan-400 hover:text-cyan-300 font-semibold underline underline-offset-4 text-center mt-2 cursor-pointer transition-colors"
                     >
                       Již máte účet? Přihlaste se
+                    </button>
+                  </form>
+                )}
+
+                {/* FORMULÁŘ PRO OBNOVENÍ HESLA (authView === 'forgot_password') */}
+                {authView === 'forgot_password' && (
+                  <form onSubmit={handleResetPassword} className="flex flex-col gap-3.5">
+                    <div className="text-center mb-1">
+                      <h2 className="text-xl font-bold text-white mb-0.5">Obnovení zapomenutého hesla</h2>
+                      <p className="text-xs text-slate-400">
+                        Zadejte svůj e-mail a my vám zašleme odkaz pro nastavení nového hesla.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                        E-mail
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        value={emailInput}
+                        onChange={(e) => {
+                          setEmailInput(e.target.value);
+                          setAuthError(null);
+                          setAuthSuccessMessage(null);
+                        }}
+                        placeholder="rodic@email.cz"
+                        className="w-full bg-slate-950 border border-slate-700 focus:border-cyan-500 rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition-colors"
+                      />
+                    </div>
+
+                    {authError && (
+                      <div className="p-3 rounded-xl bg-rose-950/50 border border-rose-500/50 text-rose-300 text-xs font-medium">
+                        {authError}
+                      </div>
+                    )}
+
+                    {authSuccessMessage && (
+                      <div className="p-3.5 rounded-xl bg-emerald-950/60 border border-emerald-500/60 text-emerald-300 text-xs font-medium flex items-start gap-2.5">
+                        <span className="text-base leading-none text-emerald-400">✓</span>
+                        <span>{authSuccessMessage}</span>
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={authLoading}
+                      className="w-full bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 text-white font-bold py-3.5 rounded-xl text-base transition-all shadow-lg shadow-cyan-900/30 flex items-center justify-center gap-2 active:scale-[0.98] mt-1"
+                    >
+                      <span>{authLoading ? '⏳' : '✉️'}</span>
+                      <span>{authLoading ? 'Odesílám...' : 'Odeslat odkaz pro obnovení'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAuthView('login');
+                        setAuthError(null);
+                        setAuthSuccessMessage(null);
+                      }}
+                      className="text-xs text-cyan-400 hover:text-cyan-300 font-semibold underline underline-offset-4 text-center mt-2 cursor-pointer transition-colors"
+                    >
+                      ← Zpět na přihlášení
                     </button>
                   </form>
                 )}

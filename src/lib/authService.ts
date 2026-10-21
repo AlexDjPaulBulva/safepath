@@ -1,6 +1,9 @@
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  sendPasswordResetEmail,
+  verifyPasswordResetCode,
+  confirmPasswordReset,
   signOut,
   onAuthStateChanged,
   User
@@ -51,6 +54,36 @@ export async function loginParent(email: string, password: string): Promise<User
  */
 export async function logoutParent(): Promise<void> {
   await signOut(auth);
+}
+
+/**
+ * Odešle e-mail pro obnovení zapomenutého hesla s přesměrováním přímo do SafePath aplikace.
+ */
+export async function resetParentPassword(email: string): Promise<void> {
+  const origin = typeof window !== 'undefined' && window.location.origin
+    ? window.location.origin
+    : 'https://safepath-ochre.vercel.app';
+
+  const actionCodeSettings = {
+    url: `${origin}/?mode=resetPassword`,
+    handleCodeInApp: true,
+  };
+
+  await sendPasswordResetEmail(auth, email.trim(), actionCodeSettings);
+}
+
+/**
+ * Ověří jednorázový kód pro obnovu hesla z e-mailu a vrátí e-mailovou adresu uživatele.
+ */
+export async function verifyResetCode(oobCode: string): Promise<string> {
+  return await verifyPasswordResetCode(auth, oobCode);
+}
+
+/**
+ * Potvrdí obnovu hesla a uloží nové heslo pro daný oobCode.
+ */
+export async function confirmNewPassword(oobCode: string, newPassword: string): Promise<void> {
+  await confirmPasswordReset(auth, oobCode, newPassword);
 }
 
 /**
@@ -127,6 +160,12 @@ export function getAuthErrorMessage(error: any): string {
       return 'Tento e-mail je již zaregistrován.';
     case 'auth/invalid-email':
       return 'Neplatný formát e-mailové adresy.';
+    case 'auth/missing-email':
+      return 'Zadejte prosím e-mailovou adresu.';
+    case 'auth/expired-action-code':
+      return 'Platnost odkazu pro obnovení hesla vypršela. Požádejte prosím o nový odkaz.';
+    case 'auth/invalid-action-code':
+      return 'Odkaz pro obnovení hesla je neplatný nebo již byl použit.';
     case 'auth/weak-password':
       return 'Heslo musí mít alespoň 6 znaků.';
     case 'auth/wrong-password':
