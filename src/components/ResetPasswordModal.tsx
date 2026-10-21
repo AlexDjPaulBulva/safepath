@@ -148,17 +148,21 @@ export function ResetPasswordModal({
         {/* 3. Stav: Formulář pro zadání nového hesla */}
         {!verifyingCode && !codeError && (
           <form method="post" onSubmit={handleSubmit} className="flex flex-col gap-4">
-            {/* Skrytý identifikátor pro správce hesel v prohlížeči (autofill nového hesla) */}
-            <input
-              type="text"
-              name="username"
-              value={userEmail}
-              autoComplete="username"
-              readOnly
-              tabIndex={-1}
-              aria-hidden="true"
-              className="sr-only"
-            />
+            {/* Viditelné pole pro e-mail (username) garantující automatické vyplnění v prohlížeči */}
+            <div>
+              <label htmlFor="reset-username" className="block text-xs font-semibold text-slate-300 mb-1">
+                Účet (e-mail)
+              </label>
+              <input
+                id="reset-username"
+                type="email"
+                name="username"
+                value={userEmail}
+                autoComplete="username"
+                readOnly
+                className="w-full bg-slate-950/70 border border-slate-700/80 rounded-xl px-4 py-3 text-sm text-cyan-300 font-semibold cursor-default select-all focus:outline-none"
+              />
+            </div>
 
             <div>
               <label htmlFor="new-password" className="block text-xs font-semibold text-slate-300 mb-1">
