@@ -5,6 +5,8 @@ import { useMotionAnomaly } from '../hooks/useMotionAnomaly';
 import { MotionAnomalyModals } from './MotionAnomalyModals';
 import { startGpsStreaming, updateChildPosition } from '../lib/liveSync';
 import { useAppStore } from '../store/useAppStore';
+import { useBatteryProtocol } from '../hooks/useBatteryProtocol';
+import { SafePassModal } from './SafePassModal';
 
 interface ChildCompanionProps {
   onBack?: () => void;
@@ -20,6 +22,20 @@ export function ChildCompanion({ onBack }: ChildCompanionProps) {
   const [pinInput, setPinInput] = useState('');
   const [sosCountdown, setSosCountdown] = useState<number | null>(null);
   const [currentCoords, setCurrentCoords] = useState<{ lat: number; lng: number }>({ lat: 50.0755, lng: 14.4378 });
+  const [showSafePassModal, setShowSafePassModal] = useState(false);
+
+  // Protokol sledování baterie a nouzový balíček při kritickém vybití (< 15 %)
+  const {
+    level: batteryLevel,
+    charging: isCharging,
+    powerSavingMode,
+    isLowBattery,
+    toggleSimulateLowBattery
+  } = useBatteryProtocol({
+    childCode: activeChildCode || '',
+    currentCoords,
+    remainingMinutes: 12
+  });
 
   const motionAnomaly = useMotionAnomaly({
     enabled: isPaired,
@@ -138,23 +154,56 @@ export function ChildCompanion({ onBack }: ChildCompanionProps) {
       
       {/* Hlavní mapa - fake placeholder pro mobilní UI */}
       <div className="flex-1 bg-slate-800 relative z-0">
-        <div className="absolute inset-0 bg-[url('https://cartodb-basemaps-c.global.ssl.fastly.net/dark_all/15/17799/11188.png')] bg-cover bg-center opacity-30"></div>
+        <div className={`absolute inset-0 bg-[url('https://cartodb-basemaps-c.global.ssl.fastly.net/dark_all/15/17799/11188.png')] bg-cover bg-center ${powerSavingMode ? 'opacity-20' : 'opacity-30'}`}></div>
         
-        {/* Plovoucí info a tlačítko Zpět */}
-        {onBack && (
-          <button 
-            onClick={onBack}
-            className="absolute top-6 left-4 bg-slate-900/90 text-slate-300 hover:text-white px-3.5 py-2 rounded-xl border border-slate-700 shadow-xl backdrop-blur flex items-center gap-1.5 text-xs font-bold z-20 transition-all active:scale-95"
+        {/* Horní lišta: Zpět, Stav sledování + Baterie, Tlačítko Safe Pass */}
+        <div className="absolute top-4 left-0 right-0 px-4 flex items-center justify-between z-20 gap-2">
+          {onBack ? (
+            <button 
+              onClick={onBack}
+              className="bg-slate-900/90 text-slate-300 hover:text-white px-3 py-2 rounded-xl border border-slate-700 shadow-xl backdrop-blur flex items-center gap-1.5 text-xs font-bold transition-all active:scale-95"
+            >
+              <span>←</span> Zpět
+            </button>
+          ) : <div className="w-16" />}
+
+          <div className="bg-slate-900/95 px-3.5 py-1.5 rounded-full border border-slate-700 shadow-2xl backdrop-blur flex items-center space-x-2.5 max-w-[55%] truncate">
+            <span className={`w-2.5 h-2.5 rounded-full ${powerSavingMode ? 'bg-amber-400' : 'bg-emerald-500 animate-pulse'}`}></span>
+            <span className="font-bold text-xs text-slate-200 truncate">
+              {activeChildCode ? `Kód: ${activeChildCode}` : 'Sledováno'}
+            </span>
+            {batteryLevel !== null && (
+              <span className={`text-[11px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
+                powerSavingMode ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' : 'bg-slate-800 text-slate-300'
+              }`}>
+                {isCharging ? '⚡' : '🔋'}{batteryLevel}%
+              </span>
+            )}
+          </div>
+
+          <button
+            onClick={() => setShowSafePassModal(true)}
+            className="bg-emerald-600/95 hover:bg-emerald-500 text-white px-3 py-2 rounded-xl border border-emerald-400 shadow-xl backdrop-blur flex items-center gap-1 text-xs font-bold transition-all active:scale-95 shrink-0"
           >
-            <span>←</span> Zpět
+            <span>🏷️</span> Můj Safe Pass
           </button>
-        )}
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-slate-900/95 px-5 py-2.5 rounded-full border border-slate-700 shadow-2xl backdrop-blur flex items-center space-x-3 z-10 max-w-sm">
-          <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span className="font-bold text-xs md:text-sm text-slate-200 truncate">
-            Poloha sledována rodičem {activeChildCode ? `(Kód: ${activeChildCode})` : ''}
-          </span>
         </div>
+
+        {/* Úsporný režim upozornění */}
+        {powerSavingMode && (
+          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-20 w-[92%] max-w-sm bg-gradient-to-r from-amber-600 via-rose-600 to-amber-700 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center justify-between shadow-2xl border border-amber-300 backdrop-blur">
+            <div className="flex items-center gap-2 truncate">
+              <span className="text-sm">⚡</span>
+              <span className="truncate">Úsporný režim (&lt; 15 %): animace vypnuty</span>
+            </div>
+            <button 
+              onClick={toggleSimulateLowBattery}
+              className="text-[10px] uppercase font-black tracking-wider bg-black/30 hover:bg-black/50 px-2 py-0.5 rounded text-amber-200 shrink-0 ml-2"
+            >
+              Reset
+            </button>
+          </div>
+        )}
 
         {/* SOS Button Layer */}
         <div className="absolute bottom-32 left-0 right-0 flex justify-center z-20">
@@ -200,23 +249,45 @@ export function ChildCompanion({ onBack }: ChildCompanionProps) {
           </button>
         </div>
         
-        <button 
-          onClick={() => {
-            SyncEngine.broadcast('TOGGLE_SIMULATION', {});
-            if (activeChildCode) {
-              // Simulovaný posun v poloze
-              const simLat = currentCoords.lat + 0.0008;
-              const simLng = currentCoords.lng + 0.0008;
-              setCurrentCoords({ lat: simLat, lng: simLng });
-              updateChildPosition(activeChildCode, simLat, simLng, true).catch(console.error);
-            }
-          }}
-          className="w-full mt-4 bg-emerald-600 border border-emerald-500 p-4 rounded-2xl flex flex-row items-center justify-center space-x-3 active:bg-emerald-700 transition-colors shadow-lg shadow-emerald-900/50"
-        >
-          <span className="text-xl">📍</span>
-          <span className="font-bold text-white">Simulovat pohyb po trase (Test)</span>
-        </button>
+        <div className="grid grid-cols-2 gap-2 mt-4">
+          <button 
+            onClick={() => {
+              SyncEngine.broadcast('TOGGLE_SIMULATION', {});
+              if (activeChildCode) {
+                // Simulovaný posun v poloze
+                const simLat = currentCoords.lat + 0.0008;
+                const simLng = currentCoords.lng + 0.0008;
+                setCurrentCoords({ lat: simLat, lng: simLng });
+                updateChildPosition(activeChildCode, simLat, simLng, true).catch(console.error);
+              }
+            }}
+            className="bg-emerald-600 border border-emerald-500 p-3 rounded-2xl flex flex-row items-center justify-center space-x-2 active:bg-emerald-700 transition-colors shadow-lg shadow-emerald-900/50"
+          >
+            <span className="text-lg">📍</span>
+            <span className="font-bold text-xs text-white">Simulovat pohyb</span>
+          </button>
+
+          <button 
+            onClick={toggleSimulateLowBattery}
+            className={`border p-3 rounded-2xl flex flex-row items-center justify-center space-x-2 transition-colors shadow-lg ${
+              powerSavingMode 
+                ? 'bg-amber-600 border-amber-400 text-white' 
+                : 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-slate-300'
+            }`}
+          >
+            <span className="text-lg">🪫</span>
+            <span className="font-bold text-xs">{powerSavingMode ? 'Vypnout test vybití' : 'Test vybití (<15%)'}</span>
+          </button>
+        </div>
       </div>
+
+      {/* Krizový SafePass Modal pro dítě */}
+      {showSafePassModal && (
+        <SafePassModal
+          childCode={activeChildCode || 'SAFE-PASS-DEMO'}
+          onClose={() => setShowSafePassModal(false)}
+        />
+      )}
 
       <MotionAnomalyModals
         fallCountdown={motionAnomaly.fallCountdown}

@@ -1,6 +1,14 @@
 import { ref, set, update, onValue, get, remove } from 'firebase/database';
 import { db } from './firebase';
 
+export interface SafePassCrisisReport {
+  reporterLocation?: { lat: number; lng: number } | null;
+  reporterAddress?: string;
+  venueName?: string;
+  reportedAt: number;
+  message: string;
+}
+
 export interface ChildSessionData {
   code: string;
   lat: number;
@@ -9,9 +17,14 @@ export interface ChildSessionData {
   lastSeen: number;
   timestamp?: number;
   battery?: number;
+  charging?: boolean;
   accuracy?: number;
   role?: string;
   isOffline?: boolean;
+  low_battery_alert?: boolean;
+  remainingMinutesToTarget?: number;
+  lastStreetName?: string;
+  safePassCrisisReport?: SafePassCrisisReport | null;
 }
 
 /**
@@ -63,7 +76,13 @@ export async function updateChildPosition(
   lng: number,
   inCorridor: boolean = true,
   accuracy?: number,
-  battery?: number
+  battery?: number,
+  extra?: {
+    charging?: boolean;
+    low_battery_alert?: boolean;
+    remainingMinutesToTarget?: number;
+    lastStreetName?: string;
+  }
 ): Promise<void> {
   const sessionRef = ref(db, `sessions/${code}`);
   const now = Date.now();
@@ -80,7 +99,78 @@ export async function updateChildPosition(
   if (typeof battery === 'number') {
     updateData.battery = battery;
   }
+  if (extra?.charging !== undefined) {
+    updateData.charging = extra.charging;
+  }
+  if (extra?.low_battery_alert !== undefined) {
+    updateData.low_battery_alert = extra.low_battery_alert;
+  }
+  if (typeof extra?.remainingMinutesToTarget === 'number') {
+    updateData.remainingMinutesToTarget = extra.remainingMinutesToTarget;
+  }
+  if (extra?.lastStreetName) {
+    updateData.lastStreetName = extra.lastStreetName;
+  }
   await update(sessionRef, updateData);
+}
+
+/**
+ * Okamžitý záchranný paket pro rodiče při kritickém vybití baterie (< 15 % bez nabíječky)
+ */
+export async function sendEmergencyBatteryRescuePacket(
+  code: string,
+  coords: { lat: number; lng: number; accuracy?: number },
+  batteryLevel: number,
+  remainingMinutes?: number,
+  streetName?: string
+): Promise<void> {
+  const sessionRef = ref(db, `sessions/${code}`);
+  const now = Date.now();
+  await update(sessionRef, {
+    lat: coords.lat,
+    lng: coords.lng,
+    accuracy: coords.accuracy || 10,
+    battery: batteryLevel,
+    charging: false,
+    low_battery_alert: true,
+    lastSeen: now,
+    timestamp: now,
+    remainingMinutesToTarget: remainingMinutes ?? 10,
+    lastStreetName: streetName || 'Praha'
+  });
+}
+
+/**
+ * Nahlásí nález dítěte / krizový stav ze SafePass QR kódu kýmkoliv (Veřejná záchranná stránka)
+ */
+export async function reportSafePassCrisis(
+  childCode: string,
+  details: {
+    venueName?: string;
+    reporterAddress?: string;
+    reporterLocation?: { lat: number; lng: number } | null;
+  }
+): Promise<void> {
+  const sessionRef = ref(db, `sessions/${childCode}`);
+  const now = Date.now();
+  const addressText = details.venueName 
+    ? `${details.venueName}${details.reporterAddress ? ` (${details.reporterAddress})` : ''}`
+    : (details.reporterAddress || (details.reporterLocation ? `GPS: ${details.reporterLocation.lat.toFixed(5)}, ${details.reporterLocation.lng.toFixed(5)}` : 'Praha'));
+
+  const report: SafePassCrisisReport = {
+    reporterLocation: details.reporterLocation || null,
+    reporterAddress: details.reporterAddress || '',
+    venueName: details.venueName || '',
+    reportedAt: now,
+    message: `Dítě nahlášeno na krizovém bodě / Safe Haven! Poloha nálezce: ${addressText}`
+  };
+
+  await update(sessionRef, {
+    safePassCrisisReport: report,
+    inCorridor: false,
+    lastSeen: now,
+    timestamp: now
+  });
 }
 
 /**
@@ -181,7 +271,11 @@ export function subscribeToParentPairedChildren(
  */
 export function startGpsStreaming(
   code: string,
-  onPositionChange?: (coords: { lat: number; lng: number }) => void
+  onPositionChange?: (coords: { lat: number; lng: number }) => void,
+  options?: {
+    isPowerSaving?: boolean;
+    getRouteRemainingMinutes?: () => number;
+  }
 ): () => void {
   let isStopped = false;
   let watchId: number | null = null;
@@ -192,20 +286,55 @@ export function startGpsStreaming(
   let currentAccuracy: number | undefined = undefined;
   let inCorridor = true;
   let currentBattery: number = 88;
+  let currentCharging: boolean = false;
+  let isLowBatteryMode: boolean = Boolean(options?.isPowerSaving);
 
-  // Sledování úrovně baterie zařízení
+  const getIntervalMs = () => (isLowBatteryMode ? 15000 : 3500);
+
+  const restartInterval = () => {
+    if (intervalId) clearInterval(intervalId);
+    intervalId = setInterval(() => {
+      pushUpdate();
+    }, getIntervalMs());
+  };
+
+  // Sledování úrovně baterie zařízení a stavu nabíjení
   if (typeof navigator !== 'undefined' && 'getBattery' in (navigator as any)) {
     (navigator as any).getBattery().then((batteryObj: any) => {
       currentBattery = Math.round(batteryObj.level * 100);
+      currentCharging = Boolean(batteryObj.charging);
+      const isCritical = currentBattery < 15 && !currentCharging;
+      if (isCritical !== isLowBatteryMode) {
+        isLowBatteryMode = isCritical;
+        restartInterval();
+      }
+
       batteryObj.addEventListener('levelchange', () => {
         currentBattery = Math.round(batteryObj.level * 100);
+        const low = currentBattery < 15 && !currentCharging;
+        if (low !== isLowBatteryMode) {
+          isLowBatteryMode = low;
+          restartInterval();
+        }
+      });
+      batteryObj.addEventListener('chargingchange', () => {
+        currentCharging = Boolean(batteryObj.charging);
+        const low = currentBattery < 15 && !currentCharging;
+        if (low !== isLowBatteryMode) {
+          isLowBatteryMode = low;
+          restartInterval();
+        }
       });
     }).catch(() => {});
   }
 
   const pushUpdate = () => {
     if (isStopped) return;
-    updateChildPosition(code, currentLat, currentLng, inCorridor, currentAccuracy, currentBattery).catch((err) => {
+    updateChildPosition(code, currentLat, currentLng, inCorridor, currentAccuracy, currentBattery, {
+      charging: currentCharging,
+      low_battery_alert: isLowBatteryMode,
+      remainingMinutesToTarget: options?.getRouteRemainingMinutes?.() ?? 10
+    }).catch((err) => {
       console.warn('Chyba při aktualizaci polohy dítěte do Firebase:', err);
     });
   };
@@ -228,17 +357,15 @@ export function startGpsStreaming(
         console.warn('Geolocation warning v liveSync:', err.message);
       },
       {
-        enableHighAccuracy: true,
-        maximumAge: 3000,
-        timeout: 10000
+        enableHighAccuracy: !isLowBatteryMode,
+        maximumAge: isLowBatteryMode ? 15000 : 3000,
+        timeout: isLowBatteryMode ? 20000 : 10000
       }
     );
   }
 
-  // Zajištění odesílání každé 3-4 sekundy i při pomalém GPS pohybu
-  intervalId = setInterval(() => {
-    pushUpdate();
-  }, 3500);
+  // Zajištění odesílání: normálně každých 3.5s, v úsporném režimu při vybití (<15%) 1x za 15 sekund
+  restartInterval();
 
   return () => {
     isStopped = true;

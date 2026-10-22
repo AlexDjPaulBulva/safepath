@@ -3,6 +3,7 @@ import { AuthModal } from './AuthModal';
 import { ParentDashboard } from './ParentDashboard';
 import { ChildCompanion } from './ChildCompanion';
 import { ResetPasswordModal } from './ResetPasswordModal';
+import { SafePassCrisisPortal } from './SafePassCrisisPortal';
 import { useAppStore } from '../store/useAppStore';
 
 export type AppMode = 'map' | 'login' | 'parent' | 'child';
@@ -18,20 +19,24 @@ export default function SafePathApp() {
   const [appMode, setAppMode] = useState<AppMode>('login');
   const [initialProfiles, setInitialProfiles] = useState<string[]>(['parent']);
   const [resetCode, setResetCode] = useState<string | null>(null);
+  const [safePassCode, setSafePassCode] = useState<string | null>(null);
   const [prefilledEmail, setPrefilledEmail] = useState<string>('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const { setActiveMode } = useAppStore();
 
-  // Kontrola URL parametrů pro in-app reset hesla (?mode=resetPassword&oobCode=...)
+  // Kontrola URL parametrů pro in-app reset hesla nebo SafePass krizový portál (?safepass=...)
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
       const urlParams = new URLSearchParams(window.location.search);
       const mode = urlParams.get('mode');
       const oobCode = urlParams.get('oobCode');
+      const safepass = urlParams.get('safepass');
 
-      if (mode === 'resetPassword') {
+      if (safepass && safepass.trim().length > 0) {
+        setSafePassCode(safepass.trim());
+      } else if (mode === 'resetPassword') {
         if (oobCode && oobCode.trim().length > 0) {
           setResetCode(oobCode.trim());
         } else {
@@ -40,7 +45,7 @@ export default function SafePathApp() {
         }
       }
     } catch (e) {
-      console.warn('Chyba při čtení URL parametrů pro reset hesla:', e);
+      console.warn('Chyba při čtení URL parametrů:', e);
     }
   }, []);
 
@@ -59,6 +64,22 @@ export default function SafePathApp() {
     }, 3500);
     return () => clearTimeout(timer);
   }, [toastMessage]);
+
+  // Pokud návštěvník otevře odkaz ze SafePass QR kódu (?safepass=...), zobrazíme veřejný krizový záchranný portál
+  if (safePassCode) {
+    return (
+      <SafePassCrisisPortal
+        childCode={safePassCode}
+        onContinueToApp={() => {
+          setSafePassCode(null);
+          setAppMode('login');
+          if (typeof window !== 'undefined') {
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        }}
+      />
+    );
+  }
 
   // Pokud je v URL přítomen jednorázový kód pro reset hesla, zobrazíme moderní SafePath in-app modal
   if (resetCode) {

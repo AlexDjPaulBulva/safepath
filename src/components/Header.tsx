@@ -4,9 +4,10 @@ interface HeaderProps {
   activeProfiles: string[];
   onOpenModeModal: () => void;
   onBackToMenu?: () => void;
+  onOpenSafePass?: () => void;
 }
 
-export function Header({ activeProfiles, onOpenModeModal, onBackToMenu }: HeaderProps) {
+export function Header({ activeProfiles, onOpenModeModal, onBackToMenu, onOpenSafePass }: HeaderProps) {
   const isChild = activeProfiles.length === 1 && activeProfiles.includes('parent');
   const isNightGirl = activeProfiles.length === 1 && activeProfiles.includes('night_girl');
   const isCombined = activeProfiles.length > 1;
@@ -52,8 +53,39 @@ export function Header({ activeProfiles, onOpenModeModal, onBackToMenu }: Header
         </button>
       </div>
 
-      {/* Desktopová lišta přepínače režimu (na mobilu skryto) */}
+      {/* Mobilní tlačítko SafePass */}
+      {onOpenSafePass && (
+        <div 
+          className="md:hidden fixed z-[1050] transition-all pointer-events-auto"
+          style={{
+            top: 'calc(0.75rem + env(safe-area-inset-top, 0px))',
+            right: 'calc(0.75rem + env(safe-area-inset-right, 0px))'
+          }}
+        >
+          <button
+            onClick={onOpenSafePass}
+            className="h-12 px-3 rounded-full flex items-center justify-center text-white border border-emerald-500/80 shadow-2xl active:scale-90 transition-all select-none backdrop-blur-md bg-emerald-600/90 text-xs font-bold gap-1"
+            title="Můj Safe Pass"
+            aria-label="Můj Safe Pass"
+          >
+            <span>🏷️</span>
+            <span>SafePass</span>
+          </button>
+        </div>
+      )}
+
+      {/* Desktopová lišta přepínače režimu a SafePass (na mobilu skryto) */}
       <div className="hidden md:flex absolute top-4 right-4 z-[1000] items-center gap-2 pointer-events-auto">
+        {onOpenSafePass && (
+          <button
+            onClick={onOpenSafePass}
+            className="bg-emerald-600/90 hover:bg-emerald-500 text-white font-bold py-2.5 px-4 rounded-xl shadow-lg transition-all border border-emerald-400 flex items-center gap-1.5 text-sm active:scale-95"
+            title="Zobrazit a vytisknout SafePass kartičku na batoh / klíčenku"
+          >
+            <span>🏷️</span>
+            <span>Safe Pass</span>
+          </button>
+        )}
         <button 
           onClick={onOpenModeModal}
           className="bg-slate-800/90 backdrop-blur hover:bg-slate-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg transition-all border border-slate-600 flex items-center gap-2"

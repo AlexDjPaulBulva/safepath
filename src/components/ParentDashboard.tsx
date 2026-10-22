@@ -21,6 +21,7 @@ import { useRouteGeofence } from '../hooks/useRouteGeofence';
 import { useMotionAnomaly } from '../hooks/useMotionAnomaly';
 import { MotionAnomalyModals } from './MotionAnomalyModals';
 import { GeolocationPermissionModal } from './GeolocationPermissionModal';
+import { SafePassModal } from './SafePassModal';
 
 const modeLayerConfig: Record<string, { cameras: boolean; lights: boolean; havens: boolean; incidents: boolean; zones: boolean; localDataOnly: boolean }> = {
   parent: { cameras: true, lights: true, havens: true, incidents: true, zones: false, localDataOnly: true },
@@ -42,6 +43,8 @@ export function ParentDashboard({
 
   const activeMode = useAppStore((state) => state.activeMode);
   const setActiveMode = useAppStore((state) => state.setActiveMode);
+  const pairedChildCode = useAppStore((state) => state.pairedChildCode);
+  const [isSafePassModalOpen, setIsSafePassModalOpen] = useState(false);
   const [layers, setLayers] = useState({ cameras: true, lights: false, havens: false, incidents: true, zones: false, localDataOnly: true });
   
   // Bezpečnostní prvky
@@ -949,6 +952,7 @@ export function ParentDashboard({
         <Header 
           activeProfiles={activeProfiles}
           onOpenModeModal={() => { setTempProfiles(activeProfiles); setShowProfileModal(true); }}
+          onOpenSafePass={() => setIsSafePassModalOpen(true)}
           onBackToMenu={() => {
             if (onBackToMenu) {
               onBackToMenu();
@@ -1125,6 +1129,14 @@ export function ParentDashboard({
           onRetry={handleRetryLocation}
           isRetrying={isRetryingLocation}
         />
+
+        {/* Krizový SafePass Modal pro rodiče (zobrazení / tisk / stažení) */}
+        {isSafePassModalOpen && (
+          <SafePassModal
+            childCode={pairedChildCode || (typeof window !== 'undefined' ? localStorage.getItem('safepath_paired_child_code') : null) || 'SAFE-PASS-DEMO'}
+            onClose={() => setIsSafePassModalOpen(false)}
+          />
+        )}
       </div>
     </div>
   );
