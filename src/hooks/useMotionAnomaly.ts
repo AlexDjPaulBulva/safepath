@@ -157,19 +157,38 @@ export function useMotionAnomaly(options: UseMotionAnomalyOptions = {}): MotionA
     }
 
     const isUnmonitored = camerasNearby === 0;
+    isStuckCandidateRef.current = speedKmh < STUCK_SPEED_THRESHOLD_KMH && isUnmonitored;
+  }, [currentLocation, enabled, activeMode, isNight, cameras]);
 
-    if (speedKmh < STUCK_SPEED_THRESHOLD_KMH && isUnmonitored) {
-      stuckTimerRef.current += 1;
-      setStuckDurationSeconds(stuckTimerRef.current);
-      if (stuckTimerRef.current >= STUCK_TIME_THRESHOLD_SEC) {
-        setIsStuckInDark(true);
-      }
-    } else {
+  const isStuckCandidateRef = useRef<boolean>(false);
+
+  // Samostatný stabilní interval pro uváznutí na místě (přesně 1x za sekundu s cleanupem)
+  useEffect(() => {
+    if (!enabled) {
       stuckTimerRef.current = 0;
       setStuckDurationSeconds(0);
       setIsStuckInDark(false);
+      return;
     }
-  }, [currentLocation, enabled, activeMode, isNight, cameras]);
+
+    const timer = setInterval(() => {
+      if (isStuckCandidateRef.current) {
+        stuckTimerRef.current += 1;
+        setStuckDurationSeconds(stuckTimerRef.current);
+        if (stuckTimerRef.current >= STUCK_TIME_THRESHOLD_SEC) {
+          setIsStuckInDark(true);
+        }
+      } else {
+        if (stuckTimerRef.current > 0) {
+          stuckTimerRef.current = 0;
+          setStuckDurationSeconds(0);
+          setIsStuckInDark(false);
+        }
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [enabled]);
 
   // 3. ODPOČET PÁDU (20 sekund s potvrzením "Jsem v pořádku")
   useEffect(() => {

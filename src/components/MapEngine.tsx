@@ -17,6 +17,7 @@ import incidentsData from '../data/incidents.json';
 import pragueVectorData from '../data/prague-vector-network.json';
 import { getDynamicZoneScore, getDistance, pointInPolygon, calculateLocationSafety, getSafetyRiskLabel } from '../lib/safety-engine';
 import { getSafetyDataFusion } from '../lib/safetyDataFusion';
+import { useCompassHeading } from '../hooks/useCompassHeading';
 
 // Fix pro výchozí ikony Leafletu v prostředích s bundlery
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -500,51 +501,11 @@ export function MapEngine({
     });
   };
 
-  // Digitální kompas (záložní čtení orientace zařízení)
-  const [deviceHeading, setDeviceHeading] = useState<number | null>(null);
-
-  useEffect(() => {
-    const handleOrientation = (e: DeviceOrientationEvent) => {
-      let compass: number | null = null;
-      // iOS Safari (webkitCompassHeading udává azimut 0-360 stupňů od severu)
-      if (typeof (e as any).webkitCompassHeading === 'number') {
-        compass = (e as any).webkitCompassHeading;
-      } else if (typeof e.alpha === 'number') {
-        // Standardní Android / Chrome
-        compass = (360 - e.alpha) % 360;
-      }
-      if (compass !== null && !isNaN(compass)) {
-        setDeviceHeading(Math.round(compass));
-      }
-    };
-
-    if (typeof window !== 'undefined' && 'DeviceOrientationEvent' in window) {
-      window.addEventListener('deviceorientation', handleOrientation, true);
-      window.addEventListener('deviceorientationabsolute' as any, handleOrientation, true);
-    }
-
-    return () => {
-      if (typeof window !== 'undefined') {
-        window.removeEventListener('deviceorientation', handleOrientation, true);
-        window.removeEventListener('deviceorientationabsolute' as any, handleOrientation, true);
-      }
-    };
-  }, []);
-
-  // Směr pohybu:
-  // 1. Pohyb z GPS: coords.heading !== null && coords.speed > 0.5
-  // 2. Záložní čtení digitálního kompasu přes deviceorientation
-  const effectiveHeading = useMemo(() => {
-    const heading = userLocation?.heading;
-    const speed = userLocation?.speed;
-    if (heading !== null && heading !== undefined && speed !== null && speed !== undefined && speed > 0.5) {
-      return Math.round(heading);
-    }
-    if (heading !== null && heading !== undefined) {
-      return Math.round(heading);
-    }
-    return deviceHeading;
-  }, [userLocation?.heading, userLocation?.speed, deviceHeading]);
+  // Vyhlazení směrové šipky (Low-Pass Filter + Deadband + 360° Wrap + Speed Guard < 0.4 m/s)
+  const effectiveHeading = useCompassHeading({
+    gpsHeading: userLocation?.heading,
+    speed: userLocation?.speed
+  });
 
   // Moderní navigační puk s bílým lemem, pulzujícím halo a směrovým kuželem/šipkou vytvořený přes L.divIcon
   const userPuckIcon = useMemo(() => {
@@ -933,6 +894,8 @@ export function MapEngine({
         className="h-full w-full bg-slate-900 pointer-events-auto" 
         zoomControl={false}
         preferCanvas={true}
+        zoomAnimation={true}
+        fadeAnimation={false}
         doubleClickZoom={false}
         rotate={true}
         touchRotate={true}

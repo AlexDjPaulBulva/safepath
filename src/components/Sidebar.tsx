@@ -4,7 +4,8 @@ import { SafeHavenFeature } from '../lib/opendata';
 import { RouteResult } from '../lib/routing';
 import { SafetyReveal } from '../types/safety';
 import { PrivacyModal } from './PrivacyModal';
-import { terminateChildNavigation } from '../lib/liveSync';
+import { terminateChildNavigation, dispatchRouteToChild } from '../lib/liveSync';
+import { useAppStore } from '../store/useAppStore';
 
 export type RouteStats = RouteResult;
 
@@ -233,6 +234,35 @@ export function Sidebar({
   // - expanded: plné rozbalení (85vh)
   const [sheetState, setSheetState] = useState<SheetState>('peek');
   const [isPrivacyModalOpen, setIsPrivacyModalOpen] = useState(false);
+
+  const storePairedCode = useAppStore((state) => state.pairedChildCode);
+  const selectedChildCode = storePairedCode || (typeof window !== 'undefined' ? localStorage.getItem('safepath_paired_child_code') : null);
+  const [routeDispatched, setRouteDispatched] = useState<boolean>(false);
+  const [isDispatching, setIsDispatching] = useState<boolean>(false);
+
+  const handleDispatchRouteToChild = async () => {
+    if (!routeA || !routeA.geometry || routeA.geometry.length < 2) return;
+    const targetCode = selectedChildCode || prompt('Zadejte 6místný kód dítěte pro odeslání trasy:');
+    if (!targetCode) return;
+
+    setIsDispatching(true);
+    try {
+      await dispatchRouteToChild(targetCode.trim(), {
+        pathCoords: routeA.geometry,
+        start: { lat: routeA.geometry[0][0], lng: routeA.geometry[0][1], name: startPointName },
+        end: { lat: routeA.geometry[routeA.geometry.length - 1][0], lng: routeA.geometry[routeA.geometry.length - 1][1], name: endPointName },
+        distanceKm: routeA.distance,
+        durationMin: routeA.duration
+      });
+      setRouteDispatched(true);
+      setTimeout(() => setRouteDispatched(false), 4000);
+    } catch (err) {
+      console.error('Chyba odeslání trasy dítěti:', err);
+      alert('Trasu se nepodařilo odeslat. Zkontrolujte připojení.');
+    } finally {
+      setIsDispatching(false);
+    }
+  };
 
   const touchStartY = useRef<number | null>(null);
 
@@ -502,6 +532,24 @@ export function Sidebar({
                   route={routeA} 
                   onMetricHover={onMetricHover}
                 />
+
+                {/* Výrazné tlačítko: Odeslat trasu dítěti */}
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={handleDispatchRouteToChild}
+                    disabled={isDispatching}
+                    className="w-full bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold py-3.5 px-4 rounded-xl text-sm transition-all shadow-lg shadow-emerald-900/40 flex items-center justify-center gap-2 active:scale-[0.98] border border-emerald-400"
+                  >
+                    <span className="text-base">{isDispatching ? '⏳' : (routeDispatched ? '✅' : '📲')}</span>
+                    <span>{routeDispatched ? 'Trasa odeslána na telefon dítěte!' : '📲 Odeslat trasu dítěti'}</span>
+                  </button>
+                  {selectedChildCode && (
+                    <div className="text-[10px] text-emerald-400/80 font-mono text-center mt-1">
+                      Cílové zařízení dítěte: {selectedChildCode}
+                    </div>
+                  )}
+                </div>
 
                 {/* 2. Čisté srovnání s nejrychlejší trasou */}
                 {fastestRoute && (

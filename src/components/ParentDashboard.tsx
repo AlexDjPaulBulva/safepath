@@ -667,6 +667,11 @@ export function ParentDashboard({
     }
   };
 
+  const safeStopsRef = useRef(safeStops);
+  safeStopsRef.current = safeStops;
+  const childStatusRef = useRef(childStatus);
+  childStatusRef.current = childStatus;
+
   useEffect(() => {
     let interval: any;
     if (isSimulating && routeA) {
@@ -686,16 +691,15 @@ export function ParentDashboard({
             const isDeviated = prevDev !== null;
             if (isDeviated) {
                // Zkontrolujeme, jestli není na povolené zastávce
-               const inSafeStop = safeStops.some(stop => getDistance(stop.lat, stop.lng, prevDev.lat, prevDev.lng) <= 75);
+               const inSafeStop = safeStopsRef.current.some(stop => getDistance(stop.lat, stop.lng, prevDev.lat, prevDev.lng) <= 75);
                if (inSafeStop) {
                  setChildStatus('AT_SAFE_STOP');
                  return 0; // timer se resetuje
                } else {
                  setChildStatus('DEVIATED');
                  const newTimer = prevTimer + 0.1; // interval je 100ms = 0.1s
-                 if (newTimer >= 120 && childStatus !== 'ALERT') { // 2 minuty timeout
+                 if (newTimer >= 120 && childStatusRef.current !== 'ALERT') { // 2 minuty timeout
                     setChildStatus('ALERT');
-                    // Tady by se normálně volal notifikační systém, pro teď aspoň alert do konzole a modal SOS
                     setSosAlert({ active: true, location: [prevDev.lat, prevDev.lng] });
                  }
                  return newTimer;
@@ -711,7 +715,7 @@ export function ParentDashboard({
       }, 100);
     }
     return () => clearInterval(interval);
-  }, [isSimulating, routeA, safeStops, childStatus]);
+  }, [isSimulating, routeA]);
 
   if (loading && safetyNodes.length === 0) {
     return (

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import staticSafetyData from '../data/pragueStaticSafety.json';
 import { MapEngine, MapEngineProps, UserLocation } from './MapEngine';
 import { MapErrorBoundary, MapErrorFallback } from './MapErrorBoundary';
@@ -22,7 +22,8 @@ export function Map(props: MapEngineProps) {
   const pairedCode = storePairedCode || (typeof window !== 'undefined' ? localStorage.getItem('safepath_paired_child_code') : null);
 
   // Zjištění, zda se nacházíme v rodičovském režimu
-  const isParentMode = activeMode === 'parent' || props.activeProfiles?.includes('parent') || true;
+  const isChildMode = props.activeProfiles?.includes('child') || activeMode === 'child';
+  const isParentMode = !isChildMode && (activeMode === 'parent' || props.activeProfiles?.includes('parent') || false);
 
   // Stav polohy dítěte přijaté v reálném čase z Firebase
   const [childData, setChildData] = useState<ChildSessionData | null>(null);
@@ -72,6 +73,11 @@ export function Map(props: MapEngineProps) {
   const [isHeartbeatLost, setIsHeartbeatLost] = useState<boolean>(false);
   const [minutesSinceLastSeen, setMinutesSinceLastSeen] = useState<number>(0);
 
+  const childDataRef = useRef(childData);
+  childDataRef.current = childData;
+  const childLiveLocRef = useRef(props.childLiveLocation);
+  childLiveLocRef.current = props.childLiveLocation;
+
   useEffect(() => {
     if (!pairedCode || !isParentMode) {
       setIsHeartbeatLost(false);
@@ -80,7 +86,7 @@ export function Map(props: MapEngineProps) {
     }
 
     const checkHeartbeat = () => {
-      const activeChild = childData || props.childLiveLocation;
+      const activeChild = childDataRef.current || childLiveLocRef.current;
       const lastSeen = activeChild?.lastSeen || activeChild?.timestamp;
       if (lastSeen && typeof lastSeen === 'number') {
         const diffMs = Date.now() - lastSeen;
@@ -100,7 +106,7 @@ export function Map(props: MapEngineProps) {
     checkHeartbeat();
     const interval = setInterval(checkHeartbeat, 10000);
     return () => clearInterval(interval);
-  }, [childData, props.childLiveLocation, pairedCode, isParentMode]);
+  }, [pairedCode, isParentMode]);
 
   const storeSafeHaven = useAppStore((state) => state.activeSafeHaven);
   const isSos = Boolean(props.isSosActive || storeSafeHaven);
@@ -192,7 +198,7 @@ export function Map(props: MapEngineProps) {
       {/* Plovoucí přepínač hlasových pokynů na mapě (nad terčíkem polohy) */}
       <div 
         className="fixed md:absolute right-4 md:right-6 z-[1000] transition-all duration-300 pointer-events-auto"
-        style={{ bottom: 'calc(var(--bottom-sheet-height, 9.5rem) + 8.25rem + env(safe-area-inset-bottom, 0px))' }}
+        style={{ bottom: isChildMode ? '8.5rem' : 'calc(var(--bottom-sheet-height, 9.5rem) + 8.25rem + env(safe-area-inset-bottom, 0px))' }}
       >
         <AudioNavToggle
           isVoiceEnabled={isVoiceEnabled}
@@ -201,95 +207,97 @@ export function Map(props: MapEngineProps) {
       </div>
 
       {/* Skupina varovných a krizových bannerů na obrazovce rodiče (nahoře na středu) */}
-      <div 
-        className="fixed z-[3100] w-[92vw] max-w-lg flex flex-col gap-2.5 pointer-events-none"
-        style={{ top: '1rem', left: '50%', transform: 'translateX(-50%)' }}
-      >
-        {/* SafePass krizové záchranné hlášení nálezce */}
-        {childData?.safePassCrisisReport && (
-          <div 
-            className="w-full bg-emerald-950/95 text-white px-5 py-3.5 rounded-2xl shadow-[0_0_35px_rgba(16,185,129,0.7)] border-2 border-emerald-400 backdrop-blur-md flex items-center gap-3 animate-bounce pointer-events-auto"
-            role="alert"
-          >
-            <span className="text-3xl flex-shrink-0">📍</span>
-            <div className="flex-1 min-w-0">
-              <div className="font-black text-xs uppercase tracking-wider text-emerald-300">
-                SafePass • Záchranné hlášení
-              </div>
-              <div className="text-sm font-bold text-white leading-snug">
-                {childData.safePassCrisisReport.message}
-              </div>
-              <div className="text-[11px] text-emerald-200/80 mt-1">
-                Hlášeno: {new Date(childData.safePassCrisisReport.reportedAt).toLocaleTimeString('cs-CZ')}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Výstraha na dispečinku rodiče při kritickém vybití baterie */}
-        {isLowBattery && (
-          <div 
-            className="w-full bg-gradient-to-r from-red-700 via-rose-600 to-red-800 text-white px-5 py-3.5 rounded-2xl shadow-[0_0_35px_rgba(220,38,38,0.7)] border-2 border-red-300 backdrop-blur-md flex items-center gap-3 animate-pulse pointer-events-auto"
-            role="alert"
-          >
-            <span className="text-3xl flex-shrink-0">🪫</span>
-            <div className="flex-1 min-w-0">
-              <div className="font-black text-xs uppercase tracking-wider text-red-200">
-                Kritický stav baterie
-              </div>
-              <div className="text-sm font-black text-white leading-snug">
-                ⚠️ Zařízení dítěte má kriticky málo baterie ({childData?.battery ?? 12} %). Poslední poloha: {childData?.lastStreetName || 'Praha'}. Trasa do cíle trvá cca {childData?.remainingMinutesToTarget ?? 10} min.
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Červené výstražné upozornění na displeji rodiče: "Dítě se odchýlilo z trasy!" */}
-        {isDeviated && (
-          <div 
-            className="w-full bg-rose-600/95 text-white px-5 py-3.5 rounded-2xl shadow-2xl border-2 border-rose-300 backdrop-blur-md flex items-center gap-3 animate-bounce pointer-events-auto"
-            role="alert"
-          >
-            <span className="text-3xl animate-pulse flex-shrink-0">🚨</span>
-            <div className="flex-1 min-w-0">
-              <div className="font-black text-xs uppercase tracking-wider text-rose-200">
-                Bezpečnostní koridor narušen
-              </div>
-              <div className="text-base font-black text-white leading-tight">
-                Dítě se odchýlilo z trasy!
-              </div>
-              {childData && (
-                <div className="text-[11px] text-rose-100 mt-0.5 truncate">
-                  Poslední známá poloha: {childData.lat.toFixed(5)}, {childData.lng.toFixed(5)}
+      {isParentMode && (
+        <div 
+          className="fixed z-[3100] w-[92vw] max-w-lg flex flex-col gap-2.5 pointer-events-none"
+          style={{ top: '1rem', left: '50%', transform: 'translateX(-50%)' }}
+        >
+          {/* SafePass krizové záchranné hlášení nálezce */}
+          {childData?.safePassCrisisReport && (
+            <div 
+              className="w-full bg-emerald-950/95 text-white px-5 py-3.5 rounded-2xl shadow-[0_0_35px_rgba(16,185,129,0.7)] border-2 border-emerald-400 backdrop-blur-md flex items-center gap-3 animate-bounce pointer-events-auto"
+              role="alert"
+            >
+              <span className="text-3xl flex-shrink-0">📍</span>
+              <div className="flex-1 min-w-0">
+                <div className="font-black text-xs uppercase tracking-wider text-emerald-300">
+                  SafePass • Záchranné hlášení
                 </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Varovný banner při ztrátě spojení se zařízením (Heartbeat Watchdog > 60s) */}
-        {isHeartbeatLost && !isDeviated && !isLowBattery && (
-          <div 
-            className="w-full bg-gradient-to-r from-amber-950 via-slate-900 to-rose-950 text-white px-5 py-3.5 rounded-2xl shadow-[0_0_25px_rgba(245,158,11,0.5)] border-2 border-amber-500 backdrop-blur-md flex items-center gap-3 animate-pulse pointer-events-auto"
-            role="alert"
-          >
-            <span className="text-3xl flex-shrink-0">⚠️</span>
-            <div className="flex-1 min-w-0">
-              <div className="font-black text-xs uppercase tracking-wider text-amber-400">
-                Ztráta spojení se zařízením
-              </div>
-              <div className="text-sm font-bold text-white leading-snug">
-                Upozornění: Zařízení dítěte je déle než 1 minutu offline. Poslední známá poloha před {minutesSinceLastSeen} min, stav baterie: {childData?.battery ?? (props.childLiveLocation as any)?.battery ?? 18} %.
-              </div>
-              {childData && (
-                <div className="text-[11px] text-amber-200/80 mt-1 truncate">
-                  Poslední známé souřadnice: {childData.lat.toFixed(5)}, {childData.lng.toFixed(5)}
+                <div className="text-sm font-bold text-white leading-snug">
+                  {childData.safePassCrisisReport.message}
                 </div>
-              )}
+                <div className="text-[11px] text-emerald-200/80 mt-1">
+                  Hlášeno: {new Date(childData.safePassCrisisReport.reportedAt).toLocaleTimeString('cs-CZ')}
+                </div>
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+
+          {/* Výstraha na dispečinku rodiče při kritickém vybití baterie */}
+          {isLowBattery && (
+            <div 
+              className="w-full bg-gradient-to-r from-red-700 via-rose-600 to-red-800 text-white px-5 py-3.5 rounded-2xl shadow-[0_0_35px_rgba(220,38,38,0.7)] border-2 border-red-300 backdrop-blur-md flex items-center gap-3 animate-pulse pointer-events-auto"
+              role="alert"
+            >
+              <span className="text-3xl flex-shrink-0">🪫</span>
+              <div className="flex-1 min-w-0">
+                <div className="font-black text-xs uppercase tracking-wider text-red-200">
+                  Kritický stav baterie
+                </div>
+                <div className="text-sm font-black text-white leading-snug">
+                  ⚠️ Zařízení dítěte má kriticky málo baterie ({childData?.battery ?? 12} %). Poslední poloha: {childData?.lastStreetName || 'Praha'}. Trasa do cíle trvá cca {childData?.remainingMinutesToTarget ?? 10} min.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Červené výstražné upozornění na displeji rodiče: "Dítě se odchýlilo z trasy!" */}
+          {isDeviated && (
+            <div 
+              className="w-full bg-rose-600/95 text-white px-5 py-3.5 rounded-2xl shadow-2xl border-2 border-rose-300 backdrop-blur-md flex items-center gap-3 animate-bounce pointer-events-auto"
+              role="alert"
+            >
+              <span className="text-3xl animate-pulse flex-shrink-0">🚨</span>
+              <div className="flex-1 min-w-0">
+                <div className="font-black text-xs uppercase tracking-wider text-rose-200">
+                  Bezpečnostní koridor narušen
+                </div>
+                <div className="text-base font-black text-white leading-tight">
+                  Dítě se odchýlilo z trasy!
+                </div>
+                {childData && (
+                  <div className="text-[11px] text-rose-100 mt-0.5 truncate">
+                    Poslední známá poloha: {childData.lat.toFixed(5)}, {childData.lng.toFixed(5)}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Varovný banner při ztrátě spojení se zařízením (Heartbeat Watchdog > 60s) */}
+          {isHeartbeatLost && !isDeviated && !isLowBattery && (
+            <div 
+              className="w-full bg-gradient-to-r from-amber-950 via-slate-900 to-rose-950 text-white px-5 py-3.5 rounded-2xl shadow-[0_0_25px_rgba(245,158,11,0.5)] border-2 border-amber-500 backdrop-blur-md flex items-center gap-3 animate-pulse pointer-events-auto"
+              role="alert"
+            >
+              <span className="text-3xl flex-shrink-0">⚠️</span>
+              <div className="flex-1 min-w-0">
+                <div className="font-black text-xs uppercase tracking-wider text-amber-400">
+                  Ztráta spojení se zařízením
+                </div>
+                <div className="text-sm font-bold text-white leading-snug">
+                  Upozornění: Zařízení dítěte je déle než 1 minutu offline. Poslední známá poloha před {minutesSinceLastSeen} min, stav baterie: {childData?.battery ?? (props.childLiveLocation as any)?.battery ?? 18} %.
+                </div>
+                {childData && (
+                  <div className="text-[11px] text-amber-200/80 mt-1 truncate">
+                    Poslední známé souřadnice: {childData.lat.toFixed(5)}, {childData.lng.toFixed(5)}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Stavová lišta spárovaného dítěte */}
       {pairedCode && isParentMode && (

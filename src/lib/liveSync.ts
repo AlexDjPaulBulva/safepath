@@ -9,6 +9,15 @@ export interface SafePassCrisisReport {
   message: string;
 }
 
+export interface AssignedRouteData {
+  pathCoords: [number, number][]; // [lat, lng] souřadnice
+  start: { lat: number; lng: number; name?: string };
+  end: { lat: number; lng: number; name?: string };
+  distanceKm?: number;
+  durationMin?: number;
+  timestamp: number;
+}
+
 export interface ChildSessionData {
   code: string;
   lat: number;
@@ -25,6 +34,7 @@ export interface ChildSessionData {
   remainingMinutesToTarget?: number;
   lastStreetName?: string;
   safePassCrisisReport?: SafePassCrisisReport | null;
+  assignedRoute?: AssignedRouteData | null;
 }
 
 /**
@@ -185,6 +195,45 @@ export async function terminateChildNavigation(code: string): Promise<void> {
   } catch (err) {
     console.warn(`Chyba při mazání relace dítěte ${code}:`, err);
   }
+}
+
+/**
+ * Uloží rodičem určenou trasu do relace dítěte ve Firebase Realtime Database
+ */
+export async function dispatchRouteToChild(
+  childCode: string,
+  route: {
+    pathCoords: [number, number][];
+    start: { lat: number; lng: number; name?: string };
+    end: { lat: number; lng: number; name?: string };
+    distanceKm?: number;
+    durationMin?: number;
+  }
+): Promise<void> {
+  const sessionRef = ref(db, `sessions/${childCode}`);
+  await update(sessionRef, {
+    assignedRoute: {
+      pathCoords: route.pathCoords,
+      start: route.start,
+      end: route.end,
+      distanceKm: route.distanceKm,
+      durationMin: route.durationMin,
+      timestamp: Date.now()
+    }
+  });
+}
+
+/**
+ * Poslouchá změnu přiřazené trasy z Firebase pro displej dítěte
+ */
+export function subscribeToAssignedRoute(
+  childCode: string,
+  callback: (route: AssignedRouteData | null) => void
+): () => void {
+  const routeRef = ref(db, `sessions/${childCode}/assignedRoute`);
+  return onValue(routeRef, (snapshot) => {
+    callback(snapshot.val() || null);
+  });
 }
 
 /**

@@ -183,7 +183,12 @@ export function useRouteGeofence(
     };
   }, [currentLocation, enabled, corridorMeters, safeStops, routeLineString]);
 
-  // Časovač odchylky a eskalace (15s a 45s)
+  const currentLocRef = useRef(currentLocation);
+  currentLocRef.current = currentLocation;
+  const distanceMetersRef = useRef(distanceMeters);
+  distanceMetersRef.current = distanceMeters;
+
+  // Časovač odchylky a eskalace (15s a 45s) - stabilní 1s interval s cleanupem
   useEffect(() => {
     if (!enabled || !isDeviated) {
       setDeviationSeconds(0);
@@ -218,11 +223,12 @@ export function useRouteGeofence(
           setAlertActive(true);
           setChildStatus('ALERT');
 
-          if (currentLocation) {
+          const loc = currentLocRef.current;
+          if (loc) {
             SyncEngine.broadcast('DEVIATION_ALERT', {
-              location: [currentLocation.lat, currentLocation.lng],
+              location: [loc.lat, loc.lng],
               durationSeconds: next,
-              distanceMeters,
+              distanceMeters: distanceMetersRef.current,
               message: 'Byla zjištěna závažná odchylka z bezpečné trasy (> 45 s mimo koridor 35 m)!'
             });
           }
@@ -233,7 +239,7 @@ export function useRouteGeofence(
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [enabled, isDeviated, warningThresholdSec, alertThresholdSec, currentLocation, distanceMeters, setChildStatus]);
+  }, [enabled, isDeviated, warningThresholdSec, alertThresholdSec, setChildStatus]);
 
   const resetGeofence = () => {
     validSamplesRef.current = [];
