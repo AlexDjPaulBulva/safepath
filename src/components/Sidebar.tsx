@@ -3,6 +3,8 @@ import { AddressSearchInput } from './AddressSearchInput';
 import { SafeHavenFeature } from '../lib/opendata';
 import { RouteResult } from '../lib/routing';
 import { SafetyReveal } from '../types/safety';
+import { PrivacyModal } from './PrivacyModal';
+import { terminateChildNavigation } from '../lib/liveSync';
 
 export type RouteStats = RouteResult;
 
@@ -230,6 +232,7 @@ export function Sidebar({
   // - peek: výchozí náhled s drag lištou a kompaktními vstupy (cca 148px)
   // - expanded: plné rozbalení (85vh)
   const [sheetState, setSheetState] = useState<SheetState>('peek');
+  const [isPrivacyModalOpen, setIsPrivacyModalOpen] = useState(false);
 
   const touchStartY = useRef<number | null>(null);
 
@@ -533,14 +536,22 @@ export function Sidebar({
                 <div className="pt-2">
                   <button
                     type="button"
-                    onClick={onToggleSimulation}
+                    onClick={() => {
+                      if (isSimulating) {
+                        const pairedCode = typeof window !== 'undefined' ? localStorage.getItem('safepath_paired_child_code') : null;
+                        if (pairedCode) {
+                          terminateChildNavigation(pairedCode).catch(console.warn);
+                        }
+                      }
+                      onToggleSimulation?.();
+                    }}
                     className={`w-full py-3.5 rounded-xl font-bold transition-all shadow-lg text-white text-sm ${
                       isSimulating 
                         ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-500/20' 
                         : 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-500/20'
                     }`}
                   >
-                    {isSimulating ? 'Zastavit sledování polohy' : '▶ Spustit simulaci pohybu dítěte'}
+                    {isSimulating ? 'Ukončit navigaci (Smazat data)' : '▶ Spustit simulaci pohybu dítěte'}
                   </button>
                 </div>
               </>
@@ -550,11 +561,35 @@ export function Sidebar({
               </div>
             )}
 
+            {/* Posílený právní disclaimer a GDPR zápatí */}
+            <div className="mt-4 pt-3.5 border-t border-slate-800/90 text-left">
+              <p className="text-[10px] text-slate-400 leading-relaxed mb-2">
+                Aplikace SafePath poskytuje doporučené koridory na základě dostupných městských dat. Trasa má orientační charakter a nenahrazuje dohled rodičů ani pravidla silničního provozu.
+              </p>
+              <div className="flex items-center justify-between pt-1">
+                <button
+                  type="button"
+                  onClick={() => setIsPrivacyModalOpen(true)}
+                  className="text-[11px] font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1.5 transition-colors underline"
+                >
+                  <span>🛡️</span>
+                  <span>Ochrana soukromí (GDPR)</span>
+                </button>
+                <span className="text-[10px] text-slate-500 font-mono">Minimalizace dat</span>
+              </div>
+            </div>
+
             {/* Spodní bezpečná zóna pro scroll (safe-area padding) */}
             <div className="h-14 shrink-0" aria-hidden="true" />
           </div>
         </div>
       </aside>
+
+      {/* Modal Ochrany soukromí a GDPR */}
+      <PrivacyModal
+        isOpen={isPrivacyModalOpen}
+        onClose={() => setIsPrivacyModalOpen(false)}
+      />
     </>
   );
 }

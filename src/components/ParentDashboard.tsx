@@ -45,6 +45,10 @@ export function ParentDashboard({
   const setActiveMode = useAppStore((state) => state.setActiveMode);
   const pairedChildCode = useAppStore((state) => state.pairedChildCode);
   const [isSafePassModalOpen, setIsSafePassModalOpen] = useState(false);
+  const [showPwaTip, setShowPwaTip] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem('safepath_pwa_tip_dismissed') !== 'true';
+  });
   const [layers, setLayers] = useState({ cameras: true, lights: false, havens: false, incidents: true, zones: false, localDataOnly: true });
   
   // Bezpečnostní prvky
@@ -430,7 +434,7 @@ export function ParentDashboard({
     };
   }, [startCoordKey, endCoordKey, timeOfDay, activeMode, activeProfiles]);
 
-  // Generování argumentace AI pro garantovanou bezpečnou trasu
+  // Generování argumentace AI pro doporučenou bezpečnou trasu
   useEffect(() => {
     if (!routeA) {
       setArgumentsText([]);
@@ -769,7 +773,7 @@ export function ParentDashboard({
                     {tempProfiles.includes('parent') && <span className="ml-auto w-5 h-5 rounded-md bg-emerald-500 flex items-center justify-center shadow-[0_0_10px_rgba(16,185,129,0.8)]"><span className="text-white text-xs">✓</span></span>}
                     {!tempProfiles.includes('parent') && <span className="ml-auto w-5 h-5 rounded-md border-2 border-slate-500"></span>}
                   </div>
-                  <p className="text-sm text-slate-300">Rodičovský režim: Maximální bezpečnost, 100% pokrytí MKS kamerami, přechody se semafory, vynechání rizikových zón.</p>
+                  <p className="text-sm text-slate-300">Rodičovský režim: Zvýšená ochrana a dohled, vysoké pokrytí MKS kamerami, priorita řízených přechodů se semafory, vynechání rizikových zón.</p>
                 </div>
 
                 <div 
@@ -1122,6 +1126,31 @@ export function ParentDashboard({
             </motion.div>
           )}
         </AnimatePresence>
+        {/* Správa očekávání u PWA na pozadí (diskrétní informační tip) */}
+        {showPwaTip && (
+          <div 
+            className="fixed bottom-24 md:bottom-5 left-4 right-4 md:right-auto md:max-w-lg z-[1000] bg-slate-900/95 border border-slate-700/80 rounded-2xl p-3.5 shadow-2xl backdrop-blur-md text-xs text-slate-300 leading-relaxed flex items-start gap-3 pointer-events-auto animate-fadeIn"
+          >
+            <span className="text-base shrink-0">💡</span>
+            <div className="flex-1 min-w-0">
+              <span className="font-bold text-white">Tip pro spolehlivý dohled:</span> Webové prohlížeče na mobilu mohou při zamčené obrazovce omezit přenos GPS. Pro nepřetržitý dohled doporučujeme nechat aplikaci otevřenou na popředí. Pro sledování se zhasnutým displejem v kapse připravujeme nativní verzi pro App Store a Google Play.
+            </div>
+            <button
+              onClick={() => {
+                setShowPwaTip(false);
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem('safepath_pwa_tip_dismissed', 'true');
+                }
+              }}
+              className="text-slate-400 hover:text-white p-1 rounded transition-colors text-xs shrink-0"
+              title="Zavřít tip"
+              aria-label="Zavřít tip"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         {/* Návod na odblokování geolokace GPS */}
         <GeolocationPermissionModal
           isOpen={showPermissionModal}

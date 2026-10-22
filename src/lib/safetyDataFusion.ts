@@ -210,7 +210,7 @@ export class SafetyDataFusion {
 
     const totalPoints = Math.max(1, samplePoints.length);
     const rawPercent = Math.round((litPoints / totalPoints) * 100);
-    // V běžných pražských osvětlených ulicích s THMP stožáry garantujeme reálné krytí (90–99 %)
+    // V běžných pražských osvětlených ulicích s THMP stožáry poskytujeme reálné krytí (90–99 %)
     const lightingPercent = Math.min(100, Math.max(20, rawPercent));
 
     return {

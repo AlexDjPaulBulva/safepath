@@ -215,3 +215,26 @@
   filter: invert(1) brightness(1.6);
 }
 
+/* Licenční atribuce mapových dlaždic (OpenStreetMap & CARTO) */
+.leaflet-control-attribution {
+  background: rgba(15, 23, 42, 0.85) !important;
+  color: #94a3b8 !important;
+  font-size: 10px !important;
+  padding: 3px 8px !important;
+  border-radius: 8px 0 0 0 !important;
+  backdrop-filter: blur(6px) !important;
+  border-top: 1px solid rgba(51, 65, 85, 0.6) !important;
+  border-left: 1px solid rgba(51, 65, 85, 0.6) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4) !important;
+}
+
+.leaflet-control-attribution a {
+  color: #38bdf8 !important;
+  text-decoration: underline !important;
+  font-weight: 600 !important;
+}
+
+.leaflet-control-attribution a:hover {
+  color: #7dd3fc !important;
+}
+

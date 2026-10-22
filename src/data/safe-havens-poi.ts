@@ -243,7 +243,7 @@ export const PRAGUE_SAFE_HAVENS: SafeHavenPOI[] = [
     address: 'Jungmannovo náměstí / Můstek, Praha 1',
     coords: [50.0838, 14.4239],
     is247: true,
-    description: 'Kamerově 100% monitorovaný vestibul v pěší zóně.'
+    description: 'Kamerově monitorovaný vestibul v pěší zóně pod stálým dohledem.'
   },
   {
     id: 'haven-metro-florenc',

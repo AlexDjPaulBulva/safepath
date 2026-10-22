@@ -1434,7 +1434,7 @@ export async function fetchOSRMRoute(
     };
 
     // 2. Trasa A (Doporučená – Bezpečí):
-    // Primárně klidnější ulice s kamerami MKS a 100% přechodů řízených světly
+    // Primárně klidnější ulice s kamerami MKS a prioritou řízených přechodů se světly
     const getChildMaxSafetyScore = (c: EvaluatedCandidate) => {
       const tramCheck = validateTramCrossingSafety(c.geometry);
       let score = c.surveillanceScore * 1.5 + (c.childSafetyValid && tramCheck.isTramSafe ? 150 : -200);
@@ -1472,14 +1472,14 @@ export async function fetchOSRMRoute(
       getChildMaxSafetyScore(cur) > getChildMaxSafetyScore(best) ? cur : best
     );
 
-    // Trasa A (Garantovaná bezpečná trasa) - JEDINÁ aktivní trasa
+    // Trasa A (Doporučená bezpečná trasa) - JEDINÁ aktivní trasa
     const routeA = candidateToRouteResult(
       candidateA,
       'routeA',
-      'Garantovaná bezpečná trasa',
-      'Maximálně chráněná trasa s prioritou kamer MKS a výhradně světelných přechodů.',
+      'Doporučená bezpečná trasa',
+      'Maximálně chráněná trasa s prioritou kamer MKS a řízených přechodů.',
       'Klidná bezpečná cesta vedená po chodnících a přechodech se semafory pod stálým dohledem kamer.',
-      ['[Garantované bezpečí]', '[100% světelné přechody]', '[Dohled MKS kamer]', '[Chodníky]'],
+      ['[Zvýšená ochrana a dohled]', '[Priorita řízených přechodů]', '[Dohled MKS kamer]', '[Chodníky]'],
       infoPointsAlongRoute
     );
     routeA.isWarningRoute = false;
@@ -1497,10 +1497,10 @@ export async function fetchOSRMRoute(
   const routeA = candidateToRouteResult(
     candidateA,
     'routeA',
-    'Garantovaná bezpečná trasa',
+    'Doporučená bezpečná trasa',
     'Trasa vedoucí po frekventovaných, dobře osvětlených ulicích s vysokou přítomností lidí a otevřených podniků.',
     'Doporučená trasa preferuje frekventované ulice a minimalizuje osamocené úseky.',
-    ['[Garantované bezpečí]', '[Vysoká frekvence lidí]', '[Dobré osvětlení]', '[Dohled kamer]'],
+    ['[Zvýšená ochrana a dohled]', '[Vysoká frekvence lidí]', '[Dobré osvětlení]', '[Dohled kamer]'],
     infoPointsAlongRoute
   );
 

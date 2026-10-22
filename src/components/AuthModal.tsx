@@ -167,7 +167,7 @@ export function AuthModal({
     }
   };
 
-  // Vstoupit do mapy jako DÍTĚ (100% bezheslové)
+  // Vstoupit do mapy jako DÍTĚ (bezheslové přes 6místný kód)
   const handleEnterChildMap = async () => {
     setChildIsEntering(true);
     const code = childCode || localStorage.getItem('safepath_child_code') || '123456';
@@ -442,7 +442,7 @@ export function AuthModal({
         </div>
 
         {/* ============================================================== */}
-        {/* OBSAH ZÁLOŽKY: DÍTĚ (100% BEZHESLOVÉ PŘES 6MÍSTNÝ KÓD) */}
+        {/* OBSAH ZÁLOŽKY: DÍTĚ (BEZHESLOVĚ PŘES 6MÍSTNÝ KÓD) */}
         {/* ============================================================== */}
         {activeTab === 'child' && (
           <div className="flex flex-col items-center text-center animate-fadeIn">
@@ -482,9 +482,15 @@ export function AuthModal({
               </div>
             </div>
 
-            <div className="w-full text-left bg-slate-900/60 border border-slate-700/60 rounded-xl p-3 mb-6 text-xs text-slate-400 flex items-center gap-2.5">
+            <div className="w-full text-left bg-slate-900/60 border border-slate-700/60 rounded-xl p-3 mb-3 text-xs text-slate-400 flex items-center gap-2.5">
               <span className="text-base text-emerald-400">📡</span>
-              <span>100% bezpečné a bez hesla. Poloha se začne sdílet kliknutím na tlačítko níže.</span>
+              <span>Zvýšená ochrana a dohled bez hesla. Poloha se začne sdílet kliknutím na tlačítko níže.</span>
+            </div>
+
+            {/* PWA správa očekávání */}
+            <div className="w-full text-left bg-amber-950/30 border border-amber-500/30 rounded-xl p-3 mb-5 text-[11px] text-amber-200/90 leading-relaxed flex items-start gap-2">
+              <span className="text-sm shrink-0">💡</span>
+              <span><strong>Tip pro spolehlivý dohled:</strong> Webové prohlížeče na mobilu mohou při zamčené obrazovce omezit přenos GPS. Pro nepřetržitý dohled doporučujeme nechat aplikaci otevřenou na popředí. Pro sledování se zhasnutým displejem v kapse připravujeme nativní verzi pro App Store a Google Play.</span>
             </div>
 
             <button
@@ -801,7 +807,7 @@ export function AuthModal({
                     {/* Vždy viditelné povinné potvrzení smluvních podmínek při registraci */}
                     <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-700/80 text-xs space-y-2 mt-1">
                       <p className="text-amber-200/90 text-[11px] leading-relaxed">
-                        <span className="font-bold text-amber-400">Právní doložka:</span> SafePath je asistenční technologický nástroj a nenahrazuje osobní dohled zákonného zástupce.
+                        <span className="font-bold text-amber-400">Právní doložka:</span> Aplikace SafePath poskytuje doporučené koridory na základě dostupných městských dat. Trasa má orientační charakter a nenahrazuje dohled rodičů ani pravidla silničního provozu.
                       </p>
                       <label className="flex items-start gap-2.5 cursor-pointer text-slate-300 hover:text-white select-none">
                         <input
@@ -942,7 +948,7 @@ export function AuthModal({
             {!disclaimerAccepted && (
               <div className="mt-4 p-3 rounded-xl bg-amber-950/40 border border-amber-500/40 text-amber-200 text-xs shadow-lg leading-relaxed">
                 <p className="mb-2 text-amber-200/90 font-medium">
-                  „SafePath je asistenční nástroj a nenahrazuje dohled zákonného zástupce.“
+                  „Aplikace SafePath poskytuje doporučené koridory na základě dostupných městských dat. Trasa má orientační charakter a nenahrazuje dohled rodičů ani pravidla silničního provozu.“
                 </p>
                 <label className="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white select-none">
                   <input

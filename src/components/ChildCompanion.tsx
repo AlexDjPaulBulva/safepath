@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { SyncEngine } from '../lib/sync-engine';
 import { useMotionAnomaly } from '../hooks/useMotionAnomaly';
 import { MotionAnomalyModals } from './MotionAnomalyModals';
-import { startGpsStreaming, updateChildPosition } from '../lib/liveSync';
+import { startGpsStreaming, updateChildPosition, terminateChildNavigation } from '../lib/liveSync';
 import { useAppStore } from '../store/useAppStore';
 import { useBatteryProtocol } from '../hooks/useBatteryProtocol';
 import { SafePassModal } from './SafePassModal';
@@ -15,6 +15,13 @@ interface ChildCompanionProps {
 export function ChildCompanion({ onBack }: ChildCompanionProps) {
   const storeChildCode = useAppStore((state) => state.myChildCode);
   const activeChildCode = storeChildCode || (typeof window !== 'undefined' ? localStorage.getItem('safepath_child_code') : null);
+
+  const handleExitNavigation = () => {
+    if (activeChildCode) {
+      terminateChildNavigation(activeChildCode).catch(console.warn);
+    }
+    onBack?.();
+  };
 
   const [isPaired, setIsPaired] = useState<boolean>(() => {
     return !!activeChildCode;
@@ -138,7 +145,7 @@ export function ChildCompanion({ onBack }: ChildCompanionProps) {
 
           {onBack && (
             <button 
-              onClick={onBack}
+              onClick={handleExitNavigation}
               className="w-full mt-3 bg-slate-700/50 hover:bg-slate-700 border border-slate-600/60 text-slate-300 hover:text-white font-semibold py-3 rounded-xl text-sm transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
             >
               <span>←</span> Zpět na výběr režimu
@@ -160,7 +167,7 @@ export function ChildCompanion({ onBack }: ChildCompanionProps) {
         <div className="absolute top-4 left-0 right-0 px-4 flex items-center justify-between z-20 gap-2">
           {onBack ? (
             <button 
-              onClick={onBack}
+              onClick={handleExitNavigation}
               className="bg-slate-900/90 text-slate-300 hover:text-white px-3 py-2 rounded-xl border border-slate-700 shadow-xl backdrop-blur flex items-center gap-1.5 text-xs font-bold transition-all active:scale-95"
             >
               <span>←</span> Zpět

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import * as turf from '@turf/turf';
 import { PRAGUE_SAFE_HAVENS, SafeHavenPOI, getSafeHavenIcon, getSafeHavenTypeLabel } from '../data/safe-havens-poi';
 import { SafeHavenFeature } from '../lib/opendata';
+import { getActiveSafeHavens, getSafeHavenBadge } from '../lib/safeHavens';
 
 interface SafeHavenButtonProps {
   currentLocation: { lat: number; lng: number } | null;
@@ -21,7 +22,7 @@ export function SafeHavenButton({
 }: SafeHavenButtonProps) {
   const [isSearching, setIsSearching] = useState(false);
 
-  // Spojení statického pražského POI datasetu s dynamicky načtenými Overpass body
+  // Spojení statického pražského POI datasetu s dynamicky načtenými Overpass body s filtrací podle denní/noční doby
   const allHavens: SafeHavenPOI[] = React.useMemo(() => {
     const list = [...PRAGUE_SAFE_HAVENS];
     if (extraHavens && extraHavens.length > 0) {
@@ -44,7 +45,8 @@ export function SafeHavenButton({
         }
       }
     }
-    return list;
+    // Aplikace právního a časového filtru (v noci 20:00-07:00 výhradně ověřené 24/7 provozy)
+    return getActiveSafeHavens(new Date().getHours(), list);
   }, [extraHavens]);
 
   const handleFindNearestHaven = () => {
@@ -162,7 +164,7 @@ export function SafeHavenBanner({
             {haven.name}
           </h4>
           <p className="text-xs text-slate-300 leading-tight">
-            {haven.address} • {getSafeHavenTypeLabel(haven.type)}
+            {haven.address} • <span className="text-amber-300 font-semibold">{getSafeHavenBadge(haven)}</span>
           </p>
           {haven.phone && (
             <p className="text-xs text-emerald-400 font-bold mt-1">

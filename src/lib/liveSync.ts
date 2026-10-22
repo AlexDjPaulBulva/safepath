@@ -174,8 +174,23 @@ export async function reportSafePassCrisis(
 }
 
 /**
+ * GDPR: Ukončení navigace a kompletní okamžitý výmaz polohových dat z Firebase
+ */
+export async function terminateChildNavigation(code: string): Promise<void> {
+  if (!code) return;
+  try {
+    const sessionRef = ref(db, `sessions/${code}`);
+    await remove(sessionRef);
+    console.log(`GDPR Privacy: Polohová data sezení ${code} byla kompletně a trvale vymazána.`);
+  } catch (err) {
+    console.warn(`Chyba při mazání relace dítěte ${code}:`, err);
+  }
+}
+
+/**
  * Připojí posluchač onValue na uzel daného kódu a při každé změně polohy dítěte
  * předá aktuální data do rodičovské komponenty.
+ * Automaticky kontroluje GDPR expiraci (pokud je sezení neaktivní > 2 hodiny, ihned ho maže).
  * Vrací funkci pro odhlášení (unsubscribe).
  */
 export function subscribeToChildSession(
@@ -187,6 +202,17 @@ export function subscribeToChildSession(
     sessionRef,
     (snapshot) => {
       const data = snapshot.val();
+      if (data) {
+        // GDPR: Zkontrolovat stáří poslední aktivity (2 hodiny = 7 200 000 ms)
+        const lastActivity = data.lastSeen || data.timestamp || 0;
+        const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
+        if (Date.now() - lastActivity > TWO_HOURS_MS) {
+          console.log(`GDPR Privacy: Sezení ${code} je neaktivní déle než 2 hodiny. Provádím automatický výmaz.`);
+          remove(sessionRef).catch(console.warn);
+          callback(null);
+          return;
+        }
+      }
       callback(data);
     },
     (error) => {

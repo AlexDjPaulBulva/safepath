@@ -98,7 +98,7 @@ export function generateRouteContrastArguments(
   return [
     `Tato zkratka sice ušetří ${minText}, ale nutí dítě přebíhat vozovku mimo semafory a procházet místy bez dohledu kamer. Doporučujeme zůstat na Trase A.`,
     'Přebíhání víceproudé komunikace a tramvajových pásů představuje pro školáka kritické bezpečnostní riziko kvůli omezenému rozhledu.',
-    'Trasa A nabízí 100% přechodů se světelnou signalizací a stálý dohled MKS kamer – ušetřený čas nestojí za hazard se zdravím.'
+    'Trasa A nabízí prioritu řízených přechodů se světelnou signalizací a dohled MKS kamer – ušetřený čas nestojí za zbytečné riziko.'
   ];
 }
 

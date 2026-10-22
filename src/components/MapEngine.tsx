@@ -968,9 +968,7 @@ export function MapEngine({
         
         <TileLayer
           key={tileUrl}
-          attribution={tileSource === 'osm'
-            ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            : '&copy; OpenStreetMap contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'}
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
           url={tileUrl}
           className="map-tiles"
           maxNativeZoom={18}
@@ -1038,7 +1036,7 @@ export function MapEngine({
           />
         )}
 
-        {/* Garantovaná bezpečná trasa A se světelným bezpečnostním koridorem (Safety Aura) */}
+        {/* Doporučená bezpečná trasa A se světelným bezpečnostním koridorem (Safety Aura) */}
         {routeA?.geometry && routeA.geometry.length >= 2 && (
           <React.Fragment key="route-active-A">
             {/* 1. Světelný bezpečnostní koridor (Safety Aura) - chráněný tunel */}
@@ -1187,7 +1185,7 @@ export function MapEngine({
                 <p className="font-semibold text-emerald-300 text-[11px] m-0 mb-0.5">{badge.schoolName}</p>
                 <p className="text-[10px] text-slate-300 m-0">{badge.description}</p>
                 <div className="text-[9px] text-emerald-400/90 mt-1 font-medium">
-                  ✓ Garantovaný pěší koridor a Zóna 30
+                  ✓ Doporučený pěší koridor a Zóna 30
                 </div>
               </div>
             </Popup>
