@@ -386,58 +386,59 @@ export function AuthModal({
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 md:p-6 relative overflow-hidden select-none">
+    <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-3 sm:p-4 md:p-6 relative overflow-hidden select-none">
       {/* Vizuální efekty na pozadí */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-emerald-500/10 blur-[100px] rounded-full"></div>
         <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-cyan-500/10 blur-[100px] rounded-full"></div>
       </div>
 
-      <div className="z-10 w-full max-w-xl bg-slate-800/90 backdrop-blur-md rounded-3xl border border-slate-700 p-6 md:p-8 shadow-2xl relative my-auto">
+      <div className="z-10 w-full max-w-[calc(100vw-1.5rem)] sm:max-w-xl bg-slate-800/95 backdrop-blur-md rounded-3xl border border-slate-700 p-4 sm:p-6 md:p-8 shadow-2xl relative my-auto">
         {onClose && (
           <button
             onClick={onClose}
-            className="absolute top-5 right-5 text-slate-400 hover:text-white bg-slate-700/60 hover:bg-slate-600 rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold border border-slate-600 transition-colors"
+            className="absolute top-4 right-4 sm:top-5 sm:right-5 text-slate-400 hover:text-white bg-slate-700/60 hover:bg-slate-600 rounded-full w-9 h-9 min-w-[36px] min-h-[36px] flex items-center justify-center text-sm font-bold border border-slate-600 transition-colors active:scale-90"
+            aria-label="Zavřít"
           >
             ✕
           </button>
         )}
 
         {/* Hlavička aplikace */}
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center space-x-3 mb-2">
-            <div className="relative flex h-6 w-6">
+        <div className="text-center mb-5 sm:mb-6">
+          <div className="inline-flex items-center space-x-2 sm:space-x-3 mb-1.5 sm:mb-2">
+            <div className="relative flex h-5 w-5 sm:h-6 sm:w-6">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-6 w-6 bg-emerald-500"></span>
+              <span className="relative inline-flex rounded-full h-5 w-5 sm:h-6 sm:w-6 bg-emerald-500"></span>
             </div>
-            <h1 className="text-3xl font-black tracking-tight text-white">SafePath</h1>
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">SafePath</h1>
           </div>
-          <p className="text-slate-400 text-sm">Autentizace a živý dohled pro bezpečný návrat domů</p>
+          <p className="text-slate-400 text-xs sm:text-sm">Autentizace a živý dohled pro bezpečný návrat domů</p>
         </div>
 
         {/* Hlavní přepínač záložek: RODIČ vs DÍTĚ */}
-        <div className="flex bg-slate-950/70 p-1.5 rounded-2xl border border-slate-700/80 mb-6 shadow-inner">
+        <div className="flex bg-slate-950/70 p-1 sm:p-1.5 rounded-2xl border border-slate-700/80 mb-5 sm:mb-6 shadow-inner gap-1">
           <button
             onClick={() => setActiveTab('parent')}
-            className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${
+            className={`flex-1 py-2.5 sm:py-3 px-2 sm:px-4 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 min-h-[44px] ${
               activeTab === 'parent'
                 ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-900/40'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <span className="text-lg">👨‍👩‍👧</span>
+            <span className="text-base sm:text-lg">👨‍👩‍👧</span>
             <span>Rodičovský dispečink</span>
           </button>
           <button
             onClick={() => setActiveTab('child')}
-            className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${
+            className={`flex-1 py-2.5 sm:py-3 px-2 sm:px-4 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 min-h-[44px] ${
               activeTab === 'child'
                 ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/40'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <span className="text-lg">🐣</span>
-            <span>Jsem dítě / Chráněná osoba</span>
+            <span className="text-base sm:text-lg">🐣</span>
+            <span>Jsem dítě</span>
           </button>
         </div>
 
@@ -460,7 +461,7 @@ export function AuthModal({
               <span className="text-xs uppercase font-bold tracking-widest text-emerald-400 mb-1">
                 Kód pro rodiče
               </span>
-              <div className="text-4xl md:text-5xl font-black text-white tracking-widest font-mono py-1">
+              <div className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-widest font-mono py-1 break-all">
                 [{formatDisplayCode(childCode)}]
               </div>
               <div className="flex items-center gap-2 mt-3">

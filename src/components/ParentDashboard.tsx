@@ -726,7 +726,7 @@ export function ParentDashboard({
   }
 
   return (
-    <div className="flex h-screen w-full bg-slate-900 overflow-hidden relative">
+    <div className="flex h-screen min-h-[100dvh] max-h-[100dvh] w-full max-w-[100vw] bg-slate-900 overflow-hidden relative">
       {/* SOS ALERT MODAL */}
       <AnimatePresence>
         {sosAlert.active && (
@@ -848,8 +848,8 @@ export function ParentDashboard({
       >
         {/* JEDNOTNÝ KONTEJNER PRO NOTIFIKACE A TOASTY (Centrovaně nahoře, bez kolize s přepínačem režimu a tlačítkem Zpět) */}
         <div 
-          className="fixed z-[2500] pointer-events-none flex flex-col items-center gap-2 max-w-[90vw] md:max-w-md w-full"
-          style={{ top: '1rem', left: '50%', transform: 'translateX(-50%)' }}
+          className="fixed z-[2500] pointer-events-none flex flex-col items-center gap-2 max-w-[calc(100vw-1.5rem)] md:max-w-md w-full"
+          style={{ top: 'calc(0.75rem + env(safe-area-inset-top, 0px))', left: '50%', transform: 'translateX(-50%)' }}
         >
           {/* 1. Karta pro odblokování GPS při PERMISSION_DENIED */}
           <AnimatePresence>
@@ -1035,12 +1035,15 @@ export function ParentDashboard({
 
         {/* GPS Recenter Floating Action Button */}
         <div 
-          className="fixed md:absolute right-4 md:right-6 z-[1000] transition-all duration-300"
-          style={{ bottom: 'calc(var(--bottom-sheet-height, 9.5rem) + 4.5rem + env(safe-area-inset-bottom, 0px))' }}
+          className="fixed md:absolute z-[1000] transition-all duration-300 pointer-events-auto"
+          style={{ 
+            right: 'calc(1rem + env(safe-area-inset-right, 0px))',
+            bottom: 'calc(var(--bottom-sheet-height, 9.5rem) + 4.5rem + env(safe-area-inset-bottom, 0px))' 
+          }}
         >
           <button
             onClick={handleRecenterGps}
-            className={`w-12 h-12 rounded-full shadow-2xl border flex items-center justify-center transition-all active:scale-90 relative ${
+            className={`w-12 h-12 min-w-[44px] min-h-[44px] rounded-full shadow-2xl border flex items-center justify-center transition-all active:scale-90 relative ${
               userLocation 
                 ? 'bg-slate-900/95 text-blue-400 hover:text-blue-300 border-blue-500/70 hover:border-blue-400 shadow-[0_0_15px_rgba(37,99,235,0.4)]'
                 : 'bg-slate-900/95 text-slate-400 hover:text-white border-slate-700 hover:border-slate-500'
@@ -1070,8 +1073,11 @@ export function ParentDashboard({
 
         {/* Safe Haven FAB Button */}
         <div 
-          className="fixed md:absolute right-4 md:right-6 z-[1000] transition-all duration-300"
-          style={{ bottom: 'calc(var(--bottom-sheet-height, 9.5rem) + 12px + env(safe-area-inset-bottom, 0px))' }}
+          className="fixed md:absolute z-[1000] transition-all duration-300 pointer-events-auto"
+          style={{ 
+            right: 'calc(1rem + env(safe-area-inset-right, 0px))',
+            bottom: 'calc(var(--bottom-sheet-height, 9.5rem) + 12px + env(safe-area-inset-bottom, 0px))' 
+          }}
         >
           <SafeHavenButton
             currentLocation={simulatedLocation}
@@ -1133,7 +1139,12 @@ export function ParentDashboard({
         {/* Správa očekávání u PWA na pozadí (diskrétní informační tip) */}
         {showPwaTip && (
           <div 
-            className="fixed bottom-24 md:bottom-5 left-4 right-4 md:right-auto md:max-w-lg z-[1000] bg-slate-900/95 border border-slate-700/80 rounded-2xl p-3.5 shadow-2xl backdrop-blur-md text-xs text-slate-300 leading-relaxed flex items-start gap-3 pointer-events-auto animate-fadeIn"
+            className="fixed md:bottom-5 md:left-6 md:right-auto md:max-w-md z-[1000] bg-slate-900/95 border border-slate-700/80 rounded-2xl p-3 sm:p-3.5 shadow-2xl backdrop-blur-md text-xs text-slate-300 leading-relaxed flex items-start gap-2.5 pointer-events-auto animate-fadeIn max-w-[calc(100vw-1.5rem)]"
+            style={{
+              left: 'calc(0.75rem + env(safe-area-inset-left, 0px))',
+              right: 'calc(0.75rem + env(safe-area-inset-right, 0px))',
+              bottom: 'calc(var(--bottom-sheet-height, 9.5rem) + 84px + env(safe-area-inset-bottom, 0px))'
+            }}
           >
             <span className="text-base shrink-0">💡</span>
             <div className="flex-1 min-w-0">
@@ -1146,7 +1157,7 @@ export function ParentDashboard({
                   localStorage.setItem('safepath_pwa_tip_dismissed', 'true');
                 }
               }}
-              className="text-slate-400 hover:text-white p-1 rounded transition-colors text-xs shrink-0"
+              className="text-slate-400 hover:text-white p-1 rounded transition-colors text-xs shrink-0 min-w-[28px] min-h-[28px] flex items-center justify-center"
               title="Zavřít tip"
               aria-label="Zavřít tip"
             >

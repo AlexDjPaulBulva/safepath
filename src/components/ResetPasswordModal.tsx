@@ -85,22 +85,22 @@ export function ResetPasswordModal({
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 md:p-6 relative overflow-hidden select-none">
+    <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-3 sm:p-4 md:p-6 relative overflow-hidden select-none">
       {/* Vizuální ambientní efekty SafePath */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-emerald-500/10 blur-[100px] rounded-full"></div>
         <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-cyan-500/10 blur-[100px] rounded-full"></div>
       </div>
 
-      <div className="z-10 w-full max-w-md bg-slate-800/90 backdrop-blur-md rounded-3xl border border-slate-700 p-6 md:p-8 shadow-2xl relative my-auto animate-fadeIn">
+      <div className="z-10 w-full max-w-[calc(100vw-1.5rem)] sm:max-w-md bg-slate-800/90 backdrop-blur-md rounded-3xl border border-slate-700 p-4 sm:p-6 md:p-8 shadow-2xl relative my-auto animate-fadeIn">
         {/* Záhlaví s logem SafePath */}
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center space-x-3 mb-2">
-            <div className="relative flex h-6 w-6">
+        <div className="text-center mb-5 sm:mb-6">
+          <div className="inline-flex items-center space-x-2 sm:space-x-3 mb-1.5 sm:mb-2">
+            <div className="relative flex h-5 w-5 sm:h-6 sm:w-6">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-6 w-6 bg-emerald-500"></span>
+              <span className="relative inline-flex rounded-full h-5 w-5 sm:h-6 sm:w-6 bg-emerald-500"></span>
             </div>
-            <h1 className="text-3xl font-black tracking-tight text-white">SafePath</h1>
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">SafePath</h1>
           </div>
 
           <div className="flex justify-center mt-1 mb-2">
@@ -110,7 +110,7 @@ export function ResetPasswordModal({
           </div>
 
           {userEmail && (
-            <p className="text-slate-400 text-xs">
+            <p className="text-slate-400 text-xs truncate max-w-full">
               Účet: <span className="text-cyan-300 font-semibold">{userEmail}</span>
             </p>
           )}

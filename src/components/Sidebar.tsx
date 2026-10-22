@@ -331,26 +331,29 @@ export function Sidebar({
       )}
 
       <aside 
+        style={{
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)'
+        }}
         className={`
           w-full md:w-96 md:max-w-md bg-slate-900 border-slate-700/60 shadow-2xl flex flex-col pointer-events-auto z-30 transition-all duration-300 ease-out
           md:relative md:h-full md:border-r md:pt-3 md:px-4 md:pb-0
           fixed inset-x-0 bottom-0 rounded-t-3xl border-t
-          ${sheetState === 'minimized' ? 'max-md:h-[48px] max-md:max-h-[48px] max-md:overflow-hidden max-md:p-0' : ''}
-          ${sheetState === 'peek' ? 'max-md:h-[150px] max-md:max-h-[150px] max-md:overflow-hidden max-md:pt-1.5 max-md:px-3.5 max-md:pb-2' : ''}
+          ${sheetState === 'minimized' ? 'max-md:h-[52px] max-md:max-h-[52px] max-md:overflow-hidden max-md:p-0' : ''}
+          ${sheetState === 'peek' ? 'max-md:h-[154px] max-md:max-h-[154px] max-md:overflow-hidden max-md:pt-1.5 max-md:px-3.5 max-md:pb-2' : ''}
           ${sheetState === 'expanded' ? 'max-md:h-[85vh] max-md:max-h-[85vh] max-md:pt-2 max-md:px-4 max-md:pb-0' : ''}
         `}
       >
         {/* ======================================================== */}
-        {/* MOBILNÍ STAV 1: MINIMIZED (Výška 48px)                     */}
+        {/* MOBILNÍ STAV 1: MINIMIZED (Výška 52px)                     */}
         {/* ======================================================== */}
         <div 
-          className={`block md:hidden flex-col h-[48px] shrink-0 justify-between select-none cursor-pointer active:bg-slate-800/60 ${sheetState === 'minimized' ? 'flex' : 'hidden'} md:!hidden`}
+          className={`block md:hidden flex-col h-[52px] shrink-0 justify-between select-none cursor-pointer active:bg-slate-800/60 ${sheetState === 'minimized' ? 'flex' : 'hidden'} md:!hidden`}
           onClick={() => setSheetState('peek')}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
         >
-          <div className="w-10 h-1 bg-slate-600 rounded-full mx-auto mt-1.5 cursor-grab" />
-          <div className="flex items-center justify-between px-3 pb-2">
+          <div className="w-12 h-1 bg-slate-600 rounded-full mx-auto mt-1.5 cursor-grab" />
+          <div className="flex items-center justify-between px-3.5 pb-2">
             <div className="flex items-center gap-2 min-w-0">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
               <span className="text-xs font-bold text-white truncate">
@@ -360,7 +363,7 @@ export function Sidebar({
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); setSheetState('peek'); }}
-              className="text-[11px] font-bold text-emerald-400 bg-emerald-950/80 px-2.5 py-1 rounded-lg border border-emerald-600/50 flex items-center gap-1 active:scale-95 shrink-0"
+              className="text-[11px] font-bold text-emerald-400 bg-emerald-950/80 px-3 py-1.5 rounded-lg border border-emerald-600/50 flex items-center gap-1 active:scale-95 shrink-0 min-h-[36px]"
             >
               <span>Přehled</span>
               <span>▲</span>
@@ -369,7 +372,7 @@ export function Sidebar({
         </div>
 
         {/* ======================================================== */}
-        {/* MOBILNÍ STAV 2: PEEK (Výchozí náhled, výška ~148px)         */}
+        {/* MOBILNÍ STAV 2: PEEK (Výchozí náhled, výška ~154px)         */}
         {/* ======================================================== */}
         <div 
           className={`block md:hidden flex-col shrink-0 select-none ${sheetState === 'peek' ? 'flex' : 'hidden'} md:!hidden`}
@@ -377,7 +380,7 @@ export function Sidebar({
           onTouchEnd={handleTouchEnd}
         >
           {/* Drag Bar & Summary Row */}
-          <div className="w-12 h-1 bg-slate-500/80 rounded-full mx-auto mt-0.5 mb-1.5 cursor-grab" />
+          <div className="w-12 h-1.5 bg-slate-500/80 rounded-full mx-auto mt-1 mb-1.5 cursor-grab" />
           <div className="flex items-center justify-between px-1 mb-2 block md:hidden">
             <div className="flex items-center gap-2 min-w-0">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
@@ -392,7 +395,7 @@ export function Sidebar({
               <button
                 type="button"
                 onClick={() => setSheetState('expanded')}
-                className="text-[11px] font-bold text-slate-200 bg-slate-800/90 hover:bg-slate-700 px-2.5 py-1 rounded-lg border border-slate-700 flex items-center gap-1 active:scale-95"
+                className="text-[11px] font-bold text-slate-200 bg-slate-800/90 hover:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-700 flex items-center gap-1 active:scale-95 min-h-[36px]"
               >
                 <span>Detaily</span>
                 <span className="text-emerald-400">▲</span>
@@ -400,8 +403,9 @@ export function Sidebar({
               <button
                 type="button"
                 onClick={() => setSheetState('minimized')}
-                className="text-xs text-slate-400 hover:text-white px-1.5 py-1"
+                className="text-xs text-slate-400 hover:text-white px-2 py-1.5 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg"
                 title="Sbalit panel"
+                aria-label="Sbalit panel"
               >
                 ▼
               </button>
@@ -412,7 +416,7 @@ export function Sidebar({
           <div className="space-y-1.5">
             <div 
               onClick={() => setSheetState('expanded')}
-              className="flex items-center bg-slate-800/90 border border-slate-700/80 rounded-lg px-2.5 py-1.5 cursor-pointer active:bg-slate-700/80 transition-colors"
+              className="flex items-center bg-slate-800/90 border border-slate-700/80 rounded-xl px-3 py-2 cursor-pointer active:bg-slate-700/80 transition-colors min-h-[40px]"
             >
               <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0 mr-2" />
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1.5 shrink-0">Od:</span>
@@ -422,7 +426,7 @@ export function Sidebar({
             </div>
             <div 
               onClick={() => setSheetState('expanded')}
-              className="flex items-center bg-slate-800/90 border border-slate-700/80 rounded-lg px-2.5 py-1.5 cursor-pointer active:bg-slate-700/80 transition-colors"
+              className="flex items-center bg-slate-800/90 border border-slate-700/80 rounded-xl px-3 py-2 cursor-pointer active:bg-slate-700/80 transition-colors min-h-[40px]"
             >
               <div className="w-2.5 h-2.5 rounded-full bg-blue-400 shrink-0 mr-2" />
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1.5 shrink-0">Do:</span>
@@ -441,7 +445,7 @@ export function Sidebar({
         >
           {/* Mobilní lišta pro stažení z Expanded do Peek */}
           <div 
-            className="block md:hidden flex-col items-center pt-1 pb-2 shrink-0 cursor-pointer select-none border-b border-slate-800 mb-2 md:!hidden"
+            className="block md:hidden flex-col items-center pt-1 pb-2 shrink-0 cursor-pointer select-none border-b border-slate-800 mb-2 min-h-[44px] flex justify-center md:!hidden"
             onClick={() => setSheetState('peek')}
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}

@@ -145,29 +145,29 @@ export function SafeHavenBanner({
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className="bg-gradient-to-r from-red-950/95 via-slate-900/95 to-rose-950/95 border-2 border-red-500 rounded-2xl p-4 shadow-[0_0_40px_rgba(239,68,68,0.5)] backdrop-blur-md max-w-lg w-full flex items-center justify-between gap-4"
+      className="bg-gradient-to-r from-red-950/95 via-slate-900/95 to-rose-950/95 border-2 border-red-500 rounded-2xl p-3 sm:p-4 shadow-[0_0_40px_rgba(239,68,68,0.5)] backdrop-blur-md max-w-[calc(100vw-1.5rem)] sm:max-w-lg w-full flex items-center justify-between gap-3"
     >
-      <div className="flex items-center gap-3.5">
-        <div className="w-12 h-12 rounded-2xl bg-red-600/30 border border-red-500 flex items-center justify-center text-2xl shadow-inner">
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-red-600/30 border border-red-500 flex items-center justify-center text-xl sm:text-2xl shadow-inner shrink-0">
           {getSafeHavenIcon(haven.type)}
         </div>
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-500 text-white">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-500 text-white shrink-0">
               Nouzový úkryt aktivní
             </span>
-            <span className="text-xs text-red-300 font-semibold">
+            <span className="text-[11px] sm:text-xs text-red-300 font-semibold shrink-0">
               cca {distanceMeters} m
             </span>
           </div>
-          <h4 className="text-base font-bold text-white mt-0.5 leading-snug">
+          <h4 className="text-sm sm:text-base font-bold text-white mt-0.5 leading-snug truncate">
             {haven.name}
           </h4>
-          <p className="text-xs text-slate-300 leading-tight">
+          <p className="text-[11px] sm:text-xs text-slate-300 leading-tight truncate">
             {haven.address} • <span className="text-amber-300 font-semibold">{getSafeHavenBadge(haven)}</span>
           </p>
           {haven.phone && (
-            <p className="text-xs text-emerald-400 font-bold mt-1">
+            <p className="text-[11px] sm:text-xs text-emerald-400 font-bold mt-0.5">
               Tel: <a href={`tel:${haven.phone}`} className="underline">{haven.phone}</a>
             </p>
           )}
@@ -176,7 +176,7 @@ export function SafeHavenBanner({
 
       <button
         onClick={onCancel}
-        className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-bold border border-slate-600 transition-colors shrink-0 active:scale-95"
+        className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-bold border border-slate-600 transition-colors shrink-0 active:scale-95 min-h-[40px] flex items-center"
       >
         Ukončit
       </button>

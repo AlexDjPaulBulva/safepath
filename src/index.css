@@ -2,6 +2,66 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ======================================================== */
+/* SENIOR MOBILE-FIRST RESET & TOUCH ERGONOMICS             */
+/* ======================================================== */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+}
+
+html, body {
+  width: 100%;
+  max-width: 100vw;
+  min-height: 100%;
+  overflow-x: hidden;
+  margin: 0;
+  padding: 0;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-overflow-scrolling: touch;
+  background-color: #020617; /* slate-950 */
+  color: #f8fafc;
+}
+
+#root {
+  width: 100%;
+  max-width: 100vw;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* Ochrana proti nechtěnému přiblížení v Safari na iOS (písmo vstupů >= 16px na mobilu) */
+@media screen and (max-width: 768px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Zrychlení reakce na dotyk (eliminace 300ms prodlevy dvojkliku na dotykových displejích) */
+button,
+a,
+input,
+select,
+[role="button"] {
+  touch-action: manipulation;
+}
+
 /* Moderní tenký scrollbar (namísto výchozího bílého posuvníku) */
 ::-webkit-scrollbar,
 .custom-scrollbar::-webkit-scrollbar {

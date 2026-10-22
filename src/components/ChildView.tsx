@@ -268,17 +268,24 @@ export function ChildView({ onBack }: ChildViewProps) {
       </div>
 
       {/* 2. Horní plovoucí lišta: Zpět, Stav připojení + Baterie, Krizový SafePass */}
-      <div className="absolute top-4 left-0 right-0 px-4 flex items-center justify-between z-[1200] gap-2 pointer-events-none">
+      <div 
+        className="fixed z-[1200] flex items-center justify-between gap-2 pointer-events-none"
+        style={{
+          top: 'calc(0.75rem + env(safe-area-inset-top, 0px))',
+          left: 'calc(0.75rem + env(safe-area-inset-left, 0px))',
+          right: 'calc(0.75rem + env(safe-area-inset-right, 0px))'
+        }}
+      >
         {onBack ? (
           <button 
             onClick={handleExitNavigation}
-            className="bg-slate-900/90 text-slate-300 hover:text-white px-3.5 py-2 rounded-xl border border-slate-700 shadow-xl backdrop-blur flex items-center gap-1.5 text-xs font-bold transition-all active:scale-95 pointer-events-auto"
+            className="bg-slate-900/90 text-slate-300 hover:text-white px-3.5 py-2 min-h-[44px] rounded-xl border border-slate-700 shadow-xl backdrop-blur flex items-center gap-1.5 text-xs font-bold transition-all active:scale-95 pointer-events-auto"
           >
             <span>←</span> Zpět
           </button>
         ) : <div className="w-12" />}
 
-        <div className="bg-slate-900/95 px-3.5 py-1.5 rounded-full border border-slate-700 shadow-2xl backdrop-blur flex items-center space-x-2 max-w-[55%] truncate pointer-events-auto">
+        <div className="bg-slate-900/95 px-3.5 py-2 min-h-[44px] rounded-full border border-slate-700 shadow-2xl backdrop-blur flex items-center space-x-2 max-w-[55%] truncate pointer-events-auto">
           <span className={`w-2.5 h-2.5 rounded-full ${powerSavingMode ? 'bg-amber-400' : 'bg-emerald-500 animate-pulse'}`}></span>
           <span className="font-bold text-xs text-slate-200 truncate">
             {activeChildCode ? `Kód: ${activeChildCode}` : 'Sledováno'}
@@ -294,7 +301,7 @@ export function ChildView({ onBack }: ChildViewProps) {
 
         <button
           onClick={() => setShowSafePassModal(true)}
-          className="bg-emerald-600/95 hover:bg-emerald-500 text-white px-3 py-2 rounded-xl border border-emerald-400 shadow-xl backdrop-blur flex items-center gap-1 text-xs font-bold transition-all active:scale-95 shrink-0 pointer-events-auto"
+          className="bg-emerald-600/95 hover:bg-emerald-500 text-white px-3 py-2 min-h-[44px] rounded-xl border border-emerald-400 shadow-xl backdrop-blur flex items-center gap-1 text-xs font-bold transition-all active:scale-95 shrink-0 pointer-events-auto"
         >
           <span>🏷️</span> SafePass
         </button>
@@ -303,7 +310,8 @@ export function ChildView({ onBack }: ChildViewProps) {
       {/* 3. Zelený banner: "Trasa od rodičů připravena. Můžeš vyrazit!" */}
       {showRouteReadyBanner && assignedRouteResult && (
         <div 
-          className="fixed top-16 left-1/2 -translate-x-1/2 z-[1300] w-[92%] max-w-md bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white px-4 py-3 rounded-2xl shadow-[0_0_35px_rgba(16,185,129,0.5)] border-2 border-emerald-300 backdrop-blur-md flex items-center justify-between gap-3 animate-fadeIn pointer-events-auto"
+          className="fixed left-1/2 -translate-x-1/2 z-[1300] w-[92%] max-w-md bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white px-4 py-3 rounded-2xl shadow-[0_0_35px_rgba(16,185,129,0.5)] border-2 border-emerald-300 backdrop-blur-md flex items-center justify-between gap-3 animate-fadeIn pointer-events-auto"
+          style={{ top: 'calc(4.25rem + env(safe-area-inset-top, 0px))' }}
         >
           <div className="flex items-center gap-2.5 min-w-0">
             <span className="text-2xl flex-shrink-0 animate-bounce">🎒</span>
@@ -318,7 +326,7 @@ export function ChildView({ onBack }: ChildViewProps) {
           </div>
           <button 
             onClick={() => setShowRouteReadyBanner(false)}
-            className="text-emerald-200 hover:text-white p-1 font-bold text-xs shrink-0"
+            className="text-emerald-200 hover:text-white p-2 min-w-[36px] min-h-[36px] flex items-center justify-center font-bold text-xs shrink-0"
             aria-label="Zavřít"
           >
             ✕
@@ -328,14 +336,23 @@ export function ChildView({ onBack }: ChildViewProps) {
 
       {/* 4. Stav bez zadané trasy - klidné čekání na pokyn rodiče */}
       {!assignedRouteResult && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[1300] w-[90%] max-w-sm bg-slate-900/95 border border-slate-700 text-slate-200 px-4 py-2.5 rounded-2xl shadow-xl backdrop-blur text-center text-xs pointer-events-auto flex items-center justify-center gap-2">
+        <div 
+          className="fixed left-1/2 -translate-x-1/2 z-[1300] w-[90%] max-w-sm bg-slate-900/95 border border-slate-700 text-slate-200 px-4 py-2.5 rounded-2xl shadow-xl backdrop-blur text-center text-xs pointer-events-auto flex items-center justify-center gap-2"
+          style={{ top: 'calc(4.25rem + env(safe-area-inset-top, 0px))' }}
+        >
           <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
           <span>Čekám na odeslání bezpečné trasy od rodičů...</span>
         </div>
       )}
 
       {/* 5. Vpravo dole: Červené SOS tlačítko pro nouzový signál */}
-      <div className="fixed bottom-6 right-6 z-[1200] pointer-events-auto">
+      <div 
+        className="fixed z-[1200] pointer-events-auto"
+        style={{
+          bottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))',
+          right: 'calc(1.5rem + env(safe-area-inset-right, 0px))'
+        }}
+      >
         <AnimatePresence>
           {sosCountdown !== null ? (
             <motion.button

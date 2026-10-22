@@ -40,12 +40,12 @@ export function GeolocationPermissionModal({
             exit={{ scale: 0.92, y: 15 }}
             transition={{ duration: 0.2 }}
             onClick={(e) => e.stopPropagation()}
-            className="bg-slate-900 border border-slate-700/80 w-full max-w-md rounded-3xl p-6 shadow-2xl flex flex-col text-white my-auto relative"
+            className="bg-slate-900 border border-slate-700/80 w-full max-w-[calc(100vw-1.5rem)] sm:max-w-md rounded-3xl p-4 sm:p-6 shadow-2xl flex flex-col text-white my-auto relative"
           >
             {/* Zavírací křížek */}
             <button
               onClick={onClose}
-              className="absolute top-4 right-4 text-slate-400 hover:text-white p-2 rounded-xl hover:bg-slate-800 transition-colors"
+              className="absolute top-4 right-4 text-slate-400 hover:text-white p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-xl hover:bg-slate-800 transition-colors active:scale-90"
               aria-label="Zavřít"
             >
               ✕
@@ -163,7 +163,7 @@ export function GeolocationPermissionModal({
               <button
                 onClick={onRetry}
                 disabled={isRetrying}
-                className="flex-1 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold text-sm shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2"
+                className="flex-1 py-3 px-4 min-h-[44px] rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold text-sm shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2"
               >
                 {isRetrying ? (
                   <>
@@ -179,7 +179,7 @@ export function GeolocationPermissionModal({
               </button>
               <button
                 onClick={onClose}
-                className="py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 font-semibold text-sm transition-all"
+                className="py-3 px-4 min-h-[44px] rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 font-semibold text-sm transition-all"
               >
                 Rozumím
               </button>

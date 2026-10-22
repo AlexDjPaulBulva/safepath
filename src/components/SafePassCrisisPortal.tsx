@@ -88,31 +88,31 @@ export function SafePassCrisisPortal({ childCode, onContinueToApp }: SafePassCri
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between p-4 sm:p-6 md:p-8 font-sans selection:bg-emerald-500 selection:text-white">
       {/* Horní hlavička s brandem a krizovým štítkem */}
-      <header className="max-w-2xl mx-auto w-full flex items-center justify-between pb-6 border-b border-slate-800">
+      <header className="max-w-2xl mx-auto w-full flex flex-wrap items-center justify-between gap-3 pb-4 sm:pb-6 border-b border-slate-800">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-950">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-950 shrink-0">
             <span className="text-xl">🛡️</span>
           </div>
           <div>
-            <div className="text-lg font-black tracking-tight text-white flex items-center gap-2">
+            <div className="text-base sm:text-lg font-black tracking-tight text-white flex items-center gap-1.5 sm:gap-2">
               SafePath <span className="text-emerald-400">SafePass</span>
             </div>
-            <div className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">
+            <div className="text-[10px] sm:text-[11px] text-slate-400 font-semibold uppercase tracking-wider">
               Oficiální systém záchrany a bezpečí
             </div>
           </div>
         </div>
 
-        <div className="bg-rose-500/15 border border-rose-500/40 text-rose-300 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 animate-pulse">
+        <div className="bg-rose-500/15 border border-rose-500/40 text-rose-300 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 animate-pulse shrink-0">
           <span className="w-2 h-2 rounded-full bg-rose-500"></span>
           Krizový portál
         </div>
       </header>
 
       {/* Hlavní obsah */}
-      <main className="max-w-xl mx-auto w-full my-auto py-8">
+      <main className="max-w-xl mx-auto w-full my-auto py-4 sm:py-8">
         {!isSuccess ? (
-          <div className="bg-slate-900 border-2 border-emerald-500/60 rounded-3xl p-6 sm:p-8 shadow-[0_0_50px_rgba(16,185,129,0.15)] relative backdrop-blur-xl">
+          <div className="bg-slate-900 border-2 border-emerald-500/60 rounded-3xl p-4 sm:p-6 md:p-8 shadow-[0_0_50px_rgba(16,185,129,0.15)] relative backdrop-blur-xl">
             <div className="text-center mb-6">
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-3xl mb-4 shadow-inner">
                 🤝
@@ -146,7 +146,7 @@ export function SafePassCrisisPortal({ childCode, onContinueToApp }: SafePassCri
                   placeholder="např. Lékárna Dr. Max, Večerka, Železniční stanice..."
                   value={venueName}
                   onChange={(e) => setVenueName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 outline-none transition-all"
+                  className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-xl px-4 py-3 text-base md:text-sm text-white placeholder-slate-500 outline-none transition-all"
                 />
               </div>
 
@@ -160,12 +160,12 @@ export function SafePassCrisisPortal({ childCode, onContinueToApp }: SafePassCri
                     placeholder="např. Sokolovská 42, Praha 8"
                     value={reporterAddress}
                     onChange={(e) => setReporterAddress(e.target.value)}
-                    className="flex-1 bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 outline-none transition-all"
+                    className="flex-1 bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-xl px-4 py-3 text-base md:text-sm text-white placeholder-slate-500 outline-none transition-all"
                   />
                   <button
                     type="button"
                     onClick={requestRescuerGps}
-                    className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-3.5 py-3 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 active:scale-95"
+                    className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-3.5 py-3 min-h-[44px] rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 active:scale-95"
                     title="Zaměřit mou GPS polohu"
                   >
                     <span>🛰️</span>
@@ -204,7 +204,7 @@ export function SafePassCrisisPortal({ childCode, onContinueToApp }: SafePassCri
             <button
               onClick={handleSendRescueReport}
               disabled={isSubmitting}
-              className="w-full bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-400 hover:via-emerald-500 hover:to-teal-500 disabled:opacity-50 text-white font-black text-base sm:text-lg py-4 px-6 rounded-2xl shadow-[0_0_35px_rgba(16,185,129,0.4)] border-2 border-emerald-300 transition-all transform active:scale-[0.98] flex items-center justify-center gap-3 cursor-pointer"
+              className="w-full bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-400 hover:via-emerald-500 hover:to-teal-500 disabled:opacity-50 text-white font-black text-sm sm:text-base md:text-lg py-3.5 sm:py-4 px-4 sm:px-6 rounded-2xl shadow-[0_0_35px_rgba(16,185,129,0.4)] border-2 border-emerald-300 transition-all transform active:scale-[0.98] flex items-center justify-center gap-2 sm:gap-3 cursor-pointer min-h-[52px]"
             >
               {isSubmitting ? (
                 <>

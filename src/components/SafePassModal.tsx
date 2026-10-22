@@ -72,37 +72,37 @@ export function SafePassModal({ childCode, onClose, childName }: SafePassModalPr
       </div>
 
       {/* Interaktivní modal na displeji */}
-      <div className="w-full max-w-md bg-slate-900 border-2 border-emerald-500/80 rounded-3xl p-6 sm:p-7 shadow-[0_0_50px_rgba(16,185,129,0.25)] relative text-white print:hidden">
+      <div className="w-full max-w-[calc(100vw-1.5rem)] sm:max-w-md bg-slate-900 border-2 border-emerald-500/80 rounded-3xl p-4 sm:p-6 sm:p-7 shadow-[0_0_50px_rgba(16,185,129,0.25)] relative text-white print:hidden my-auto">
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 text-slate-400 hover:text-white bg-slate-800/80 hover:bg-slate-700 w-9 h-9 rounded-full flex items-center justify-center transition-all border border-slate-700 text-sm font-bold active:scale-90"
+          className="absolute top-4 right-4 sm:top-5 sm:right-5 text-slate-400 hover:text-white bg-slate-800/80 hover:bg-slate-700 w-9 h-9 min-w-[36px] min-h-[36px] rounded-full flex items-center justify-center transition-all border border-slate-700 text-sm font-bold active:scale-90"
           aria-label="Zavřít"
         >
           ✕
         </button>
 
-        <div className="flex items-center gap-2.5 mb-1">
-          <span className="text-2xl">🏷️</span>
-          <h3 className="text-xl font-black tracking-tight text-emerald-400">QR Safe Pass</h3>
-          <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+        <div className="flex items-center gap-2.5 mb-1 pr-8">
+          <span className="text-2xl shrink-0">🏷️</span>
+          <h3 className="text-lg sm:text-xl font-black tracking-tight text-emerald-400">QR Safe Pass</h3>
+          <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0">
             Krizový systém
           </span>
         </div>
 
-        <p className="text-xs text-slate-300 leading-relaxed mb-5">
+        <p className="text-xs text-slate-300 leading-relaxed mb-4 sm:mb-5">
           Offline záchranná kartička pro případ, že se dítěti vybije telefon, ztratí se nebo potřebuje pomoc personálu v obchodě či na nádraží.
         </p>
 
         {/* QR kód karta */}
-        <div className="bg-white rounded-2xl p-5 text-center shadow-xl mb-4 flex flex-col items-center">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 text-center shadow-xl mb-4 flex flex-col items-center">
           {qrDataUrl ? (
             <img 
               src={qrDataUrl} 
               alt="SafePass QR Kód" 
-              className="w-56 h-56 mx-auto rounded-xl shadow-inner border border-slate-200"
+              className="w-44 h-44 sm:w-56 sm:h-56 mx-auto rounded-xl shadow-inner border border-slate-200"
             />
           ) : (
-            <div className="w-56 h-56 flex items-center justify-center text-slate-400 text-xs animate-pulse">
+            <div className="w-44 h-44 sm:w-56 sm:h-56 flex items-center justify-center text-slate-400 text-xs animate-pulse">
               Generuji QR kód...
             </div>
           )}
@@ -111,25 +111,25 @@ export function SafePassModal({ childCode, onClose, childName }: SafePassModalPr
             <span className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400 block mb-0.5">
               Identifikační kód SafePass
             </span>
-            <span className="text-2xl font-black font-mono tracking-widest text-slate-900 bg-slate-100 px-4 py-1 rounded-lg border border-slate-300 inline-block">
+            <span className="text-xl sm:text-2xl font-black font-mono tracking-widest text-slate-900 bg-slate-100 px-3 sm:px-4 py-1 rounded-lg border border-slate-300 inline-block">
               {childCode}
             </span>
           </div>
         </div>
 
         {/* Instrukce pro nálezce */}
-        <div className="bg-slate-800/90 border border-slate-700 rounded-xl p-3 mb-5 flex items-start gap-3 text-xs leading-relaxed text-slate-300">
+        <div className="bg-slate-800/90 border border-slate-700 rounded-xl p-3 mb-4 sm:mb-5 flex items-start gap-2.5 text-xs leading-relaxed text-slate-300">
           <span className="text-lg shrink-0">ℹ️</span>
           <div>
             <strong>Jak to funguje:</strong> Kdokoliv kód naskenuje běžným fotoaparátem a stiskne tlačítko <em>„Dítě je v bezpečí u mě“</em>. Rodiče v tu chvíli dostanou zprávu s přesnou GPS polohou a adresou.
           </div>
         </div>
 
-        {/* Tlačítka akcí */}
-        <div className="grid grid-cols-2 gap-2.5 mb-3">
+        {/* Tlačítka akcí (Mobile-first: jednosloupcový na úzkých displejích, 2 sloupce na sm+) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-3">
           <button
             onClick={handlePrintCard}
-            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-lg shadow-emerald-900/30 active:scale-95"
+            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-lg shadow-emerald-900/30 active:scale-95 min-h-[44px]"
           >
             <span>🖨️</span> Vytisknout kartičku
           </button>
@@ -137,17 +137,17 @@ export function SafePassModal({ childCode, onClose, childName }: SafePassModalPr
             <a
               href={qrDataUrl}
               download={`safepass-${childCode}.png`}
-              className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 text-center"
+              className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white font-bold py-3 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 text-center min-h-[44px]"
             >
               <span>💾</span> Stáhnout QR kód
             </a>
           )}
         </div>
 
-        <div className="flex items-center justify-between pt-2 border-t border-slate-800">
+        <div className="flex flex-col sm:flex-row items-center justify-between pt-2.5 border-t border-slate-800 gap-2">
           <button
             onClick={handleCopyLink}
-            className="text-xs font-semibold text-slate-400 hover:text-emerald-400 flex items-center gap-1 py-1"
+            className="text-xs font-semibold text-slate-400 hover:text-emerald-400 flex items-center gap-1.5 py-1.5 min-h-[36px]"
           >
             <span>🔗</span> {isCopied ? 'Zkopírováno do schránky!' : 'Kopírovat záchranný odkaz'}
           </button>
@@ -155,7 +155,7 @@ export function SafePassModal({ childCode, onClose, childName }: SafePassModalPr
             href={safePassUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs font-bold text-emerald-400 hover:text-emerald-300 underline"
+            className="text-xs font-bold text-emerald-400 hover:text-emerald-300 underline py-1.5 min-h-[36px] flex items-center"
           >
             Otestovat portál nálezce ↗
           </a>

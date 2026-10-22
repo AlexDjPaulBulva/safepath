@@ -73,10 +73,10 @@ export function AddressSearchInput({ label, placeholder, value, onSelect, iconCo
 
   return (
     <div className="relative" ref={wrapperRef}>
-      <div className="flex items-start space-x-4 mb-4">
-        <div className={`w-6 h-6 rounded-full border-4 flex-shrink-0 mt-0.5 ${iconColor}`}></div>
-        <div className="flex-1">
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">{label}</span>
+      <div className="flex items-start space-x-3 sm:space-x-4 mb-3 sm:mb-4">
+        <div className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full border-4 flex-shrink-0 mt-1 ${iconColor}`}></div>
+        <div className="flex-1 min-w-0">
+          <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-400">{label}</span>
           <div className="relative flex items-center">
             <input
               type="text"
@@ -84,15 +84,15 @@ export function AddressSearchInput({ label, placeholder, value, onSelect, iconCo
               onChange={handleInputChange}
               onFocus={() => { if (results.length > 0) setIsOpen(true); }}
               placeholder={placeholder}
-              className="w-full bg-slate-900/50 border-b border-slate-700 text-sm font-semibold text-slate-200 mt-1 py-1 pr-16 focus:outline-none focus:border-emerald-500 transition-colors placeholder-slate-600"
+              className="w-full bg-slate-900/60 border-b border-slate-700 text-base md:text-sm font-semibold text-slate-100 mt-1 py-1.5 pr-20 focus:outline-none focus:border-emerald-500 transition-colors placeholder-slate-500"
             />
-            <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-2">
+            <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
               {query && (
                 <button
                   type="button"
                   onClick={handleClear}
                   aria-label="Vymazat hledaný text"
-                  className="flex items-center justify-center h-6 w-6 rounded-full bg-slate-700 text-slate-200 hover:bg-slate-600 transition-colors"
+                  className="flex items-center justify-center w-7 h-7 rounded-full bg-slate-700 hover:bg-slate-600 text-slate-200 transition-colors active:scale-90 text-xs"
                 >
                   ✕
                 </button>
@@ -101,9 +101,10 @@ export function AddressSearchInput({ label, placeholder, value, onSelect, iconCo
                 <button
                   type="button"
                   onClick={onUseCurrentLocation}
-                  className="text-[10px] font-bold uppercase tracking-wide text-emerald-300 hover:text-emerald-200 whitespace-nowrap"
+                  className="text-[11px] font-bold uppercase tracking-wide text-emerald-400 hover:text-emerald-300 whitespace-nowrap px-1.5 py-1 rounded bg-emerald-950/60 border border-emerald-600/40 active:scale-95 transition-all"
+                  title="Použít moji aktuální polohu"
                 >
-                  Moje aktuální poloha
+                  📍 Poloha
                 </button>
               )}
             </div>
@@ -114,22 +115,26 @@ export function AddressSearchInput({ label, placeholder, value, onSelect, iconCo
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -10 }}
+            initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="absolute top-full left-10 right-0 z-50 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl overflow-hidden mt-1"
+            exit={{ opacity: 0, y: -8 }}
+            className="absolute top-full left-0 sm:left-9 right-0 z-50 bg-slate-850/98 backdrop-blur-md border border-slate-700 rounded-xl shadow-2xl overflow-hidden mt-1 max-h-56 overflow-y-auto custom-scrollbar"
           >
             {isLoading ? (
-              <div className="p-3 text-xs text-slate-400">Vyhledávám...</div>
+              <div className="p-3 text-xs text-slate-400 flex items-center gap-2">
+                <span className="w-3.5 h-3.5 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin"></span>
+                <span>Vyhledávám adresu...</span>
+              </div>
             ) : (
-              <ul>
+              <ul className="divide-y divide-slate-800">
                 {results.map((res) => (
                   <li
                     key={res.place_id}
                     onClick={() => handleSelect(res)}
-                    className="p-3 border-b border-slate-700/50 hover:bg-slate-700 cursor-pointer text-xs text-slate-300 transition-colors"
+                    className="p-3 hover:bg-slate-800 cursor-pointer text-xs font-medium text-slate-200 transition-colors flex items-start gap-2.5 active:bg-slate-700"
                   >
-                    {res.display_name}
+                    <span className="text-emerald-400 shrink-0 mt-0.5">📍</span>
+                    <span className="line-clamp-2 leading-relaxed">{res.display_name}</span>
                   </li>
                 ))}
               </ul>

@@ -9,12 +9,12 @@ export function PrivacyModal({ isOpen, onClose }: PrivacyModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[10000] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-fadeIn font-sans">
-      <div className="w-full max-w-lg bg-slate-900 border border-slate-700/80 rounded-3xl p-6 sm:p-7 shadow-2xl relative text-white my-auto">
+    <div className="fixed inset-0 z-[10000] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fadeIn font-sans">
+      <div className="w-full max-w-[calc(100vw-1.5rem)] sm:max-w-lg bg-slate-900 border border-slate-700/80 rounded-3xl p-4 sm:p-6 sm:p-7 shadow-2xl relative text-white my-auto">
         {/* Zavírací křížek */}
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 text-slate-400 hover:text-white bg-slate-800/80 hover:bg-slate-700 w-9 h-9 rounded-full flex items-center justify-center transition-all border border-slate-700 text-sm font-bold active:scale-90"
+          className="absolute top-4 right-4 sm:top-5 sm:right-5 text-slate-400 hover:text-white bg-slate-800/80 hover:bg-slate-700 w-9 h-9 min-w-[36px] min-h-[36px] rounded-full flex items-center justify-center transition-all border border-slate-700 text-sm font-bold active:scale-90"
           aria-label="Zavřít"
         >
           ✕
@@ -79,7 +79,7 @@ export function PrivacyModal({ isOpen, onClose }: PrivacyModalProps) {
         <div className="mt-6 pt-4 border-t border-slate-800 flex justify-end">
           <button
             onClick={onClose}
-            className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-6 rounded-xl text-xs transition-all shadow-lg active:scale-95"
+            className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-6 rounded-xl text-xs transition-all shadow-lg active:scale-95 min-h-[44px] flex items-center justify-center"
           >
             Rozumím a zavřít
           </button>
