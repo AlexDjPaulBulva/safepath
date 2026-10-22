@@ -3,6 +3,10 @@ import { MapContainer, TileLayer, Popup, Polyline, Circle, useMap, GeoJSON, Circ
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+if (typeof window !== 'undefined') {
+  (window as any).L = L;
+}
+import 'leaflet-rotate';
 import * as turf from '@turf/turf';
 import { SafetyFeature, SafeHavenFeature } from '../lib/opendata';
 import { RouteResult, RouteSegment, getPointAlongRoute } from '../lib/routing';
@@ -21,6 +25,107 @@ L.Icon.Default.mergeOptions({
   iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
+
+export interface UserLocation {
+  lat: number;
+  lng: number;
+  accuracy: number;
+  heading?: number | null;
+  speed?: number | null;
+}
+
+// Dedikovaná prioritní vrstva pro polohu uživatele s nejvyšším z-indexem
+function MapPanesInit() {
+  const map = useMap();
+  useEffect(() => {
+    if (!map.getPane('userLocationPane')) {
+      const userPane = map.createPane('userLocationPane');
+      userPane.style.zIndex = '650';
+      userPane.style.pointerEvents = 'none';
+    }
+  }, [map]);
+  return null;
+}
+
+// Kompasová střelka s písmenem "N" pro plynulé srovnání mapy zpět na sever
+function CompassResetControl() {
+  const map = useMap();
+  const [bearing, setBearing] = useState<number>(0);
+
+  useEffect(() => {
+    const handleRotate = () => {
+      const b = (map as any).getBearing ? (map as any).getBearing() : 0;
+      setBearing(Math.round(b));
+    };
+
+    map.on('rotate' as any, handleRotate);
+    if ((map as any).getBearing) {
+      setBearing(Math.round((map as any).getBearing()));
+    }
+
+    return () => {
+      map.off('rotate' as any, handleRotate);
+    };
+  }, [map]);
+
+  const isRotated = Math.abs(bearing % 360) > 1;
+  if (!isRotated) return null;
+
+  const handleResetNorth = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!(map as any).setBearing) return;
+
+    const startBearing = (map as any).getBearing ? (map as any).getBearing() : 0;
+    let diff = startBearing % 360;
+    if (diff > 180) diff -= 360;
+    if (diff < -180) diff += 360;
+
+    const startTime = performance.now();
+    const duration = 280;
+
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const ease = 1 - Math.pow(1 - progress, 3);
+      const current = diff * (1 - ease);
+      (map as any).setBearing(current);
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        (map as any).setBearing(0);
+      }
+    };
+    requestAnimationFrame(animate);
+  };
+
+  return (
+    <div className="absolute top-20 md:top-5 right-4 md:right-6 z-[1000] pointer-events-auto">
+      <button
+        type="button"
+        onClick={handleResetNorth}
+        className="w-11 h-11 bg-slate-900/90 hover:bg-slate-800 text-white rounded-full shadow-2xl border-2 border-slate-700/80 backdrop-blur-md flex flex-col items-center justify-center transition-all duration-300 hover:scale-105 active:scale-95 group focus:outline-none focus:ring-2 focus:ring-blue-500"
+        title="Srovnat mapu na sever (0°)"
+        aria-label="Srovnat mapu na sever"
+      >
+        <div 
+          className="w-5 h-5 flex items-center justify-center transition-transform duration-100"
+          style={{ transform: `rotate(${-bearing}deg)` }}
+        >
+          <svg viewBox="0 0 24 24" className="w-5 h-5 drop-shadow" fill="none">
+            {/* Severní hrot střelky (červený) */}
+            <polygon points="12,2 7,12 12,9.5 17,12" fill="#ef4444" />
+            {/* Jižní hrot střelky (stříbrno-bílý) */}
+            <polygon points="12,22 7,12 12,9.5 17,12" fill="#cbd5e1" />
+            {/* Středový čep střelky */}
+            <circle cx="12" cy="12" r="1.5" fill="#1e293b" />
+          </svg>
+        </div>
+        <span className="text-[10px] font-black text-rose-400 leading-none -mt-0.5 tracking-tighter">N</span>
+      </button>
+    </div>
+  );
+}
 
 // Pomocná komponenta pro změnu centra mapy a sledování viewportu
 function MapController({ 
@@ -50,7 +155,7 @@ function MapController({
   routeC?: RouteResult | null;
   startPoint?: {lat: number, lng: number; name?: string} | null;
   endPoint?: {lat: number, lng: number; name?: string} | null;
-  userLocation?: { lat: number; lng: number; accuracy: number } | null;
+  userLocation?: UserLocation | null;
   recenterTrigger?: { coords: [number, number]; timestamp: number } | null;
   setStartPoint?: (point: {lat: number, lng: number; name?: string} | null) => void;
   setEndPoint?: (point: {lat: number, lng: number; name?: string} | null) => void;
@@ -159,7 +264,7 @@ export interface MapEngineProps {
   selectedRoute: 'A' | 'B' | 'C';
   startPoint?: {lat: number, lng: number; name?: string} | null;
   endPoint?: {lat: number, lng: number; name?: string} | null;
-  userLocation?: { lat: number; lng: number; accuracy: number } | null;
+  userLocation?: UserLocation | null;
   recenterTrigger?: { coords: [number, number]; timestamp: number } | null;
   setStartPoint?: (point: {lat: number, lng: number; name?: string} | null) => void;
   setEndPoint?: (point: {lat: number, lng: number; name?: string} | null) => void;
@@ -394,6 +499,78 @@ export function MapEngine({
       iconSize: L.point(40, 40, true),
     });
   };
+
+  // Digitální kompas (záložní čtení orientace zařízení)
+  const [deviceHeading, setDeviceHeading] = useState<number | null>(null);
+
+  useEffect(() => {
+    const handleOrientation = (e: DeviceOrientationEvent) => {
+      let compass: number | null = null;
+      // iOS Safari (webkitCompassHeading udává azimut 0-360 stupňů od severu)
+      if (typeof (e as any).webkitCompassHeading === 'number') {
+        compass = (e as any).webkitCompassHeading;
+      } else if (typeof e.alpha === 'number') {
+        // Standardní Android / Chrome
+        compass = (360 - e.alpha) % 360;
+      }
+      if (compass !== null && !isNaN(compass)) {
+        setDeviceHeading(Math.round(compass));
+      }
+    };
+
+    if (typeof window !== 'undefined' && 'DeviceOrientationEvent' in window) {
+      window.addEventListener('deviceorientation', handleOrientation, true);
+      window.addEventListener('deviceorientationabsolute' as any, handleOrientation, true);
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('deviceorientation', handleOrientation, true);
+        window.removeEventListener('deviceorientationabsolute' as any, handleOrientation, true);
+      }
+    };
+  }, []);
+
+  // Směr pohybu:
+  // 1. Pohyb z GPS: coords.heading !== null && coords.speed > 0.5
+  // 2. Záložní čtení digitálního kompasu přes deviceorientation
+  const effectiveHeading = useMemo(() => {
+    const heading = userLocation?.heading;
+    const speed = userLocation?.speed;
+    if (heading !== null && heading !== undefined && speed !== null && speed !== undefined && speed > 0.5) {
+      return Math.round(heading);
+    }
+    if (heading !== null && heading !== undefined) {
+      return Math.round(heading);
+    }
+    return deviceHeading;
+  }, [userLocation?.heading, userLocation?.speed, deviceHeading]);
+
+  // Moderní navigační puk s bílým lemem, pulzujícím halo a směrovým kuželem/šipkou vytvořený přes L.divIcon
+  const userPuckIcon = useMemo(() => {
+    const hasHeading = effectiveHeading !== null && effectiveHeading !== undefined;
+    const headingStyle = hasHeading ? `transform: rotate(${effectiveHeading}deg)` : 'display: none';
+
+    return L.divIcon({
+      className: 'user-location-puck-container',
+      iconSize: [64, 64],
+      iconAnchor: [32, 32],
+      html: `
+        <div class="user-puck-wrapper">
+          <div class="user-puck-heading" style="${headingStyle}">
+            <div class="user-puck-beam"></div>
+            <div class="user-puck-arrow">
+              <svg viewBox="0 0 16 16" width="14" height="14">
+                <path d="M8 2 L14 13 L8 10.5 L2 13 Z" fill="#ffffff" stroke="#1d4ed8" stroke-width="1.2" stroke-linejoin="round"/>
+              </svg>
+            </div>
+          </div>
+          <div class="user-puck-halo"></div>
+          <div class="user-puck-dot"></div>
+        </div>
+      `
+    });
+  }, [effectiveHeading]);
 
   const startIcon = L.divIcon({
     html: `<div class="relative flex items-center justify-center">
@@ -740,7 +917,7 @@ export function MapEngine({
     : null;
 
   return (
-    <div id="map-engine-root" className="w-full h-full relative z-0 pointer-events-auto" style={{ touchAction: 'pan-x pan-y' }}>
+    <div id="map-engine-root" className="w-full h-full relative z-0 pointer-events-auto" style={{ touchAction: 'none' }}>
       {isSimulating && avatarPoint && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-slate-900/90 px-6 py-3 rounded-full text-emerald-400 text-sm font-bold shadow-2xl border border-emerald-500 flex items-center space-x-3 backdrop-blur">
           <span className="animate-pulse h-3 w-3 bg-emerald-500 rounded-full"></span>
@@ -754,11 +931,18 @@ export function MapEngine({
         minZoom={11}
         maxZoom={18}
         className="h-full w-full bg-slate-900 pointer-events-auto" 
-        style={{ touchAction: 'pan-x pan-y' }}
         zoomControl={false}
         preferCanvas={true}
         doubleClickZoom={false}
+        rotate={true}
+        touchRotate={true}
+        rotateControl={{
+          closeOnZeroBearing: false,
+          position: 'topleft'
+        }}
       >
+        <MapPanesInit />
+        <CompassResetControl />
         <MapController 
           center={center} 
           selectedRoute={selectedRoute}
@@ -802,7 +986,7 @@ export function MapEngine({
           }}
         />
 
-        {/* Live GPS Blue Dot (Google Maps styl) */}
+        {/* Live GPS Navigační puk (Google Maps styl se směrovou šipkou a kuželem v prioritním userLocationPane) */}
         {userLocation && (
           <React.Fragment key="user-live-gps-dot">
             {/* Vnější pulzující kruh přesnosti GPS */}
@@ -817,29 +1001,12 @@ export function MapEngine({
                 className: 'pointer-events-none'
               }}
             />
-            {/* Vnější pulzující aura modrého bodu */}
-            <CircleMarker
-              center={[userLocation.lat, userLocation.lng]}
-              radius={13}
-              pathOptions={{
-                color: '#2563eb',
-                fillColor: '#3b82f6',
-                fillOpacity: 0.35,
-                weight: 0,
-                className: 'pointer-events-none animate-pulse'
-              }}
-            />
-            {/* Vnitřní modrý bod s bílým okrajem */}
-            <CircleMarker
-              center={[userLocation.lat, userLocation.lng]}
-              radius={7.5}
-              pathOptions={{
-                color: '#ffffff',
-                fillColor: '#2563eb',
-                fillOpacity: 1.0,
-                weight: 2.5,
-                className: 'pointer-events-none'
-              }}
+            {/* Navigační puk se směrovým ukazatelem v dedikovaném panelu s nejvyšším z-indexem (650) */}
+            <Marker
+              position={[userLocation.lat, userLocation.lng]}
+              icon={userPuckIcon}
+              pane="userLocationPane"
+              zIndexOffset={1000}
             />
           </React.Fragment>
         )}

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import staticSafetyData from '../data/pragueStaticSafety.json';
-import { MapEngine, MapEngineProps } from './MapEngine';
+import { MapEngine, MapEngineProps, UserLocation } from './MapEngine';
 import { MapErrorBoundary, MapErrorFallback } from './MapErrorBoundary';
 import { useAppStore } from '../store/useAppStore';
 import { subscribeToChildSession, ChildSessionData } from '../lib/liveSync';
@@ -9,7 +9,7 @@ import { useVoiceNavigation } from '../hooks/useVoiceNavigation';
 import { AudioNavToggle } from './AudioNavToggle';
 
 export { MapEngine, MapErrorBoundary, MapErrorFallback };
-export type { MapEngineProps };
+export type { MapEngineProps, UserLocation };
 
 export function Map(props: MapEngineProps) {
   const activeMode = useAppStore((state) => state.activeMode);
@@ -123,7 +123,13 @@ export function Map(props: MapEngineProps) {
       return { lat: props.childLiveLocation.lat, lng: props.childLiveLocation.lng, accuracy: 5 };
     }
     if (props.userLocation) {
-      return { lat: props.userLocation.lat, lng: props.userLocation.lng, accuracy: props.userLocation.accuracy };
+      return { 
+        lat: props.userLocation.lat, 
+        lng: props.userLocation.lng, 
+        accuracy: props.userLocation.accuracy,
+        heading: props.userLocation.heading,
+        speed: props.userLocation.speed
+      };
     }
     return null;
   }, [props.isSimulating, props.simulationProgress, activeRoute, childData, props.childLiveLocation, props.userLocation]);

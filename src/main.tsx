@@ -1,5 +1,10 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import L from 'leaflet'
+if (typeof window !== 'undefined') {
+  (window as any).L = L
+}
+import 'leaflet-rotate'
 import App from './App'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import './index.css'
@@ -11,3 +16,4 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     </ErrorBoundary>
   </React.StrictMode>,
 )
+

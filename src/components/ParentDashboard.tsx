@@ -105,7 +105,7 @@ export function ParentDashboard({
   const [mapCenter, setMapCenter] = useState<[number, number] | null>(null);
   
   // Živé GPS sledování polohy uživatele (Google Maps styl)
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number; accuracy: number; heading?: number | null; speed?: number | null } | null>(null);
   const [isTrackingLocation, setIsTrackingLocation] = useState<boolean>(false);
   const [recenterTrigger, setRecenterTrigger] = useState<{ coords: [number, number]; timestamp: number } | null>(null);
   const [locationPermissionDenied, setLocationPermissionDenied] = useState<boolean>(false);
@@ -133,8 +133,14 @@ export function ParentDashboard({
 
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
-        const { latitude: lat, longitude: lng, accuracy } = position.coords;
-        const newLoc = { lat, lng, accuracy: accuracy || 20 };
+        const { latitude: lat, longitude: lng, accuracy, heading, speed } = position.coords;
+        const newLoc = { 
+          lat, 
+          lng, 
+          accuracy: accuracy || 20,
+          heading: typeof heading === 'number' && !isNaN(heading) ? heading : null,
+          speed: typeof speed === 'number' && !isNaN(speed) ? speed : null
+        };
         setUserLocation(newLoc);
         setIsTrackingLocation(true);
         setLocationPermissionDenied(false);
@@ -189,8 +195,14 @@ export function ParentDashboard({
       showMapToast('Vyhledávám GPS satelity...', 'info');
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          const { latitude: lat, longitude: lng, accuracy } = pos.coords;
-          const loc = { lat, lng, accuracy: accuracy || 20 };
+          const { latitude: lat, longitude: lng, accuracy, heading, speed } = pos.coords;
+          const loc = { 
+            lat, 
+            lng, 
+            accuracy: accuracy || 20,
+            heading: typeof heading === 'number' && !isNaN(heading) ? heading : null,
+            speed: typeof speed === 'number' && !isNaN(speed) ? speed : null
+          };
           setUserLocation(loc);
           setIsTrackingLocation(true);
           setLocationPermissionDenied(false);
@@ -222,8 +234,14 @@ export function ParentDashboard({
     setIsRetryingLocation(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const { latitude: lat, longitude: lng, accuracy } = pos.coords;
-        const loc = { lat, lng, accuracy: accuracy || 20 };
+        const { latitude: lat, longitude: lng, accuracy, heading, speed } = pos.coords;
+        const loc = { 
+          lat, 
+          lng, 
+          accuracy: accuracy || 20,
+          heading: typeof heading === 'number' && !isNaN(heading) ? heading : null,
+          speed: typeof speed === 'number' && !isNaN(speed) ? speed : null
+        };
         setUserLocation(loc);
         setIsTrackingLocation(true);
         setLocationPermissionDenied(false);
