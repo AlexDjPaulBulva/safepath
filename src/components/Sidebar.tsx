@@ -311,8 +311,7 @@ export function Sidebar({
         {/* MOBILNÍ STAV 1: MINIMIZED (Výška 48px)                     */}
         {/* ======================================================== */}
         <div 
-          className="md:hidden flex flex-col h-[48px] shrink-0 justify-between select-none cursor-pointer active:bg-slate-800/60"
-          style={{ display: sheetState === 'minimized' ? 'flex' : 'none' }}
+          className={`block md:hidden flex-col h-[48px] shrink-0 justify-between select-none cursor-pointer active:bg-slate-800/60 ${sheetState === 'minimized' ? 'flex' : 'hidden'} md:!hidden`}
           onClick={() => setSheetState('peek')}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
@@ -340,14 +339,13 @@ export function Sidebar({
         {/* MOBILNÍ STAV 2: PEEK (Výchozí náhled, výška ~148px)         */}
         {/* ======================================================== */}
         <div 
-          className="md:hidden flex flex-col shrink-0 select-none"
-          style={{ display: sheetState === 'peek' ? 'flex' : 'none' }}
+          className={`block md:hidden flex-col shrink-0 select-none ${sheetState === 'peek' ? 'flex' : 'hidden'} md:!hidden`}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
         >
           {/* Drag Bar & Summary Row */}
           <div className="w-12 h-1 bg-slate-500/80 rounded-full mx-auto mt-0.5 mb-1.5 cursor-grab" />
-          <div className="flex items-center justify-between px-1 mb-2">
+          <div className="flex items-center justify-between px-1 mb-2 block md:hidden">
             <div className="flex items-center gap-2 min-w-0">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
               <span className="text-xs font-black text-white">SafePath</span>
@@ -406,12 +404,11 @@ export function Sidebar({
         {/* MOBILNÍ STAV 3: EXPANDED (85vh) & DESKTOP ROZVRŽENÍ         */}
         {/* ======================================================== */}
         <div 
-          className="flex-1 flex flex-col min-h-0 overflow-hidden"
-          style={{ display: sheetState === 'minimized' || sheetState === 'peek' ? undefined : 'flex' }}
+          className={`flex-1 flex-col min-h-0 overflow-hidden md:flex ${sheetState === 'expanded' ? 'flex' : 'hidden md:flex'}`}
         >
           {/* Mobilní lišta pro stažení z Expanded do Peek */}
           <div 
-            className="md:hidden flex flex-col items-center pt-1 pb-2 shrink-0 cursor-pointer select-none border-b border-slate-800 mb-2"
+            className="block md:hidden flex-col items-center pt-1 pb-2 shrink-0 cursor-pointer select-none border-b border-slate-800 mb-2 md:!hidden"
             onClick={() => setSheetState('peek')}
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}

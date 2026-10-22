@@ -78,6 +78,14 @@ export interface NavigationStep {
   instruction?: string;
 }
 
+export interface RouteInfoPoint {
+  lat: number;
+  lng: number;
+  name: string;
+  type?: 'school_corridor' | 'safe_hub' | 'safe_haven' | 'crossing';
+  description?: string;
+}
+
 export interface RouteResult {
   id: string;
   name: string;
@@ -106,6 +114,7 @@ export interface RouteResult {
   schoolZonePercent?: number;
   hasTskClosureConflict?: boolean;
   navigationSteps?: NavigationStep[];
+  infoPoints?: RouteInfoPoint[];
 }
 
 const ROUTE_FETCH_TIMEOUT_MS = 8000;
@@ -717,7 +726,8 @@ function candidateToRouteResult(
   name: string,
   description: string,
   aiAdvice: string,
-  tags: string[]
+  tags: string[],
+  infoPoints?: RouteInfoPoint[]
 ): RouteResult {
   const duration = id === 'routeC'
     ? getWalkingDurationMinutes(candidate.distanceMeters, FAST_WALK_SPEED_KMH)
@@ -748,7 +758,8 @@ function candidateToRouteResult(
     collisionIntersectionsCount: candidate.metrics.collisionIntersectionsCount,
     schoolZonePercent: candidate.metrics.schoolZonePercent,
     hasTskClosureConflict: candidate.metrics.hasTskClosureConflict,
-    navigationSteps: extractNavigationSteps(candidate.rawRoute)
+    navigationSteps: extractNavigationSteps(candidate.rawRoute),
+    infoPoints
   };
 }
 
@@ -805,9 +816,139 @@ export function calculateRoutesOverlap(
 }
 
 /**
+ * Vypočítá úhel odklonu bodu od přímého směru trasy (S -> E) ve stupních (0° - 180°).
+ * 0° = bod leží přesně ve směru chůze, 90° = kolmo k trase, > 90° = za startem v protisměru.
+ */
+export function getDeflectionAngleDeg(
+  sLat: number,
+  sLng: number,
+  eLat: number,
+  eLng: number,
+  wpLat: number,
+  wpLng: number
+): number {
+  const avgLatRad = ((sLat + eLat) / 2) * (Math.PI / 180);
+  const cosLat = Math.cos(avgLatRad);
+
+  const vSE_x = (eLng - sLng) * 111320 * cosLat;
+  const vSE_y = (eLat - sLat) * 111320;
+  const lenSE = Math.hypot(vSE_x, vSE_y);
+  if (lenSE < 5) return 0;
+
+  const vSW_x = (wpLng - sLng) * 111320 * cosLat;
+  const vSW_y = (wpLat - sLat) * 111320;
+  const lenSW = Math.hypot(vSW_x, vSW_y);
+  if (lenSW < 5) return 0;
+
+  const dot = (vSE_x * vSW_x + vSE_y * vSW_y) / (lenSE * lenSW);
+  const clampedDot = Math.max(-1, Math.min(1, dot));
+  return (Math.acos(clampedDot) * 180) / Math.PI;
+}
+
+/**
+ * Vypočítá úhel změny směru (otočení) v mezilehlém bodě WP při přechodu z úseku S -> WP na WP -> E.
+ * 0° = přímé pokračování, 90° = pravoúhlá odbočka, > 120° = ostrý obrat / protisměr.
+ */
+export function getTurnAngleAtWaypointDeg(
+  sLat: number,
+  sLng: number,
+  wpLat: number,
+  wpLng: number,
+  eLat: number,
+  eLng: number
+): number {
+  const avgLatRad = (wpLat * Math.PI) / 180;
+  const cosLat = Math.cos(avgLatRad);
+
+  const vInX = (wpLng - sLng) * 111320 * cosLat;
+  const vInY = (wpLat - sLat) * 111320;
+  const lenIn = Math.hypot(vInX, vInY);
+
+  const vOutX = (eLng - wpLng) * 111320 * cosLat;
+  const vOutY = (eLat - wpLat) * 111320;
+  const lenOut = Math.hypot(vOutX, vOutY);
+
+  if (lenIn < 5 || lenOut < 5) return 180;
+
+  const dot = (vInX * vOutX + vInY * vOutY) / (lenIn * lenOut);
+  const clampedDot = Math.max(-1, Math.min(1, dot));
+  return (Math.acos(clampedDot) * 180) / Math.PI;
+}
+
+/**
+ * Detekuje, zda geometrie trasy obsahuje slepé rameno (anténu) s otočením o více než 120°
+ * a návratem po stejné komunikaci (backtracking).
+ */
+export function hasRouteBacktrackingSpur(
+  geometryCoords: [number, number][], // [lat, lng]
+  targetWaypoint?: [number, number]   // [lat, lng]
+): boolean {
+  if (!geometryCoords || geometryCoords.length < 3) return false;
+
+  for (let i = 1; i < geometryCoords.length - 1; i++) {
+    const prev = geometryCoords[i - 1];
+    const curr = geometryCoords[i];
+    const next = geometryCoords[i + 1];
+
+    if (targetWaypoint) {
+      const distToWp = getDistance(curr[0], curr[1], targetWaypoint[0], targetWaypoint[1]);
+      if (distToWp > 120) continue;
+    }
+
+    const cosLat = Math.cos((curr[0] * Math.PI) / 180);
+    const vInX = (curr[1] - prev[1]) * 111320 * cosLat;
+    const vInY = (curr[0] - prev[0]) * 111320;
+    const lenIn = Math.hypot(vInX, vInY);
+
+    const vOutX = (next[1] - curr[1]) * 111320 * cosLat;
+    const vOutY = (next[0] - curr[0]) * 111320;
+    const lenOut = Math.hypot(vOutX, vOutY);
+
+    if (lenIn < 3 || lenOut < 3) continue;
+
+    const dot = (vInX * vOutX + vInY * vOutY) / (lenIn * lenOut);
+    // dot < -0.5 odpovídá otočení o více než 120°
+    if (dot < -0.5) {
+      const dCurrPrev = getDistance(curr[0], curr[1], prev[0], prev[1]);
+      const dNextPrev = getDistance(next[0], next[1], prev[0], prev[1]);
+
+      if (dNextPrev < dCurrPrev * 0.95 || dot < -0.7) {
+        return true;
+      }
+    }
+  }
+
+  // Kontrola okna 4 bodů (pokud je křižovatka tvořena více segmenty na křivce)
+  for (let i = 2; i < geometryCoords.length - 2; i++) {
+    if (targetWaypoint) {
+      const distToWp = getDistance(geometryCoords[i][0], geometryCoords[i][1], targetWaypoint[0], targetWaypoint[1]);
+      if (distToWp > 120) continue;
+    }
+
+    const cosLat = Math.cos((geometryCoords[i][0] * Math.PI) / 180);
+    const vInX = (geometryCoords[i][1] - geometryCoords[i - 2][1]) * 111320 * cosLat;
+    const vInY = (geometryCoords[i][0] - geometryCoords[i - 2][0]) * 111320;
+    const lenIn = Math.hypot(vInX, vInY);
+
+    const vOutX = (geometryCoords[i + 2][1] - geometryCoords[i][1]) * 111320 * cosLat;
+    const vOutY = (geometryCoords[i + 2][0] - geometryCoords[i][0]) * 111320;
+    const lenOut = Math.hypot(vOutX, vOutY);
+
+    if (lenIn < 5 || lenOut < 5) continue;
+
+    const dot = (vInX * vOutX + vInY * vOutY) / (lenIn * lenOut);
+    if (dot < -0.5) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
  * Safe Transit Hub (Bezpečný uzel pro aktivní bezpečnostní koridor):
  * Křižovatka na hlavní/vedlejší třídě (primary/secondary jako Vinohradská, Korunní, Francouzská, Bělehradská)
- * se semaforem (highway=traffic_signals) a dohledem MKS kamery.
+ * se semaforem (highway=traffic_signals) a dohledem MKS kamery, případně školní koridor IPR.
  */
 interface SafeTransitHub {
   id: string;
@@ -818,7 +959,7 @@ interface SafeTransitHub {
 }
 
 /**
- * Vyhledá v databázi bezpečné uzly (Safe Transit Hubs) mezi START a CÍL.
+ * Vyhledá v databázi bezpečné uzly (Safe Transit Hubs a školní koridory IPR) mezi START a CÍL.
  * Křižovatky s highway=traffic_signals + MKS kamera + třída ulice primary/secondary.
  */
 function findSafeTransitHubs(
@@ -862,7 +1003,25 @@ function findSafeTransitHubs(
     }
   }
 
-  // 2. Filtrujeme uzly, které leží ve směru cesty a nepřekročí 25% prodloužení
+  // 2. Doplnění bezpečných bodů ze školních koridorů IPR
+  const fusion = getSafetyDataFusion();
+  for (const school of fusion.iprSchoolCorridors) {
+    const pt = school.recommendedCrossingPoint || school.coordinates[0];
+    if (!pt || registeredIds.has(school.id)) continue;
+    registeredIds.add(school.id);
+    hubs.push({
+      id: school.id,
+      name: school.schoolName,
+      coords: pt,
+      corridorName: `Školní koridor ${school.schoolName}`,
+      highwayClass: 'school_corridor'
+    });
+  }
+
+  // 3. Filtrujeme uzly:
+  // - Zkontroluj úhel napojení: Bod vkládej jako via-point POUZE tehdy,
+  //   pokud leží v geometrickém koridoru přímého směru chůze (úhel odklonu < 45° vůči vektoru trasy).
+  // - ZAKAŽ jakékoliv vkládání bodů, které vyvolají otočení o více než 120° (backtracking / slepé rameno).
   const validHubs = hubs.filter(hub => {
     const dStart = getDistance(sLat, sLng, hub.coords[0], hub.coords[1]);
     const dEnd = getDistance(eLat, eLng, hub.coords[0], hub.coords[1]);
@@ -874,11 +1033,20 @@ function findSafeTransitHubs(
     // Max 25 % prodloužení oproti přímé vzdálenosti
     if (totalDetour > dDirect * 1.25) return false;
 
+    // Geometrický koridor přímého směru chůze: úhel odklonu < 45° vůči vektoru trasy
+    const deflection = getDeflectionAngleDeg(sLat, sLng, eLat, eLng, hub.coords[0], hub.coords[1]);
+    if (deflection >= 45) return false;
+
+    // Zákaz bodů s otočením o více než 120°
+    const turnAngle = getTurnAngleAtWaypointDeg(sLat, sLng, hub.coords[0], hub.coords[1], eLat, eLng);
+    if (turnAngle > 120) return false;
+
     return true;
   });
 
-  // 3. Seřadíme uzly podle priority:
+  // 4. Seřadíme uzly podle priority:
   // - Prioritní bulváry (Vinohradská, Francouzská, Korunní, Bělehradská)
+  // - Školní koridory
   // - Minimální zacházka
   validHubs.sort((a, b) => {
     const isPriorityA = ['Vinohradská', 'Francouzská', 'Korunní', 'Bělehradská'].includes(a.corridorName);
@@ -964,6 +1132,11 @@ async function findAlternativeBoulevardCandidate(
       if (totalDetour > dDirect * 1.40) continue;
       if (dFromStart < 35 || dToEnd < 35) continue;
 
+      // Zkontroluj úhel napojení: POUZE v geometrickém koridoru přímého směru (< 45°) a zákaz otočení > 120°
+      const deflection = getDeflectionAngleDeg(sLat, sLng, eLat, eLng, pt[0], pt[1]);
+      const turnAngle = getTurnAngleAtWaypointDeg(sLat, sLng, pt[0], pt[1], eLat, eLng);
+      if (deflection >= 45 || turnAngle > 120) continue;
+
       let distToA = 0;
       try {
         distToA = turf.pointToLineDistance(turf.point([pt[1], pt[0]]), lineA, { units: 'meters' });
@@ -1009,6 +1182,9 @@ async function findAlternativeBoulevardCandidate(
       );
 
       if (!isCandidateChildSafe(evaluatedWp)) continue;
+
+      // Zákaz tras obsahujících slepé odbočky (antény) / backtracking
+      if (hasRouteBacktrackingSpur(evaluatedWp.geometry, wp)) continue;
 
       const overlap = calculateRoutesOverlap(candidateA.geometry, evaluatedWp.geometry);
       if (overlap < 0.88) {
@@ -1092,14 +1268,50 @@ export async function fetchOSRMRoute(
     console.warn('Evaluace fastestRoute se nezdařila:', fastestErr);
   }
 
-  // 4. Aktivní bezpečnostní trasování přes bezpečné uzly (Safe Transit Hubs)
+  // 4. Aktivní bezpečnostní trasování přes bezpečné uzly (Safe Transit Hubs a školní koridory IPR)
   // Pokud cesta vede bočními uličkami, odkloníme trasu na osvětlený bulvár s MKS kamerami a světelnými přechody (max 25% prodloužení)
+  const infoPointsAlongRoute: RouteInfoPoint[] = [];
+
   try {
     const transitHubs = findSafeTransitHubs(routeSLat, routeSLng, routeELat, routeELng, safetyNodes, rawFastest.distance);
-    for (const hub of transitHubs.slice(0, 3)) {
+    for (const hub of transitHubs.slice(0, 5)) {
+      // 1. Zkontroluj úhel napojení: Bod vkládej jako via-point POUZE tehdy,
+      // pokud leží v geometrickém koridoru přímého směru chůze (úhel odklonu < 45° vůči vektoru trasy).
+      const deflection = getDeflectionAngleDeg(routeSLat, routeSLng, routeELat, routeELng, hub.coords[0], hub.coords[1]);
+      const turnAngle = getTurnAngleAtWaypointDeg(routeSLat, routeSLng, hub.coords[0], hub.coords[1], routeELat, routeELng);
+
+      if (deflection >= 45 || turnAngle > 120) {
+        // Pokud by bod vyvolal zacházku tam a zpět, trasu veď přímo a bod označ pouze jako informační bod podél cesty
+        infoPointsAlongRoute.push({
+          lat: hub.coords[0],
+          lng: hub.coords[1],
+          name: hub.name,
+          type: 'safe_hub',
+          description: `Bezpečný bod podél cesty: ${hub.corridorName}`
+        });
+        continue;
+      }
+
       const hubRoutes = await fetchFootRouteWithWaypoint(routeSLng, routeSLat, hub.coords[1], hub.coords[0], routeELng, routeELat);
       if (hubRoutes && hubRoutes.length > 0) {
         const candidateHubRoute = hubRoutes[0];
+        const candidateCoords: [number, number][] = candidateHubRoute.geometry.coordinates.map(
+          ([lng, lat]: [number, number]) => [lat, lng]
+        );
+
+        // 2. ZAKAŽ jakékoliv vkládání bodů, které vyvolají otočení o více než 120° a návrat po stejné ulici zpět (backtracking / slepé rameno).
+        if (hasRouteBacktrackingSpur(candidateCoords, hub.coords)) {
+          // Trasu veď přímo a bod označ pouze jako informační bod podél cesty
+          infoPointsAlongRoute.push({
+            lat: hub.coords[0],
+            lng: hub.coords[1],
+            name: hub.name,
+            type: 'safe_hub',
+            description: `Bezpečný bod v dosahu (přímý průchod bez slepé odbočky): ${hub.corridorName}`
+          });
+          continue;
+        }
+
         if (candidateHubRoute.distance <= rawFastest.distance * 1.25) {
           rawRoutes.unshift(candidateHubRoute);
           break;
@@ -1129,10 +1341,20 @@ export async function fetchOSRMRoute(
 
     if ((!safetyCheck.isChildSafe || !tramCheck.isTramSafe || tskCheck.hasHardClosureViolation) && suggestedWp) {
       const wp = suggestedWp;
-      const wpRoutes = await fetchFootRouteWithWaypoint(routeSLng, routeSLat, wp[1], wp[0], routeELng, routeELat);
-      if (wpRoutes && wpRoutes.length > 0) {
-        // Vložíme bezpečnou trasu vedenou přes světelnou křižovatku nebo obcházku výkopu jako prioritní variantu
-        rawRoutes.unshift(wpRoutes[0]);
+      const deflection = getDeflectionAngleDeg(routeSLat, routeSLng, routeELat, routeELng, wp[0], wp[1]);
+      const turnAngle = getTurnAngleAtWaypointDeg(routeSLat, routeSLng, wp[0], wp[1], routeELat, routeELng);
+
+      if (deflection < 45 && turnAngle <= 120) {
+        const wpRoutes = await fetchFootRouteWithWaypoint(routeSLng, routeSLat, wp[1], wp[0], routeELng, routeELat);
+        if (wpRoutes && wpRoutes.length > 0) {
+          const wpCoords: [number, number][] = wpRoutes[0].geometry.coordinates.map(
+            ([lng, lat]: [number, number]) => [lat, lng]
+          );
+          if (!hasRouteBacktrackingSpur(wpCoords, wp)) {
+            // Vložíme bezpečnou trasu vedenou přes světelnou křižovatku nebo obcházku výkopu jako prioritní variantu
+            rawRoutes.unshift(wpRoutes[0]);
+          }
+        }
       }
     }
   } catch (safetyErr) {
@@ -1257,7 +1479,8 @@ export async function fetchOSRMRoute(
       'Garantovaná bezpečná trasa',
       'Maximálně chráněná trasa s prioritou kamer MKS a výhradně světelných přechodů.',
       'Klidná bezpečná cesta vedená po chodnících a přechodech se semafory pod stálým dohledem kamer.',
-      ['[Garantované bezpečí]', '[100% světelné přechody]', '[Dohled MKS kamer]', '[Chodníky]']
+      ['[Garantované bezpečí]', '[100% světelné přechody]', '[Dohled MKS kamer]', '[Chodníky]'],
+      infoPointsAlongRoute
     );
     routeA.isWarningRoute = false;
     routeA.childSafetyValid = true;
@@ -1277,7 +1500,8 @@ export async function fetchOSRMRoute(
     'Garantovaná bezpečná trasa',
     'Trasa vedoucí po frekventovaných, dobře osvětlených ulicích s vysokou přítomností lidí a otevřených podniků.',
     'Doporučená trasa preferuje frekventované ulice a minimalizuje osamocené úseky.',
-    ['[Garantované bezpečí]', '[Vysoká frekvence lidí]', '[Dobré osvětlení]', '[Dohled kamer]']
+    ['[Garantované bezpečí]', '[Vysoká frekvence lidí]', '[Dobré osvětlení]', '[Dohled kamer]'],
+    infoPointsAlongRoute
   );
 
   return { routeA, routeB: null, routeC: null, fastestRoute };

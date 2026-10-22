@@ -352,6 +352,7 @@ export function ParentDashboard({
       setRouteB(null);
       setRouteC(null);
       setFastestRoute(null);
+      setSafeStops([]);
       return;
     }
 
@@ -395,6 +396,11 @@ export function ParentDashboard({
 
         if (!isCurrentRequest) return;
         setRouteA(rA);
+        if (rA?.infoPoints && rA.infoPoints.length > 0) {
+          setSafeStops(rA.infoPoints.map(p => ({ lat: p.lat, lng: p.lng, name: p.name })));
+        } else {
+          setSafeStops([]);
+        }
         setRouteB(null);
         setRouteC(null);
         setFastestRoute(fR || null);
