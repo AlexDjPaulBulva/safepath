@@ -81,6 +81,30 @@ export interface MapEngineProps {
 
 const PRAGUE_CENTER_LNG_LAT: [number, number] = [14.4378, 50.0755];
 
+// Robustní inline styl s Esri Dark Canvas pro 100% spolehlivost i v Instagram WebView
+const RELIABLE_DARK_STYLE: maplibregl.StyleSpecification = {
+  version: 8,
+  sources: {
+    'esri-dark': {
+      type: 'raster',
+      tiles: [
+        'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'
+      ],
+      tileSize: 256,
+      attribution: '&copy; Esri &copy; OpenStreetMap contributors'
+    }
+  },
+  layers: [
+    {
+      id: 'esri-dark-layer',
+      type: 'raster',
+      source: 'esri-dark',
+      minzoom: 0,
+      maxzoom: 19
+    }
+  ]
+};
+
 export function Map(props: MapEngineProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -427,7 +451,7 @@ export function Map(props: MapEngineProps) {
 
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
-      style: 'https://tiles.openfreemap.org/styles/dark',
+      style: RELIABLE_DARK_STYLE,
       center: initialCenter,
       zoom: 14,
       pitch: 45,
@@ -435,6 +459,7 @@ export function Map(props: MapEngineProps) {
       pitchWithRotate: true,
       touchZoomRotate: true,
       maxPitch: 65,
+      failIfMajorPerformanceCaveat: false,
       ...({ antialias: true } as any)
     });
 
@@ -485,13 +510,24 @@ export function Map(props: MapEngineProps) {
     };
     window.addEventListener('resize', handleResize);
 
-    const resizeTimer = setTimeout(() => {
-      map.resize();
-    }, 200);
+    // Záložní přepočet rozměrů pro pomalejší WebView (Instagram, Facebook in-app prohlížeče)
+    const resizeTimer1 = setTimeout(() => {
+      if (mapRef.current) mapRef.current.resize();
+    }, 150);
+
+    const resizeTimer2 = setTimeout(() => {
+      if (mapRef.current) mapRef.current.resize();
+    }, 300);
+
+    const resizeTimer3 = setTimeout(() => {
+      if (mapRef.current) mapRef.current.resize();
+    }, 800);
 
     return () => {
       window.removeEventListener('resize', handleResize);
-      clearTimeout(resizeTimer);
+      clearTimeout(resizeTimer1);
+      clearTimeout(resizeTimer2);
+      clearTimeout(resizeTimer3);
       setIsMapLoaded(false);
       if (mapRef.current) {
         mapRef.current.remove();
