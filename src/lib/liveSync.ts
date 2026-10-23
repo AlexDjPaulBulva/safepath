@@ -13,6 +13,8 @@ export interface AssignedRouteData {
   pathCoords: [number, number][]; // [lat, lng] souřadnice
   start: { lat: number; lng: number; name?: string };
   end: { lat: number; lng: number; name?: string };
+  distance?: number;
+  duration?: number;
   distanceKm?: number;
   durationMin?: number;
   timestamp: number;
@@ -198,7 +200,8 @@ export async function terminateChildNavigation(code: string): Promise<void> {
 }
 
 /**
- * Uloží rodičem určenou trasu do relace dítěte ve Firebase Realtime Database
+ * Uloží čistá data rodičem vybrané trasy do Firebase Realtime Database: sessions/${childCode}/assignedRoute
+ * Zajišťuje pouze čistý serializovatelný JSON bez Leaflet objektů.
  */
 export async function dispatchRouteToChild(
   childCode: string,
@@ -206,21 +209,38 @@ export async function dispatchRouteToChild(
     pathCoords: [number, number][];
     start: { lat: number; lng: number; name?: string };
     end: { lat: number; lng: number; name?: string };
+    distance?: number;
+    duration?: number;
     distanceKm?: number;
     durationMin?: number;
   }
 ): Promise<void> {
-  const sessionRef = ref(db, `sessions/${childCode}`);
-  await update(sessionRef, {
-    assignedRoute: {
-      pathCoords: route.pathCoords,
-      start: route.start,
-      end: route.end,
-      distanceKm: route.distanceKm,
-      durationMin: route.durationMin,
-      timestamp: Date.now()
-    }
-  });
+  const cleanPath: [number, number][] = (route.pathCoords || []).map((coord) => [
+    Number(Array.isArray(coord) ? coord[0] : (coord as any).lat),
+    Number(Array.isArray(coord) ? coord[1] : (coord as any).lng)
+  ]);
+
+  const cleanData: AssignedRouteData = {
+    pathCoords: cleanPath,
+    start: {
+      lat: Number(route.start.lat),
+      lng: Number(route.start.lng),
+      name: String(route.start.name || '')
+    },
+    end: {
+      lat: Number(route.end.lat),
+      lng: Number(route.end.lng),
+      name: String(route.end.name || '')
+    },
+    distance: Number(route.distance ?? route.distanceKm ?? 0),
+    duration: Number(route.duration ?? route.durationMin ?? 0),
+    distanceKm: Number(route.distanceKm ?? route.distance ?? 0),
+    durationMin: Number(route.durationMin ?? route.duration ?? 0),
+    timestamp: Date.now()
+  };
+
+  const assignedRouteRef = ref(db, `sessions/${childCode}/assignedRoute`);
+  await set(assignedRouteRef, cleanData);
 }
 
 /**
@@ -346,7 +366,13 @@ export function subscribeToParentPairedChildren(
  */
 export function startGpsStreaming(
   code: string,
-  onPositionChange?: (coords: { lat: number; lng: number }) => void,
+  onPositionChange?: (coords: {
+    lat: number;
+    lng: number;
+    accuracy?: number;
+    heading?: number | null;
+    speed?: number | null;
+  }) => void,
   options?: {
     isPowerSaving?: boolean;
     getRouteRemainingMinutes?: () => number;
@@ -425,7 +451,13 @@ export function startGpsStreaming(
         currentLat = pos.coords.latitude;
         currentLng = pos.coords.longitude;
         currentAccuracy = pos.coords.accuracy;
-        onPositionChange?.({ lat: currentLat, lng: currentLng });
+        onPositionChange?.({
+          lat: currentLat,
+          lng: currentLng,
+          accuracy: currentAccuracy,
+          heading: pos.coords.heading,
+          speed: pos.coords.speed
+        });
         pushUpdate();
       },
       (err) => {

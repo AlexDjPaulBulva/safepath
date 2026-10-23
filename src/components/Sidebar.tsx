@@ -251,11 +251,13 @@ export function Sidebar({
         pathCoords: routeA.geometry,
         start: { lat: routeA.geometry[0][0], lng: routeA.geometry[0][1], name: startPointName },
         end: { lat: routeA.geometry[routeA.geometry.length - 1][0], lng: routeA.geometry[routeA.geometry.length - 1][1], name: endPointName },
+        distance: routeA.distance,
+        duration: routeA.duration,
         distanceKm: routeA.distance,
         durationMin: routeA.duration
       });
       setRouteDispatched(true);
-      setTimeout(() => setRouteDispatched(false), 4000);
+      setTimeout(() => setRouteDispatched(false), 5000);
     } catch (err) {
       console.error('Chyba odeslání trasy dítěti:', err);
       alert('Trasu se nepodařilo odeslat. Zkontrolujte připojení.');
@@ -538,7 +540,7 @@ export function Sidebar({
                 />
 
                 {/* Výrazné tlačítko: Odeslat trasu dítěti */}
-                <div className="pt-1">
+                <div className="pt-1 space-y-2">
                   <button
                     type="button"
                     onClick={handleDispatchRouteToChild}
@@ -546,8 +548,14 @@ export function Sidebar({
                     className="w-full bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold py-3.5 px-4 rounded-xl text-sm transition-all shadow-lg shadow-emerald-900/40 flex items-center justify-center gap-2 active:scale-[0.98] border border-emerald-400"
                   >
                     <span className="text-base">{isDispatching ? '⏳' : (routeDispatched ? '✅' : '📲')}</span>
-                    <span>{routeDispatched ? 'Trasa odeslána na telefon dítěte!' : '📲 Odeslat trasu dítěti'}</span>
+                    <span>{isDispatching ? 'Odesílám trasu...' : '📲 Odeslat trasu dítěti'}</span>
                   </button>
+                  {routeDispatched && (
+                    <div className="p-3 rounded-xl bg-emerald-950/90 border border-emerald-400 text-emerald-300 text-xs font-bold text-center flex items-center justify-center gap-2 shadow-lg animate-fadeIn">
+                      <span className="text-emerald-400 text-base">✓</span>
+                      <span>Trasa byla úspěšně odeslána do telefonu dítěte.</span>
+                    </div>
+                  )}
                   {selectedChildCode && (
                     <div className="text-[10px] text-emerald-400/80 font-mono text-center mt-1">
                       Cílové zařízení dítěte: {selectedChildCode}

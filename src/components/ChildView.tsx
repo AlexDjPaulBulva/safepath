@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ref, onValue } from 'firebase/database';
+import { db } from '../lib/firebase';
 import { Map } from './Map';
 import { RouteResult } from '../lib/routing';
 import { SyncEngine } from '../lib/sync-engine';
@@ -9,7 +11,6 @@ import {
   startGpsStreaming, 
   updateChildPosition, 
   terminateChildNavigation, 
-  subscribeToAssignedRoute,
   AssignedRouteData
 } from '../lib/liveSync';
 import { useAppStore } from '../store/useAppStore';
@@ -38,6 +39,8 @@ export function ChildView({ onBack }: ChildViewProps) {
   });
 
   const [assignedRouteData, setAssignedRouteData] = useState<AssignedRouteData | null>(null);
+  const [mapCenter, setMapCenter] = useState<[number, number] | null>(null);
+  const [recenterTrigger, setRecenterTrigger] = useState<{ coords: [number, number]; timestamp: number } | null>(null);
   const [showRouteReadyBanner, setShowRouteReadyBanner] = useState<boolean>(false);
   const [showSafePassModal, setShowSafePassModal] = useState<boolean>(false);
 
@@ -49,7 +52,7 @@ export function ChildView({ onBack }: ChildViewProps) {
   } = useBatteryProtocol({
     childCode: activeChildCode || '',
     currentCoords,
-    remainingMinutes: assignedRouteData?.durationMin ?? 12
+    remainingMinutes: assignedRouteData?.duration ?? assignedRouteData?.durationMin ?? 12
   });
 
   // Živé GPS streamování do Firebase
@@ -63,40 +66,58 @@ export function ChildView({ onBack }: ChildViewProps) {
         setCurrentCoords((prev) => ({
           ...prev,
           lat: coords.lat,
-          lng: coords.lng
+          lng: coords.lng,
+          accuracy: coords.accuracy ?? prev.accuracy,
+          heading: coords.heading !== undefined ? coords.heading : prev.heading,
+          speed: coords.speed !== undefined ? coords.speed : prev.speed
         }));
       },
       {
         isPowerSaving: powerSavingMode,
-        getRouteRemainingMinutes: () => assignedRouteData?.durationMin ?? 10
+        getRouteRemainingMinutes: () => assignedRouteData?.duration ?? assignedRouteData?.durationMin ?? 10
       }
     );
 
     return () => {
       stopGps();
     };
-  }, [activeChildCode, powerSavingMode, assignedRouteData?.durationMin]);
+  }, [activeChildCode, powerSavingMode, assignedRouteData?.duration, assignedRouteData?.durationMin]);
 
-  // Poslech na přiřazenou trasu od rodičů z Firebase
+  // Reaktivní listener na přiřazenou trasu od rodičů z Firebase
   useEffect(() => {
     if (!activeChildCode) return;
 
-    const unsubscribe = subscribeToAssignedRoute(activeChildCode, (route) => {
-      if (route && route.pathCoords && route.pathCoords.length >= 2) {
-        setAssignedRouteData(route);
-        setShowRouteReadyBanner(true);
-        // Vyvolat haptické potvrzení
-        if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-          try {
-            navigator.vibrate([100, 50, 100]);
-          } catch {
-            // ignore
+    const assignedRouteRef = ref(db, `sessions/${activeChildCode}/assignedRoute`);
+    const unsubscribe = onValue(
+      assignedRouteRef,
+      (snapshot) => {
+        const route = snapshot.val() as AssignedRouteData | null;
+        if (route && route.pathCoords && route.pathCoords.length >= 2) {
+          setAssignedRouteData(route);
+          setShowRouteReadyBanner(true);
+
+          // Automatické vycentrování mapy na začátek trasy
+          const startLat = route.start?.lat ?? route.pathCoords[0][0];
+          const startLng = route.start?.lng ?? route.pathCoords[0][1];
+          setMapCenter([startLat, startLng]);
+          setRecenterTrigger({ coords: [startLat, startLng], timestamp: Date.now() });
+
+          // Haptické potvrzení
+          if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+            try {
+              navigator.vibrate([100, 50, 100]);
+            } catch {
+              // ignore
+            }
           }
+        } else {
+          setAssignedRouteData(null);
         }
-      } else {
-        setAssignedRouteData(null);
+      },
+      (error) => {
+        console.error('Chyba při čtení přiřazené trasy z Firebase:', error);
       }
-    });
+    );
 
     return () => {
       unsubscribe();
@@ -109,8 +130,8 @@ export function ChildView({ onBack }: ChildViewProps) {
       return null;
     }
 
-    const dist = assignedRouteData.distanceKm ?? 1.2;
-    const dur = assignedRouteData.durationMin ?? 15;
+    const dist = assignedRouteData.distance ?? assignedRouteData.distanceKm ?? 1.2;
+    const dur = assignedRouteData.duration ?? assignedRouteData.durationMin ?? 15;
 
     return {
       id: 'assigned-child-route',
@@ -251,7 +272,8 @@ export function ChildView({ onBack }: ChildViewProps) {
         <Map
           routeA={assignedRouteResult}
           selectedRoute="A"
-          center={[currentCoords.lat, currentCoords.lng]}
+          center={mapCenter || [currentCoords.lat, currentCoords.lng]}
+          recenterTrigger={recenterTrigger}
           userLocation={{
             lat: currentCoords.lat,
             lng: currentCoords.lng,

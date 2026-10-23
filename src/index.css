@@ -88,8 +88,9 @@ select,
 
 #map,
 .leaflet-container {
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
   pointer-events: auto !important;
-  touch-action: none !important;
 }
 
 .safety-fade-layer {
@@ -155,10 +156,14 @@ select,
   transition: transform 0.4s ease-out;
 }
 
-/* Navigační puk polohy uživatele se směrovou šipkou a kuželem */
+/* Plynulý navigační puk polohy uživatele se směrovou šipkou */
 .user-location-puck-container {
   background: transparent !important;
   border: none !important;
+}
+
+.leaflet-marker-icon.user-location-puck-container {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .user-puck-wrapper {
@@ -171,30 +176,43 @@ select,
   pointer-events: none;
 }
 
-/* Pulzující halo aura kolem navigačního puku */
-.user-puck-halo {
+/* Směrový prvek (rotovaný podle azimutu) s plynulým CSS přechodem */
+.user-puck-heading {
   position: absolute;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background-color: rgba(37, 99, 235, 0.45);
-  animation: userPuckPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  width: 64px;
+  height: 64px;
+  top: 0;
+  left: 0;
+  transform-origin: 32px 32px;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 1;
   pointer-events: none;
 }
 
-@keyframes userPuckPulse {
-  0% {
-    transform: scale(0.85);
-    opacity: 0.95;
-  }
-  60% {
-    transform: scale(2.3);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(2.3);
-    opacity: 0;
-  }
+/* Přední světelný kužel */
+.user-puck-beam {
+  position: absolute;
+  top: 2px;
+  left: 12px;
+  width: 40px;
+  height: 32px;
+  background: radial-gradient(ellipse at bottom, rgba(37, 99, 235, 0.6) 0%, rgba(59, 130, 246, 0.25) 55%, rgba(59, 130, 246, 0) 80%);
+  clip-path: polygon(50% 100%, 0% 0%, 100% 0%);
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+
+/* Bílá směrová šipka směřující dopředu */
+.user-puck-arrow {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+  transition: opacity 0.4s ease;
 }
 
 /* Centrální modrý bod s bílým lemem */
@@ -210,69 +228,71 @@ select,
   pointer-events: none;
 }
 
-/* Směrový prvek (rotovaný podle azimutu) */
-.user-puck-heading {
+/* Pulzující halo kolem navigačního puku */
+.user-puck-halo {
   position: absolute;
-  width: 64px;
-  height: 64px;
-  top: 0;
-  left: 0;
-  transform-origin: 32px 32px;
-  transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1);
-  z-index: 1;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background-color: rgba(37, 99, 235, 0.45);
   pointer-events: none;
 }
 
-/* Přední světelný kužel */
-.user-puck-beam {
-  position: absolute;
-  top: 2px;
-  left: 12px;
-  width: 40px;
-  height: 32px;
-  background: radial-gradient(ellipse at bottom, rgba(37, 99, 235, 0.6) 0%, rgba(59, 130, 246, 0.25) 55%, rgba(59, 130, 246, 0) 80%);
-  clip-path: polygon(50% 100%, 0% 0%, 100% 0%);
-  pointer-events: none;
+/* Při reálném pohybu (speed > 0.5 m/s): dynamický puls a aktivní kužel */
+.user-puck-wrapper.is-moving .user-puck-halo {
+  animation: userPuckPulseActive 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
-/* Bílá směrová šipka směřující dopředu */
-.user-puck-arrow {
-  position: absolute;
-  top: 4px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 14px;
-  height: 14px;
-  pointer-events: none;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+.user-puck-wrapper.is-moving .user-puck-beam {
+  opacity: 0.8;
 }
 
-/* Moderní styl pro ovládací tlačítko leaflet-rotate */
-.leaflet-control-rotate {
-  background: #0f172a !important;
-  border: 1px solid #334155 !important;
-  border-radius: 10px !important;
-  overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
+.user-puck-wrapper.is-moving .user-puck-arrow {
+  opacity: 1;
 }
 
-.leaflet-control-rotate a.leaflet-control-rotate-toggle {
-  background-color: #0f172a !important;
-  color: #f8fafc !important;
-  width: 34px !important;
-  height: 34px !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  transition: background-color 0.2s ease;
+/* Pokud uživatel stojí na místě nebo je signál slabý:
+   šipka se nezmatkuje, drží směr a přejde do jemného pulzujícího kruhu */
+.user-puck-wrapper.is-stationary .user-puck-halo {
+  animation: userPuckPulseGentle 2.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
-.leaflet-control-rotate a.leaflet-control-rotate-toggle:hover {
-  background-color: #1e293b !important;
+.user-puck-wrapper.is-stationary .user-puck-beam {
+  opacity: 0.15;
 }
 
-.leaflet-control-rotate-arrow {
-  filter: invert(1) brightness(1.6);
+.user-puck-wrapper.is-stationary .user-puck-arrow {
+  opacity: 0.85;
+}
+
+@keyframes userPuckPulseActive {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.95;
+  }
+  60% {
+    transform: scale(2.3);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(2.3);
+    opacity: 0;
+  }
+}
+
+@keyframes userPuckPulseGentle {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.65;
+  }
+  50% {
+    transform: scale(1.6);
+    opacity: 0.15;
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 0.65;
+  }
 }
 
 /* Licenční atribuce mapových dlaždic (OpenStreetMap & CARTO) */

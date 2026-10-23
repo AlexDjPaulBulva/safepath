@@ -6,7 +6,6 @@ import 'leaflet/dist/leaflet.css';
 if (typeof window !== 'undefined') {
   (window as any).L = L;
 }
-import 'leaflet-rotate';
 import * as turf from '@turf/turf';
 import { SafetyFeature, SafeHavenFeature } from '../lib/opendata';
 import { RouteResult, RouteSegment, getPointAlongRoute } from '../lib/routing';
@@ -48,86 +47,6 @@ function MapPanesInit() {
   return null;
 }
 
-// Kompasová střelka s písmenem "N" pro plynulé srovnání mapy zpět na sever
-function CompassResetControl() {
-  const map = useMap();
-  const [bearing, setBearing] = useState<number>(0);
-
-  useEffect(() => {
-    const handleRotate = () => {
-      const b = (map as any).getBearing ? (map as any).getBearing() : 0;
-      setBearing(Math.round(b));
-    };
-
-    map.on('rotate' as any, handleRotate);
-    if ((map as any).getBearing) {
-      setBearing(Math.round((map as any).getBearing()));
-    }
-
-    return () => {
-      map.off('rotate' as any, handleRotate);
-    };
-  }, [map]);
-
-  const isRotated = Math.abs(bearing % 360) > 1;
-  if (!isRotated) return null;
-
-  const handleResetNorth = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!(map as any).setBearing) return;
-
-    const startBearing = (map as any).getBearing ? (map as any).getBearing() : 0;
-    let diff = startBearing % 360;
-    if (diff > 180) diff -= 360;
-    if (diff < -180) diff += 360;
-
-    const startTime = performance.now();
-    const duration = 280;
-
-    const animate = (currentTime: number) => {
-      const elapsed = currentTime - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      const ease = 1 - Math.pow(1 - progress, 3);
-      const current = diff * (1 - ease);
-      (map as any).setBearing(current);
-      if (progress < 1) {
-        requestAnimationFrame(animate);
-      } else {
-        (map as any).setBearing(0);
-      }
-    };
-    requestAnimationFrame(animate);
-  };
-
-  return (
-    <div className="absolute top-20 md:top-5 right-4 md:right-6 z-[1000] pointer-events-auto">
-      <button
-        type="button"
-        onClick={handleResetNorth}
-        className="w-11 h-11 bg-slate-900/90 hover:bg-slate-800 text-white rounded-full shadow-2xl border-2 border-slate-700/80 backdrop-blur-md flex flex-col items-center justify-center transition-all duration-300 hover:scale-105 active:scale-95 group focus:outline-none focus:ring-2 focus:ring-blue-500"
-        title="Srovnat mapu na sever (0°)"
-        aria-label="Srovnat mapu na sever"
-      >
-        <div 
-          className="w-5 h-5 flex items-center justify-center transition-transform duration-100"
-          style={{ transform: `rotate(${-bearing}deg)` }}
-        >
-          <svg viewBox="0 0 24 24" className="w-5 h-5 drop-shadow" fill="none">
-            {/* Severní hrot střelky (červený) */}
-            <polygon points="12,2 7,12 12,9.5 17,12" fill="#ef4444" />
-            {/* Jižní hrot střelky (stříbrno-bílý) */}
-            <polygon points="12,22 7,12 12,9.5 17,12" fill="#cbd5e1" />
-            {/* Středový čep střelky */}
-            <circle cx="12" cy="12" r="1.5" fill="#1e293b" />
-          </svg>
-        </div>
-        <span className="text-[10px] font-black text-rose-400 leading-none -mt-0.5 tracking-tighter">N</span>
-      </button>
-    </div>
-  );
-}
-
 // Pomocná komponenta pro změnu centra mapy a sledování viewportu
 function MapController({ 
   center, 
@@ -139,6 +58,7 @@ function MapController({
   endPoint,
   userLocation,
   recenterTrigger,
+  activeProfiles,
   setStartPoint,
   setEndPoint,
   onBoundsChange,
@@ -158,6 +78,7 @@ function MapController({
   endPoint?: {lat: number, lng: number; name?: string} | null;
   userLocation?: UserLocation | null;
   recenterTrigger?: { coords: [number, number]; timestamp: number } | null;
+  activeProfiles?: string[];
   setStartPoint?: (point: {lat: number, lng: number; name?: string} | null) => void;
   setEndPoint?: (point: {lat: number, lng: number; name?: string} | null) => void;
   onBoundsChange: (bounds: L.LatLngBounds, zoom: number) => void;
@@ -233,7 +154,7 @@ function MapController({
     }
   });
 
-  // Plynulé vycentrování mapy při stisku tlačítka zaměření GPS
+  // Plynulé vycentrování mapy při stisku tlačítka zaměření GPS nebo přiřazení trasy
   useEffect(() => {
     if (recenterTrigger && recenterTrigger.timestamp > lastRecenterRef.current) {
       lastRecenterRef.current = recenterTrigger.timestamp;
@@ -242,8 +163,19 @@ function MapController({
   }, [recenterTrigger, map]);
 
   useEffect(() => {
+    // Pokud byl právě spuštěn recenterTrigger, nepřepisuj ho
+    if (recenterTrigger && Date.now() - recenterTrigger.timestamp < 1200) {
+      return;
+    }
+
+    const isChild = activeProfiles?.includes('child');
     const selectedGeometry = routeA?.geometry;
-    if (selectedGeometry && selectedGeometry.length > 0) {
+
+    if (isChild && selectedGeometry && selectedGeometry.length > 0) {
+      // V dětském rozhraní: vycentrovat mapu přímo na začátek trasy
+      map.flyTo(selectedGeometry[0], 17, { animate: true, duration: 1.0 });
+    } else if (selectedGeometry && selectedGeometry.length > 0) {
+      // V rodičovském dispečinku: zobrazit přehledně celou trasu
       const polyline = L.polyline(selectedGeometry);
       map.flyToBounds(polyline.getBounds(), { padding: [60, 60], duration: 1.2 });
     } else if (center) {
@@ -251,7 +183,7 @@ function MapController({
     }
     // Úvodní zavolání bounds
     onBoundsChange(map.getBounds(), map.getZoom());
-  }, [center, routeA?.geometry, map]);
+  }, [center, routeA?.geometry, activeProfiles, map]);
 
   return null;
 }
@@ -501,23 +433,26 @@ export function MapEngine({
     });
   };
 
-  // Vyhlazení směrové šipky (Low-Pass Filter + Deadband + 360° Wrap + Speed Guard < 0.4 m/s)
-  const effectiveHeading = useCompassHeading({
+  // Vyhlazení směrové šipky (Low-Pass EMA Filter + Deadband + 360° Wrap + Speed Guard > 0.5 m/s)
+  const { heading: effectiveHeading, isMoving } = useCompassHeading({
     gpsHeading: userLocation?.heading,
-    speed: userLocation?.speed
+    speed: userLocation?.speed,
+    accuracy: userLocation?.accuracy,
+    minWalkingSpeedMps: 0.5
   });
 
-  // Moderní navigační puk s bílým lemem, pulzujícím halo a směrovým kuželem/šipkou vytvořený přes L.divIcon
+  // Moderní lehký navigační puk s vestavěnou šipkou směru chůze a jemným pulzujícím kruhem
   const userPuckIcon = useMemo(() => {
     const hasHeading = effectiveHeading !== null && effectiveHeading !== undefined;
-    const headingStyle = hasHeading ? `transform: rotate(${effectiveHeading}deg)` : 'display: none';
+    const headingStyle = hasHeading ? `transform: rotate(${effectiveHeading}deg);` : 'display: none;';
+    const motionClass = isMoving ? 'is-moving' : 'is-stationary';
 
     return L.divIcon({
-      className: 'user-location-puck-container',
+      className: `user-location-puck-container ${motionClass}`,
       iconSize: [64, 64],
       iconAnchor: [32, 32],
       html: `
-        <div class="user-puck-wrapper">
+        <div class="user-puck-wrapper ${motionClass}">
           <div class="user-puck-heading" style="${headingStyle}">
             <div class="user-puck-beam"></div>
             <div class="user-puck-arrow">
@@ -531,7 +466,7 @@ export function MapEngine({
         </div>
       `
     });
-  }, [effectiveHeading]);
+  }, [effectiveHeading, isMoving]);
 
   const startIcon = L.divIcon({
     html: `<div class="relative flex items-center justify-center">
@@ -878,7 +813,7 @@ export function MapEngine({
     : null;
 
   return (
-    <div id="map-engine-root" className="w-full h-full relative z-0 pointer-events-auto" style={{ touchAction: 'none' }}>
+    <div id="map-engine-root" className="w-full h-full relative z-0 pointer-events-auto">
       {isSimulating && avatarPoint && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-slate-900/90 px-6 py-3 rounded-full text-emerald-400 text-sm font-bold shadow-2xl border border-emerald-500 flex items-center space-x-3 backdrop-blur">
           <span className="animate-pulse h-3 w-3 bg-emerald-500 rounded-full"></span>
@@ -896,16 +831,12 @@ export function MapEngine({
         preferCanvas={true}
         zoomAnimation={true}
         fadeAnimation={false}
-        doubleClickZoom={false}
-        rotate={true}
-        touchRotate={true}
-        rotateControl={{
-          closeOnZeroBearing: false,
-          position: 'topleft'
-        }}
+        doubleClickZoom={true}
+        touchZoom={true}
+        scrollWheelZoom={true}
+        dragging={true}
       >
         <MapPanesInit />
-        <CompassResetControl />
         <MapController 
           center={center} 
           selectedRoute={selectedRoute}
@@ -916,6 +847,7 @@ export function MapEngine({
           endPoint={endPoint}
           userLocation={userLocation}
           recenterTrigger={recenterTrigger}
+          activeProfiles={activeProfiles}
           setStartPoint={setStartPoint}
           setEndPoint={setEndPoint}
           onToast={onToast}
