@@ -33,13 +33,23 @@ export function ParentDashboard({
   isPublic = false, 
   onLoginClick, 
   onBackToMenu,
-  initialProfiles = ['parent'] 
+  initialProfiles = ['parent'],
+  currentRoute: propCurrentRoute,
+  onRouteCalculated: propOnRouteCalculated
 }: { 
   isPublic?: boolean; 
   onLoginClick?: () => void; 
   onBackToMenu?: () => void; 
   initialProfiles?: string[]; 
+  currentRoute?: any;
+  onRouteCalculated?: (route: any) => void;
 }) {
+  const [internalRoute, setInternalRoute] = useState<any>(null);
+  const currentRoute = propCurrentRoute !== undefined ? propCurrentRoute : internalRoute;
+  const setCurrentRoute = (route: any) => {
+    setInternalRoute(route);
+    propOnRouteCalculated?.(route);
+  };
 
   const activeMode = useAppStore((state) => state.activeMode);
   const setActiveMode = useAppStore((state) => state.setActiveMode);
@@ -287,6 +297,18 @@ export function ParentDashboard({
   const [safetyReveal, setSafetyReveal] = useState<SafetyReveal | null>(null);
   const [routeProximityPoint, setRouteProximityPoint] = useState<[number, number] | null>(null);
 
+  // Kompletní odstranění visícího výběrového toastu/banneru, jakmile existuje Start i Cíl nebo vypočtená trasa
+  useEffect(() => {
+    if ((startPoint && endPoint) || currentRoute || routeA) {
+      setMapToast(prev => {
+        if (prev?.message?.includes('nastaven') || prev?.message?.includes('Zvolte start')) {
+          return null;
+        }
+        return prev;
+      });
+    }
+  }, [startPoint, endPoint, currentRoute, routeA]);
+
   // Bezpečné zastávky (Geofencing)
   const [safeStops, setSafeStops] = useState<{lat: number, lng: number, name: string}[]>([]);
   const [childStatus, setChildStatus] = useState<'ON_ROUTE' | 'AT_SAFE_STOP' | 'DEVIATED' | 'ALERT'>('ON_ROUTE');
@@ -360,6 +382,7 @@ export function ParentDashboard({
       setRouteC(null);
       setFastestRoute(null);
       setSafeStops([]);
+      setCurrentRoute(null);
       return;
     }
 
@@ -403,6 +426,7 @@ export function ParentDashboard({
 
         if (!isCurrentRequest) return;
         setRouteA(rA);
+        setCurrentRoute(rA);
         if (rA?.infoPoints && rA.infoPoints.length > 0) {
           setSafeStops(rA.infoPoints.map(p => ({ lat: p.lat, lng: p.lng, name: p.name })));
         } else {
@@ -814,7 +838,13 @@ export function ParentDashboard({
           onSelectStart={handleSelectStart}
           onSelectEnd={handleSelectEnd}
           selectedRoute={selectedRoute}
-          onSelectRoute={(route) => { setSelectedRoute(route); setSafetyReveal(null); setRouteProximityPoint(null); }}
+          onSelectRoute={(route) => { 
+            setSelectedRoute(route); 
+            setSafetyReveal(null); 
+            setRouteProximityPoint(null); 
+            const active = route === 'A' ? routeA : route === 'B' ? routeB : routeC;
+            setCurrentRoute(active);
+          }}
           routeA={routeA}
           routeB={routeB}
           routeC={routeC}
@@ -833,6 +863,7 @@ export function ParentDashboard({
           activeProfiles={activeProfiles}
           activeMode={activeMode}
           onMetricHover={setSafetyReveal}
+          onRouteCalculated={setCurrentRoute}
           isRoutingLoading={isRoutingLoading}
           routingError={routingError}
           userLocation={userLocation}
@@ -908,7 +939,10 @@ export function ParentDashboard({
 
           {/* 2. Horní lišta Toast (Auto-dismiss po 3.5 sekundách) */}
           <AnimatePresence>
-            {mapToast && (
+            {mapToast && !(
+              ((startPoint && endPoint) || currentRoute || routeA) &&
+              (mapToast.message.includes('nastaven') || mapToast.message.includes('Zvolte start'))
+            ) && (
               <motion.div
                 initial={{ opacity: 0, y: -20, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -984,6 +1018,7 @@ export function ParentDashboard({
         )}
         <MapErrorBoundary fallback={<MapErrorFallback />}>
           <Map 
+            routeCoordinates={currentRoute?.coordinates || currentRoute?.geometry || currentRoute}
             isSosActive={sosAlert.active || Boolean(activeSafeHaven)}
             routeA={routeA}
             routeB={routeB}

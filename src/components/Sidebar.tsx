@@ -36,6 +36,7 @@ interface SidebarProps {
   activeProfiles?: string[];
   activeMode?: 'parent' | 'night_girl' | 'child';
   onMetricHover: (reveal: SafetyReveal | null) => void;
+  onRouteCalculated?: (route: any) => void;
   isRoutingLoading?: boolean;
   routingError?: string | null;
   userLocation?: { lat: number; lng: number; accuracy: number } | null;
@@ -222,12 +223,18 @@ function RouteCard({
 
 export function Sidebar({
   startPointName, endPointName, onSelectStart, onSelectEnd,
-  selectedRoute, onSelectRoute, routeA,
+  selectedRoute, onSelectRoute, routeA, routeB, routeC,
   fastestRoute = null, showFastestRoute = false, onToggleFastestRoute,
   isSimulating = false, onToggleSimulation, activeProfiles = ['parent'], activeMode, onMetricHover,
   isRoutingLoading = false, routingError = null,
-  userLocation = null, onRecenterGps
+  userLocation = null, onRecenterGps, onRouteCalculated
 }: SidebarProps) {
+  useEffect(() => {
+    const active = selectedRoute === 'A' ? routeA : selectedRoute === 'B' ? (routeB || routeA) : (routeC || routeA);
+    if (active && onRouteCalculated) {
+      onRouteCalculated(active);
+    }
+  }, [routeA, routeB, routeC, selectedRoute, onRouteCalculated]);
   // 1. Třípolohový ergonomický Bottom Sheet pro mobil:
   // - minimized: tenká spodní lišta (cca 48px)
   // - peek: výchozí náhled s drag lištou a kompaktními vstupy (cca 148px)
