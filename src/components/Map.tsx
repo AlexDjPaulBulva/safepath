@@ -91,6 +91,7 @@ const RELIABLE_DARK_STYLE: maplibregl.StyleSpecification = {
         'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'
       ],
       tileSize: 256,
+      maxzoom: 16, // Zabrání dotazům na neexistující zoom 17+ a vynutí plynulý overscaling
       attribution: '&copy; Esri &copy; OpenStreetMap contributors'
     }
   },
@@ -100,7 +101,7 @@ const RELIABLE_DARK_STYLE: maplibregl.StyleSpecification = {
       type: 'raster',
       source: 'esri-dark',
       minzoom: 0,
-      maxzoom: 19
+      maxzoom: 22
     }
   ]
 };
@@ -454,11 +455,12 @@ export function Map(props: MapEngineProps) {
       style: RELIABLE_DARK_STYLE,
       center: initialCenter,
       zoom: 14,
-      pitch: 45,
+      maxZoom: 19,
+      pitch: 0,
       bearing: 0,
       pitchWithRotate: true,
       touchZoomRotate: true,
-      maxPitch: 65,
+      maxPitch: 35,
       failIfMajorPerformanceCaveat: false,
       ...({ antialias: true } as any)
     });
@@ -616,7 +618,7 @@ export function Map(props: MapEngineProps) {
         map.flyTo({
           center: [start[1], start[0]],
           zoom: 17,
-          pitch: 45,
+          pitch: 0,
           duration: 1000
         });
       } else {
@@ -687,7 +689,7 @@ export function Map(props: MapEngineProps) {
       map.easeTo({
         center: [loc.lng, loc.lat],
         bearing: effectiveHeading,
-        pitch: 45,
+        pitch: 30,
         duration: 800
       });
     }
@@ -952,7 +954,7 @@ export function Map(props: MapEngineProps) {
             if (next && mapRef.current) {
               mapRef.current.easeTo({
                 bearing: effectiveHeading ?? mapRef.current.getBearing(),
-                pitch: 45,
+                pitch: 30,
                 duration: 800
               });
             } else if (mapRef.current) {
