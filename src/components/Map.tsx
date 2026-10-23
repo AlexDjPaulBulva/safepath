@@ -81,33 +81,6 @@ export interface MapEngineProps {
 
 const PRAGUE_CENTER_LNG_LAT: [number, number] = [14.4378, 50.0755];
 
-// 100% spolehlivý inline CARTO Dark Matter styl bez externích závislostí a bez CORS rizika
-const CARTO_DARK_STYLE: maplibregl.StyleSpecification = {
-  version: 8,
-  sources: {
-    'carto-dark': {
-      type: 'raster',
-      tiles: [
-        'https://a.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png',
-        'https://b.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png',
-        'https://c.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png',
-        'https://d.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png'
-      ],
-      tileSize: 256,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-    }
-  },
-  layers: [
-    {
-      id: 'carto-dark-tiles',
-      type: 'raster',
-      source: 'carto-dark',
-      minzoom: 0,
-      maxzoom: 20
-    }
-  ]
-};
-
 export function Map(props: MapEngineProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -279,7 +252,7 @@ export function Map(props: MapEngineProps) {
 
   // Pomocná funkce pro 3D budovy (pokud styl obsahuje vektorové podklady)
   const add3DBuildingsLayer = (map: maplibregl.Map) => {
-    if (map.getLayer('3d-buildings')) return;
+    if (!map.isStyleLoaded() || map.getLayer('3d-buildings')) return;
 
     const style = map.getStyle();
     if (!style) return;
@@ -342,14 +315,35 @@ export function Map(props: MapEngineProps) {
 
   // Pomocná funkce pro inicializaci GeoJSON zdrojů a vrstev trasy
   const setupRouteLayers = (map: maplibregl.Map) => {
-    if (!map.getSource('safe-route')) {
+    if (!map.isStyleLoaded()) return;
+
+    const initialRouteData = (activeRoute?.geometry && activeRoute.geometry.length >= 2)
+      ? {
+          type: 'FeatureCollection' as const,
+          features: [
+            {
+              type: 'Feature' as const,
+              properties: {},
+              geometry: {
+                type: 'LineString' as const,
+                coordinates: activeRoute.geometry.map(([lat, lng]) => [lng, lat])
+              }
+            }
+          ]
+        }
+      : {
+          type: 'FeatureCollection' as const,
+          features: []
+        };
+
+    const existingSafeSource = map.getSource('safe-route') as maplibregl.GeoJSONSource | undefined;
+    if (!existingSafeSource) {
       map.addSource('safe-route', {
         type: 'geojson',
-        data: {
-          type: 'FeatureCollection',
-          features: []
-        }
+        data: initialRouteData
       });
+    } else {
+      existingSafeSource.setData(initialRouteData);
     }
 
     // Podkladová záře (Aura)
@@ -433,9 +427,9 @@ export function Map(props: MapEngineProps) {
 
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
-      style: CARTO_DARK_STYLE,
+      style: 'https://tiles.openfreemap.org/styles/dark',
       center: initialCenter,
-      zoom: 15,
+      zoom: 14,
       pitch: 45,
       bearing: 0,
       pitchWithRotate: true,
@@ -448,10 +442,15 @@ export function Map(props: MapEngineProps) {
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
 
     map.on('load', () => {
+      map.resize();
       add3DBuildingsLayer(map);
       setupRouteLayers(map);
       setIsMapLoaded(true);
-      map.resize();
+    });
+
+    map.on('style.load', () => {
+      add3DBuildingsLayer(map);
+      setupRouteLayers(map);
     });
 
     map.on('click', (e: maplibregl.MapMouseEvent) => {
@@ -504,7 +503,7 @@ export function Map(props: MapEngineProps) {
   // 2. Aktualizace bezpečné trasy ve WebGL GeoJSON vrstvě
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !isMapLoaded) return;
+    if (!map || !isMapLoaded || !map.isStyleLoaded()) return;
 
     const safeSource = map.getSource('safe-route') as maplibregl.GeoJSONSource | undefined;
     if (safeSource) {
