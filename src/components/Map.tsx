@@ -80,7 +80,31 @@ export interface MapEngineProps {
 }
 
 const PRAGUE_CENTER_LNG_LAT: [number, number] = [14.4378, 50.0755];
-const MAP_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
+
+// 100% spolehlivý plnobarevný styl s oficiálními OpenStreetMap dlaždicemi
+const VIBRANT_OSM_STYLE: maplibregl.StyleSpecification = {
+  version: 8,
+  sources: {
+    'osm-tiles': {
+      type: 'raster',
+      tiles: [
+        'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+      ],
+      tileSize: 256,
+      maxzoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }
+  },
+  layers: [
+    {
+      id: 'osm-base-layer',
+      type: 'raster',
+      source: 'osm-tiles',
+      minzoom: 0,
+      maxzoom: 19
+    }
+  ]
+};
 
 export function Map(props: MapEngineProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -329,26 +353,29 @@ export function Map(props: MapEngineProps) {
     }
   };
 
-  // Pomocná funkce pro inicializaci GeoJSON zdrojů a vrstev trasy
-  const setupRouteLayers = (map: maplibregl.Map) => {
-    if (!map.isStyleLoaded()) return;
+  // Pomocná funkce pro zaručené vykreslení GeoJSON zdrojů a vrstev trasy
+  const drawRoute = (map: maplibregl.Map) => {
+    if (!map.isStyleLoaded()) {
+      map.once('load', () => drawRoute(map));
+      return;
+    }
 
-    const initialRouteData = (activeRoute?.geometry && activeRoute.geometry.length >= 2)
+    const routeData: GeoJSON.FeatureCollection = (activeRoute?.geometry && activeRoute.geometry.length >= 2)
       ? {
-          type: 'FeatureCollection' as const,
+          type: 'FeatureCollection',
           features: [
             {
-              type: 'Feature' as const,
+              type: 'Feature',
               properties: {},
               geometry: {
-                type: 'LineString' as const,
+                type: 'LineString',
                 coordinates: activeRoute.geometry.map(([lat, lng]) => [lng, lat])
               }
             }
           ]
         }
       : {
-          type: 'FeatureCollection' as const,
+          type: 'FeatureCollection',
           features: []
         };
 
@@ -356,10 +383,10 @@ export function Map(props: MapEngineProps) {
     if (!existingSafeSource) {
       map.addSource('safe-route', {
         type: 'geojson',
-        data: initialRouteData
+        data: routeData
       });
     } else {
-      existingSafeSource.setData(initialRouteData);
+      existingSafeSource.setData(routeData);
     }
 
     // Podkladová záře (Aura)
@@ -376,7 +403,7 @@ export function Map(props: MapEngineProps) {
           'line-color': '#10b981',
           'line-width': 14,
           'line-blur': 8,
-          'line-opacity': 0.4
+          'line-opacity': 0.45
         }
       });
     }
@@ -426,6 +453,25 @@ export function Map(props: MapEngineProps) {
         }
       });
     }
+
+    if (props.showFastestRoute && props.fastestRoute?.geometry && props.fastestRoute.geometry.length >= 2) {
+      const fastestSource = map.getSource('fastest-route') as maplibregl.GeoJSONSource | undefined;
+      if (fastestSource) {
+        fastestSource.setData({
+          type: 'FeatureCollection',
+          features: [
+            {
+              type: 'Feature',
+              properties: {},
+              geometry: {
+                type: 'LineString',
+                coordinates: props.fastestRoute.geometry.map(([lat, lng]) => [lng, lat])
+              }
+            }
+          ]
+        });
+      }
+    }
   };
 
   // 1. Inicializace MapLibre GL mapy se spolehlivým životním cyklem Reactu
@@ -443,7 +489,7 @@ export function Map(props: MapEngineProps) {
 
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
-      style: MAP_STYLE,
+      style: VIBRANT_OSM_STYLE,
       center: initialCenter,
       zoom: 14,
       maxZoom: 19,
@@ -461,14 +507,12 @@ export function Map(props: MapEngineProps) {
 
     map.on('load', () => {
       map.resize();
-      add3DBuildingsLayer(map);
-      setupRouteLayers(map);
+      drawRoute(map);
       setIsMapLoaded(true);
     });
 
     map.on('style.load', () => {
-      add3DBuildingsLayer(map);
-      setupRouteLayers(map);
+      drawRoute(map);
     });
 
     map.on('click', (e: maplibregl.MapMouseEvent) => {
@@ -529,59 +573,8 @@ export function Map(props: MapEngineProps) {
   // 2. Aktualizace bezpečné trasy ve WebGL GeoJSON vrstvě
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !isMapLoaded || !map.isStyleLoaded()) return;
-
-    const safeSource = map.getSource('safe-route') as maplibregl.GeoJSONSource | undefined;
-    if (safeSource) {
-      if (activeRoute?.geometry && activeRoute.geometry.length >= 2) {
-        // [lat, lng] -> [lng, lat]
-        const coordinates = activeRoute.geometry.map(([lat, lng]) => [lng, lat]);
-        safeSource.setData({
-          type: 'FeatureCollection',
-          features: [
-            {
-              type: 'Feature',
-              properties: {},
-              geometry: {
-                type: 'LineString',
-                coordinates
-              }
-            }
-          ]
-        });
-      } else {
-        safeSource.setData({
-          type: 'FeatureCollection',
-          features: []
-        });
-      }
-    }
-
-    // Aktualizace nejrychlejší alternativy
-    const fastestSource = map.getSource('fastest-route') as maplibregl.GeoJSONSource | undefined;
-    if (fastestSource) {
-      if (props.showFastestRoute && props.fastestRoute?.geometry && props.fastestRoute.geometry.length >= 2) {
-        const coordinates = props.fastestRoute.geometry.map(([lat, lng]) => [lng, lat]);
-        fastestSource.setData({
-          type: 'FeatureCollection',
-          features: [
-            {
-              type: 'Feature',
-              properties: {},
-              geometry: {
-                type: 'LineString',
-                coordinates
-              }
-            }
-          ]
-        });
-      } else {
-        fastestSource.setData({
-          type: 'FeatureCollection',
-          features: []
-        });
-      }
-    }
+    if (!map) return;
+    drawRoute(map);
   }, [activeRoute?.geometry, props.showFastestRoute, props.fastestRoute?.geometry, isMapLoaded]);
 
   // 3. Plynulé vycentrování mapy / přizpůsobení geometrii
@@ -694,10 +687,10 @@ export function Map(props: MapEngineProps) {
         const startEl = document.createElement('div');
         startEl.innerHTML = `
           <div style="position: relative; display: flex; flex-direction: column; align-items: center; cursor: pointer;">
-            <div style="background: #0f172a; border: 1px solid #10b981; color: #34d399; font-size: 10px; font-weight: bold; text-transform: uppercase; padding: 2px 6px; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.5); margin-bottom: 2px; white-space: nowrap;">
+            <div style="background: #064e3b; border: 2px solid #ffffff; color: #ffffff; font-size: 11px; font-weight: 800; text-transform: uppercase; padding: 2px 8px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.6); margin-bottom: 2px; white-space: nowrap;">
               Start
             </div>
-            <div style="width: 14px; height: 14px; border-radius: 50%; background: #10b981; border: 2.5px solid #ffffff; box-shadow: 0 0 10px rgba(16, 185, 129, 0.8);"></div>
+            <div style="width: 16px; height: 16px; border-radius: 50%; background: #10b981; border: 3px solid #ffffff; box-shadow: 0 0 12px rgba(16, 185, 129, 0.9), 0 3px 6px rgba(0,0,0,0.5);"></div>
           </div>
         `;
         startMarkerRef.current = new maplibregl.Marker({ element: startEl, anchor: 'bottom' })
@@ -717,10 +710,10 @@ export function Map(props: MapEngineProps) {
         const endEl = document.createElement('div');
         endEl.innerHTML = `
           <div style="position: relative; display: flex; flex-direction: column; align-items: center; cursor: pointer;">
-            <div style="background: #0f172a; border: 1px solid #6366f1; color: #818cf8; font-size: 10px; font-weight: bold; text-transform: uppercase; padding: 2px 6px; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.5); margin-bottom: 2px; white-space: nowrap;">
+            <div style="background: #312e81; border: 2px solid #ffffff; color: #ffffff; font-size: 11px; font-weight: 800; text-transform: uppercase; padding: 2px 8px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.6); margin-bottom: 2px; white-space: nowrap;">
               Cíl
             </div>
-            <div style="width: 14px; height: 14px; border-radius: 50%; background: #6366f1; border: 2.5px solid #ffffff; box-shadow: 0 0 10px rgba(99, 102, 241, 0.8);"></div>
+            <div style="width: 16px; height: 16px; border-radius: 50%; background: #6366f1; border: 3px solid #ffffff; box-shadow: 0 0 12px rgba(99, 102, 241, 0.9), 0 3px 6px rgba(0,0,0,0.5);"></div>
           </div>
         `;
         endMarkerRef.current = new maplibregl.Marker({ element: endEl, anchor: 'bottom' })
