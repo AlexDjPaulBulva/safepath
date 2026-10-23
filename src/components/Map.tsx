@@ -80,37 +80,28 @@ export interface MapEngineProps {
 }
 
 const PRAGUE_CENTER_LNG_LAT: [number, number] = [14.4378, 50.0755];
-
-// Robustní inline styl s Esri Dark Canvas pro 100% spolehlivost i v Instagram WebView
-const RELIABLE_DARK_STYLE: maplibregl.StyleSpecification = {
-  version: 8,
-  sources: {
-    'esri-dark': {
-      type: 'raster',
-      tiles: [
-        'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'
-      ],
-      tileSize: 256,
-      maxzoom: 16, // Zabrání dotazům na neexistující zoom 17+ a vynutí plynulý overscaling
-      attribution: '&copy; Esri &copy; OpenStreetMap contributors'
-    }
-  },
-  layers: [
-    {
-      id: 'esri-dark-layer',
-      type: 'raster',
-      source: 'esri-dark',
-      minzoom: 0,
-      maxzoom: 22
-    }
-  ]
-};
+const MAP_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
 
 export function Map(props: MapEngineProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [isCourseUp, setIsCourseUp] = useState(false);
+
+  // References pro zamezení stale closures při kliknutí do mapy
+  const onMapClickRef = useRef(props.onMapClick);
+  const startPointRef = useRef(props.startPoint);
+  const endPointRef = useRef(props.endPoint);
+  const setStartPointRef = useRef(props.setStartPoint);
+  const setEndPointRef = useRef(props.setEndPoint);
+  const onToastRef = useRef(props.onToast);
+
+  useEffect(() => { onMapClickRef.current = props.onMapClick; }, [props.onMapClick]);
+  useEffect(() => { startPointRef.current = props.startPoint; }, [props.startPoint]);
+  useEffect(() => { endPointRef.current = props.endPoint; }, [props.endPoint]);
+  useEffect(() => { setStartPointRef.current = props.setStartPoint; }, [props.setStartPoint]);
+  useEffect(() => { setEndPointRef.current = props.setEndPoint; }, [props.setEndPoint]);
+  useEffect(() => { onToastRef.current = props.onToast; }, [props.onToast]);
 
   // Markers refs pro správu životního cyklu v MapLibre GL
   const userPuckMarkerRef = useRef<maplibregl.Marker | null>(null);
@@ -452,7 +443,7 @@ export function Map(props: MapEngineProps) {
 
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
-      style: RELIABLE_DARK_STYLE,
+      style: MAP_STYLE,
       center: initialCenter,
       zoom: 14,
       maxZoom: 19,
@@ -484,19 +475,16 @@ export function Map(props: MapEngineProps) {
       const lat = e.lngLat.lat;
       const lng = e.lngLat.lng;
 
-      if (props.onMapClick) {
-        props.onMapClick(lat, lng);
-      } else if (props.setStartPoint) {
-        if (!props.startPoint) {
-          props.setStartPoint({ lat, lng });
-          props.onToast?.('Start nastaven. Nyní klepněte na cíl.');
-        } else if (!props.endPoint) {
-          props.setEndPoint?.({ lat, lng });
-          props.onToast?.('Cíl nastaven. Počítám bezpečnou trasu...');
+      if (onMapClickRef.current) {
+        onMapClickRef.current(lat, lng);
+      } else if (setStartPointRef.current || setEndPointRef.current) {
+        if (startPointRef.current && !endPointRef.current) {
+          setEndPointRef.current?.({ lat, lng });
+          onToastRef.current?.('Cíl nastaven. Počítám bezpečnou trasu...');
         } else {
-          props.setStartPoint({ lat, lng });
-          props.setEndPoint?.(null);
-          props.onToast?.('Start nastaven. Nyní klepněte na cíl.');
+          setStartPointRef.current?.({ lat, lng });
+          setEndPointRef.current?.(null);
+          onToastRef.current?.('Start nastaven. Nyní klepněte na cíl.');
         }
       }
     });
@@ -979,6 +967,17 @@ export function Map(props: MapEngineProps) {
           {isCourseUp ? 'Sledování směru chůze' : 'Sledovat směr chůze'}
         </span>
       </button>
+
+      {/* Stavový pruh při výběru bodů trasy (pokud je vybrán Start a chybí Cíl) */}
+      {props.startPoint && !props.endPoint && (
+        <div
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-[2600] bg-slate-900/95 border-2 border-emerald-400 text-white px-5 py-2.5 rounded-2xl shadow-2xl backdrop-blur-md flex items-center gap-2.5 animate-bounce pointer-events-auto"
+          role="status"
+        >
+          <span className="text-emerald-400 text-base">🟢</span>
+          <span className="text-xs font-bold text-slate-100">Start nastaven. Nyní klepněte na cíl.</span>
+        </div>
+      )}
 
       {/* Vizuální notifikace naposledy proneseného hlasového pokynu */}
       {isVoiceEnabled && visibleSpokenText && (
