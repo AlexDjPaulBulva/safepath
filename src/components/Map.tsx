@@ -1,6 +1,6 @@
+import 'maplibre-gl/dist/maplibre-gl.css';
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import * as maplibregl from 'maplibre-gl';
-import 'maplibre-gl/dist/maplibre-gl.css';
 import * as turf from '@turf/turf';
 
 import staticSafetyData from '../data/pragueStaticSafety.json';
@@ -80,6 +80,33 @@ export interface MapEngineProps {
 }
 
 const PRAGUE_CENTER_LNG_LAT: [number, number] = [14.4378, 50.0755];
+
+// 100% spolehlivý inline CARTO Dark Matter styl bez externích závislostí a bez CORS rizika
+const CARTO_DARK_STYLE: maplibregl.StyleSpecification = {
+  version: 8,
+  sources: {
+    'carto-dark': {
+      type: 'raster',
+      tiles: [
+        'https://a.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png',
+        'https://b.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png',
+        'https://c.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png',
+        'https://d.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png'
+      ],
+      tileSize: 256,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+    }
+  },
+  layers: [
+    {
+      id: 'carto-dark-tiles',
+      type: 'raster',
+      source: 'carto-dark',
+      minzoom: 0,
+      maxzoom: 20
+    }
+  ]
+};
 
 export function Map(props: MapEngineProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -250,7 +277,7 @@ export function Map(props: MapEngineProps) {
     minWalkingSpeedMps: 0.5
   });
 
-  // Pomocná funkce pro 3D budovy (Extrusion Layer)
+  // Pomocná funkce pro 3D budovy (pokud styl obsahuje vektorové podklady)
   const add3DBuildingsLayer = (map: maplibregl.Map) => {
     if (map.getLayer('3d-buildings')) return;
 
@@ -260,7 +287,8 @@ export function Map(props: MapEngineProps) {
     const sources = style.sources || {};
     const vectorSourceId = Object.keys(sources).find(
       (key) => (sources[key] as any).type === 'vector'
-    ) || 'openmaptiles';
+    );
+    if (!vectorSourceId) return;
 
     const layers = style.layers || [];
     let labelLayerId: string | undefined;
@@ -390,7 +418,7 @@ export function Map(props: MapEngineProps) {
     }
   };
 
-  // 1. Inicializace MapLibre GL mapy
+  // 1. Inicializace MapLibre GL mapy se spolehlivým životním cyklem Reactu
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
@@ -405,7 +433,7 @@ export function Map(props: MapEngineProps) {
 
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
-      style: 'https://tiles.openfreemap.org/styles/dark',
+      style: CARTO_DARK_STYLE,
       center: initialCenter,
       zoom: 15,
       pitch: 45,
@@ -423,6 +451,7 @@ export function Map(props: MapEngineProps) {
       add3DBuildingsLayer(map);
       setupRouteLayers(map);
       setIsMapLoaded(true);
+      map.resize();
     });
 
     map.on('click', (e: maplibregl.MapMouseEvent) => {
@@ -452,10 +481,23 @@ export function Map(props: MapEngineProps) {
 
     mapRef.current = map;
 
+    const handleResize = () => {
+      map.resize();
+    };
+    window.addEventListener('resize', handleResize);
+
+    const resizeTimer = setTimeout(() => {
+      map.resize();
+    }, 200);
+
     return () => {
+      window.removeEventListener('resize', handleResize);
+      clearTimeout(resizeTimer);
       setIsMapLoaded(false);
-      map.remove();
-      mapRef.current = null;
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
     };
   }, []);
 
@@ -533,10 +575,8 @@ export function Map(props: MapEngineProps) {
       return;
     }
 
-    // Pokud uživatel zapnul trasu a neběží zrovna recenter
     if (activeRoute?.geometry && activeRoute.geometry.length >= 2) {
       if (isChildMode) {
-        // V dětském zobrazení na začátek trasy s 3D náklonem
         const start = activeRoute.geometry[0];
         map.flyTo({
           center: [start[1], start[0]],
@@ -545,7 +585,6 @@ export function Map(props: MapEngineProps) {
           duration: 1000
         });
       } else {
-        // V dispečinku rodiče celkový pohled na trasu
         const bounds = new maplibregl.LngLatBounds();
         activeRoute.geometry.forEach(([lat, lng]) => bounds.extend([lng, lat]));
         map.fitBounds(bounds, { padding: 60, duration: 1200 });
@@ -676,7 +715,6 @@ export function Map(props: MapEngineProps) {
     const map = mapRef.current;
     if (!map) return;
 
-    // Vyčistit předchozí Safe Havens
     havenMarkersRef.current.forEach((m) => m.remove());
     havenMarkersRef.current = [];
 
@@ -866,9 +904,9 @@ export function Map(props: MapEngineProps) {
   }, [props.isSimulating, activeRoute?.segments, props.simulationProgress, props.childDeviation, isParentMode]);
 
   return (
-    <div className="relative w-full h-full overflow-hidden select-none">
-      {/* Plátno MapLibre GL WebGL mapy */}
-      <div id="map" ref={mapContainerRef} className="w-full h-full relative" />
+    <div className="relative w-full h-full overflow-hidden select-none bg-slate-950">
+      {/* Plátno MapLibre GL WebGL mapy pevně roztažené přes celou plochu */}
+      <div id="map" ref={mapContainerRef} className="w-full h-full absolute inset-0" />
 
       {/* Tlačítko Course-Up: "Sledovat směr chůze" (3D rotace mapy s pohledem chodce) */}
       <button
