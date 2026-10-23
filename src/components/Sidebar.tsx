@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import polyline from '@mapbox/polyline';
 import { AddressSearchInput } from './AddressSearchInput';
 import { SafeHavenFeature } from '../lib/opendata';
 import { RouteResult } from '../lib/routing';
@@ -248,16 +249,29 @@ export function Sidebar({
   const [isDispatching, setIsDispatching] = useState<boolean>(false);
 
   const handleDispatchRouteToChild = async () => {
-    if (!routeA || !routeA.geometry || routeA.geometry.length < 2) return;
+    if (!routeA) return;
+    let pathCoords: [number, number][] = [];
+    if (typeof routeA.geometry === 'string') {
+      try {
+        const decoded = polyline.decode(routeA.geometry);
+        pathCoords = decoded.map(([lat, lng]) => [lat, lng]);
+      } catch (err) {
+        console.warn('Sidebar polyline decode error:', err);
+      }
+    } else if (Array.isArray(routeA.geometry)) {
+      pathCoords = routeA.geometry;
+    }
+    if (pathCoords.length < 2) return;
+
     const targetCode = selectedChildCode || prompt('Zadejte 6místný kód dítěte pro odeslání trasy:');
     if (!targetCode) return;
 
     setIsDispatching(true);
     try {
       await dispatchRouteToChild(targetCode.trim(), {
-        pathCoords: routeA.geometry,
-        start: { lat: routeA.geometry[0][0], lng: routeA.geometry[0][1], name: startPointName },
-        end: { lat: routeA.geometry[routeA.geometry.length - 1][0], lng: routeA.geometry[routeA.geometry.length - 1][1], name: endPointName },
+        pathCoords,
+        start: { lat: pathCoords[0][0], lng: pathCoords[0][1], name: startPointName },
+        end: { lat: pathCoords[pathCoords.length - 1][0], lng: pathCoords[pathCoords.length - 1][1], name: endPointName },
         distance: routeA.distance,
         duration: routeA.duration,
         distanceKm: routeA.distance,
