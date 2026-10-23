@@ -106,6 +106,30 @@ const VIBRANT_STREET_STYLE: maplibregl.StyleSpecification = {
   ]
 };
 
+const getRouteCoordinates = (route?: RouteResult | null): [number, number][] => {
+  if (!route) return [];
+  if (route.geometry && Array.isArray(route.geometry) && route.geometry.length >= 2) {
+    return route.geometry;
+  }
+  if (route.segments && Array.isArray(route.segments) && route.segments.length > 0) {
+    const coords: [number, number][] = [];
+    route.segments.forEach((seg) => {
+      if (seg.coordinates && Array.isArray(seg.coordinates)) {
+        seg.coordinates.forEach((c) => coords.push(c));
+      }
+    });
+    if (coords.length >= 2) return coords;
+  }
+  return [];
+};
+
+const normalizeToLngLat = (coords: [number, number][]): [number, number][] => {
+  return coords.map((coord) => {
+    // Pokud je první hodnota > 30 (typicky pražská latitude ~50), otoč na [lng, lat]
+    return coord[0] > 30 ? [coord[1], coord[0]] : [coord[0], coord[1]];
+  });
+};
+
 export function Map(props: MapEngineProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -360,24 +384,17 @@ export function Map(props: MapEngineProps) {
       return;
     }
 
-    const routeData: GeoJSON.FeatureCollection = (activeRoute?.geometry && activeRoute.geometry.length >= 2)
-      ? {
-          type: 'FeatureCollection',
-          features: [
-            {
-              type: 'Feature',
-              properties: {},
-              geometry: {
-                type: 'LineString',
-                coordinates: activeRoute.geometry.map(([lat, lng]) => [lng, lat])
-              }
-            }
-          ]
-        }
-      : {
-          type: 'FeatureCollection',
-          features: []
-        };
+    const rawCoords = getRouteCoordinates(activeRoute);
+    const normalizedCoords = normalizeToLngLat(rawCoords);
+
+    const routeData: GeoJSON.Feature<GeoJSON.LineString> = {
+      type: 'Feature',
+      properties: {},
+      geometry: {
+        type: 'LineString',
+        coordinates: normalizedCoords
+      }
+    };
 
     const existingSafeSource = map.getSource('safe-route') as maplibregl.GeoJSONSource | undefined;
     if (!existingSafeSource) {
@@ -402,8 +419,8 @@ export function Map(props: MapEngineProps) {
         paint: {
           'line-color': '#10b981',
           'line-width': 14,
-          'line-blur': 8,
-          'line-opacity': 0.45
+          'line-blur': 6,
+          'line-opacity': 0.4
         }
       });
     }
@@ -420,20 +437,35 @@ export function Map(props: MapEngineProps) {
         },
         paint: {
           'line-color': '#10b981',
-          'line-width': 6
+          'line-width': 6,
+          'line-opacity': 1.0
         }
       });
     }
 
     // Volitelná linka nejrychlejší alternativní trasy
-    if (!map.getSource('fastest-route')) {
+    const rawFastestCoords = getRouteCoordinates(props.fastestRoute);
+    const normalizedFastestCoords = (props.showFastestRoute && rawFastestCoords.length >= 2)
+      ? normalizeToLngLat(rawFastestCoords)
+      : [];
+
+    const fastestData: GeoJSON.Feature<GeoJSON.LineString> = {
+      type: 'Feature',
+      properties: {},
+      geometry: {
+        type: 'LineString',
+        coordinates: normalizedFastestCoords
+      }
+    };
+
+    const existingFastestSource = map.getSource('fastest-route') as maplibregl.GeoJSONSource | undefined;
+    if (!existingFastestSource) {
       map.addSource('fastest-route', {
         type: 'geojson',
-        data: {
-          type: 'FeatureCollection',
-          features: []
-        }
+        data: fastestData
       });
+    } else {
+      existingFastestSource.setData(fastestData);
     }
 
     if (!map.getLayer('fastest-route-corridor')) {
@@ -453,25 +485,6 @@ export function Map(props: MapEngineProps) {
         }
       });
     }
-
-    if (props.showFastestRoute && props.fastestRoute?.geometry && props.fastestRoute.geometry.length >= 2) {
-      const fastestSource = map.getSource('fastest-route') as maplibregl.GeoJSONSource | undefined;
-      if (fastestSource) {
-        fastestSource.setData({
-          type: 'FeatureCollection',
-          features: [
-            {
-              type: 'Feature',
-              properties: {},
-              geometry: {
-                type: 'LineString',
-                coordinates: props.fastestRoute.geometry.map(([lat, lng]) => [lng, lat])
-              }
-            }
-          ]
-        });
-      }
-    }
   };
 
   // 1. Inicializace MapLibre GL mapy se spolehlivým životním cyklem Reactu
@@ -479,10 +492,11 @@ export function Map(props: MapEngineProps) {
     if (!mapContainerRef.current || mapRef.current) return;
 
     let initialCenter = PRAGUE_CENTER_LNG_LAT;
+    const initialRouteCoords = normalizeToLngLat(getRouteCoordinates(activeRoute));
     if (props.center) {
-      initialCenter = [props.center[1], props.center[0]];
-    } else if (activeRoute?.geometry && activeRoute.geometry.length > 0) {
-      initialCenter = [activeRoute.geometry[0][1], activeRoute.geometry[0][0]];
+      initialCenter = props.center[0] > 30 ? [props.center[1], props.center[0]] : [props.center[0], props.center[1]];
+    } else if (initialRouteCoords.length > 0) {
+      initialCenter = initialRouteCoords[0];
     } else if (props.userLocation) {
       initialCenter = [props.userLocation.lng, props.userLocation.lat];
     }
@@ -575,7 +589,7 @@ export function Map(props: MapEngineProps) {
     const map = mapRef.current;
     if (!map) return;
     drawRoute(map);
-  }, [activeRoute?.geometry, props.showFastestRoute, props.fastestRoute?.geometry, isMapLoaded]);
+  }, [activeRoute, props.showFastestRoute, props.fastestRoute, isMapLoaded]);
 
   // 3. Plynulé vycentrování mapy / přizpůsobení geometrii
   const lastRecenterRef = useRef<number>(0);
@@ -585,36 +599,41 @@ export function Map(props: MapEngineProps) {
 
     if (props.recenterTrigger && props.recenterTrigger.timestamp > lastRecenterRef.current) {
       lastRecenterRef.current = props.recenterTrigger.timestamp;
+      const rc = props.recenterTrigger.coords;
+      const normalizedRc: [number, number] = rc[0] > 30 ? [rc[1], rc[0]] : [rc[0], rc[1]];
       map.flyTo({
-        center: [props.recenterTrigger.coords[1], props.recenterTrigger.coords[0]],
+        center: normalizedRc,
         zoom: 17,
         duration: 1000
       });
       return;
     }
 
-    if (activeRoute?.geometry && activeRoute.geometry.length >= 2) {
+    const routeCoords = normalizeToLngLat(getRouteCoordinates(activeRoute));
+    if (routeCoords.length >= 2) {
       if (isChildMode) {
-        const start = activeRoute.geometry[0];
+        const start = routeCoords[0];
         map.flyTo({
-          center: [start[1], start[0]],
+          center: start,
           zoom: 17,
           pitch: 0,
           duration: 1000
         });
       } else {
         const bounds = new maplibregl.LngLatBounds();
-        activeRoute.geometry.forEach(([lat, lng]) => bounds.extend([lng, lat]));
+        routeCoords.forEach((coord) => bounds.extend(coord));
         map.fitBounds(bounds, { padding: 60, duration: 1200 });
       }
     } else if (props.center) {
+      const c = props.center;
+      const normalizedCenter: [number, number] = c[0] > 30 ? [c[1], c[0]] : [c[0], c[1]];
       map.flyTo({
-        center: [props.center[1], props.center[0]],
+        center: normalizedCenter,
         zoom: 15,
         duration: 1000
       });
     }
-  }, [props.recenterTrigger, activeRoute?.geometry, isMapLoaded, isChildMode]);
+  }, [props.recenterTrigger, activeRoute, isMapLoaded, isChildMode]);
 
   // 4. Navigační puk polohy uživatele / dítěte s rotací šipky
   useEffect(() => {
@@ -740,8 +759,9 @@ export function Map(props: MapEngineProps) {
     if (!shouldShowHavens || !props.safeHavens || props.safeHavens.length === 0) return;
 
     let routeLine: ReturnType<typeof turf.lineString> | null = null;
-    if (!isSos && activeRoute?.geometry && activeRoute.geometry.length >= 2) {
-      routeLine = turf.lineString(activeRoute.geometry.map(([lat, lng]) => [lng, lat]));
+    const safeRouteCoords = normalizeToLngLat(getRouteCoordinates(activeRoute));
+    if (!isSos && safeRouteCoords.length >= 2) {
+      routeLine = turf.lineString(safeRouteCoords);
     }
 
     const filteredHavens = props.safeHavens.filter((h) => {
@@ -788,7 +808,7 @@ export function Map(props: MapEngineProps) {
 
       havenMarkersRef.current.push(marker);
     });
-  }, [isSos, props.layers?.havens, props.safeHavens, activeRoute?.geometry, props.proximityPoint]);
+  }, [isSos, props.layers?.havens, props.safeHavens, activeRoute, props.proximityPoint]);
 
   // 8. Chráněné přechody a semafory na trase (Checkpoints)
   useEffect(() => {
