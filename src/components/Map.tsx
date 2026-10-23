@@ -81,25 +81,25 @@ export interface MapEngineProps {
 
 const PRAGUE_CENTER_LNG_LAT: [number, number] = [14.4378, 50.0755];
 
-// 100% spolehlivý plnobarevný styl s oficiálními OpenStreetMap dlaždicemi
-const VIBRANT_OSM_STYLE: maplibregl.StyleSpecification = {
+// Oficiální barevné silniční dlaždice Esri World Street Map (zelené parky, modrá voda, žluté/bílé ulice)
+const VIBRANT_STREET_STYLE: maplibregl.StyleSpecification = {
   version: 8,
   sources: {
-    'osm-tiles': {
+    'street-tiles': {
       type: 'raster',
       tiles: [
-        'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}'
       ],
       tileSize: 256,
       maxzoom: 19,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      attribution: '&copy; Esri, HERE, Garmin, USGS, NGA, EPA, USDA, NPS'
     }
   },
   layers: [
     {
-      id: 'osm-base-layer',
+      id: 'street-base-layer',
       type: 'raster',
-      source: 'osm-tiles',
+      source: 'street-tiles',
       minzoom: 0,
       maxzoom: 19
     }
@@ -489,7 +489,7 @@ export function Map(props: MapEngineProps) {
 
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
-      style: VIBRANT_OSM_STYLE,
+      style: VIBRANT_STREET_STYLE,
       center: initialCenter,
       zoom: 14,
       maxZoom: 19,
