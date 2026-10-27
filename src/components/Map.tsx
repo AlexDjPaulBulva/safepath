@@ -149,8 +149,7 @@ export function Map(props: MapEngineProps) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [isCourseUp, setIsCourseUp] = useState(false);
-  const [pointsCount, setPointsCount] = useState<number>(0);
-  const [renderStatus, setRenderStatus] = useState<string>('');
+  const [svgPath, setSvgPath] = useState<string>('');
   const pendingRouteRef = useRef<[number, number][] | null>(null);
 
   // References pro zamezení stale closures při kliknutí do mapy
@@ -591,115 +590,51 @@ export function Map(props: MapEngineProps) {
     (props.startPoint && !props.endPoint) || (!props.startPoint && props.endPoint)
   );
 
-  // 2. Reaktivní parser a bezpečné vykreslení zelené trasy ve WebGL GeoJSON vrstvě (safe-route-line-source)
+  // 2. Synchronizace SVG overlaye trasy s plátnem mapy
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !routeData) {
-      setPointsCount(0);
-      setRenderStatus('');
-      if (map?.isStyleLoaded()) {
-        const src = map.getSource('safe-route-line-source') as maplibregl.GeoJSONSource | undefined;
-        if (src) {
-          src.setData({ type: 'FeatureCollection', features: [] });
-        }
-      }
+    if (!map || !validCoords || validCoords.length < 2) {
+      setSvgPath('');
       return;
     }
 
-    setPointsCount(validCoords.length);
-
-    if (validCoords.length < 2) {
-      if (map.isStyleLoaded()) {
-        const src = map.getSource('safe-route-line-source') as maplibregl.GeoJSONSource | undefined;
-        if (src) {
-          src.setData({ type: 'FeatureCollection', features: [] });
-        }
-      }
-      setRenderStatus('');
-      return;
-    }
-
-    const drawRouteNow = () => {
+    const syncPath = () => {
       try {
-        const geojsonFeature: GeoJSON.FeatureCollection<GeoJSON.LineString> = {
-          type: 'FeatureCollection',
-          features: [
-            {
-              type: 'Feature',
-              properties: {},
-              geometry: {
-                type: 'LineString',
-                coordinates: validCoords
-              }
-            }
-          ]
-        };
-
-        // 1. ZDROJ DAT (GeoJSON Source)
-        const existingSource = map.getSource('safe-route-line-source') as maplibregl.GeoJSONSource;
-        if (existingSource) {
-          existingSource.setData(geojsonFeature);
-        } else {
-          map.addSource('safe-route-line-source', {
-            type: 'geojson',
-            data: geojsonFeature
-          });
-        }
-
-        // 2. SPODNÍ ZÁŘE (AURA) - kontroluj a přidej nezávisle na zdroji!
-        if (!map.getLayer('safe-route-aura')) {
-          map.addLayer({
-            id: 'safe-route-aura',
-            type: 'line',
-            source: 'safe-route-line-source',
-            layout: { 'line-join': 'round', 'line-cap': 'round', 'visibility': 'visible' },
-            paint: {
-              'line-color': '#10b981',
-              'line-width': 16,
-              'line-opacity': 0.6,
-              'line-blur': 3
-            }
-          });
-        }
-
-        // 3. HLAVNÍ ZELENÝ KORIDOR - kontroluj a přidej nezávisle na zdroji!
-        if (!map.getLayer('safe-route-core')) {
-          map.addLayer({
-            id: 'safe-route-core',
-            type: 'line',
-            source: 'safe-route-line-source',
-            layout: { 'line-join': 'round', 'line-cap': 'round', 'visibility': 'visible' },
-            paint: {
-              'line-color': '#059669',
-              'line-width': 7,
-              'line-opacity': 1.0
-            }
-          });
-        }
-
-        // 4. VYTÁHNI VRSTVY NA ÚPLNÝ VRCHOL NAD DLAŽDICE ULIC
-        try {
-          map.moveLayer('safe-route-aura');
-          map.moveLayer('safe-route-core');
-        } catch (e) {
-          console.warn('moveLayer warning:', e);
-        }
-
-        const bounds = validCoords.reduce((b, c) => b.extend(c), new maplibregl.LngLatBounds(validCoords[0], validCoords[0]));
-        map.fitBounds(bounds, { padding: 80, duration: 600 });
-
-        map.triggerRepaint();
-
-        setRenderStatus(`VYKRESLENO (${validCoords.length} b.) [${validCoords[0][0].toFixed(2)}, ${validCoords[0][1].toFixed(2)}]`);
-
-      } catch (err: any) {
-        console.error('Chyba MapLibre při vykreslování:', err);
-        setRenderStatus(`CHYBA: ${err?.message || 'Neznámá'}`);
+        const d = validCoords
+          .map((coord, idx) => {
+            const pixel = map.project(coord);
+            return `${idx === 0 ? 'M' : 'L'} ${pixel.x.toFixed(1)} ${pixel.y.toFixed(1)}`;
+          })
+          .join(' ');
+        setSvgPath(d);
+      } catch (err) {
+        console.error('Chyba přepočtu trasy:', err);
       }
     };
 
-    drawRouteNow();
-  }, [routeData, validCoords, isMapLoaded]);
+    // Prvotní vykreslení
+    syncPath();
+
+    // Překreslování při jakémkoliv pohybu, rotaci, náklonu či zoomu mapy
+    map.on('move', syncPath);
+    map.on('zoom', syncPath);
+    map.on('rotate', syncPath);
+    map.on('pitch', syncPath);
+
+    // Automatické vycentrování na trasu při prvním načtení
+    const bounds = validCoords.reduce(
+      (b, c) => b.extend(c),
+      new maplibregl.LngLatBounds(validCoords[0], validCoords[0])
+    );
+    map.fitBounds(bounds, { padding: 90, duration: 600 });
+
+    return () => {
+      map.off('move', syncPath);
+      map.off('zoom', syncPath);
+      map.off('rotate', syncPath);
+      map.off('pitch', syncPath);
+    };
+  }, [validCoords, isMapLoaded]);
 
   // Podpora pro volitelnou linku nejrychlejší alternativní trasy
   useEffect(() => {
@@ -1063,10 +998,36 @@ export function Map(props: MapEngineProps) {
       {/* Plátno MapLibre GL WebGL mapy pevně roztažené přes celou plochu */}
       <div id="map" ref={mapContainerRef} className="w-full h-full absolute inset-0" />
 
-      {/* Dočasný ladicí štítek přímo do levého horního rohu mapy */}
-      <div className="absolute top-16 left-4 z-50 bg-black/90 text-emerald-400 text-xs px-2.5 py-1.5 rounded font-mono shadow-lg border border-emerald-500/40 pointer-events-none">
-        {mapRef.current?.getLayer('safe-route-core') ? '🟢 KORIDOR AKTIVNÍ' : '🔴 VRSTVA CHYBÍ'} ({validCoords.length} b.)
-      </div>
+      {/* Garantovaný SVG Route Overlay pro spolehlivé vykreslení bezpečné trasy */}
+      <svg 
+        className="absolute inset-0 w-full h-full pointer-events-none z-10"
+        style={{ overflow: 'visible' }}
+      >
+        {svgPath && (
+          <>
+            {/* Zelená podkladová aura */}
+            <path
+              d={svgPath}
+              fill="none"
+              stroke="#10b981"
+              strokeWidth="14"
+              strokeOpacity="0.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            {/* Hlavní sytý koridor bezpečné trasy */}
+            <path
+              d={svgPath}
+              fill="none"
+              stroke="#059669"
+              strokeWidth="6"
+              strokeOpacity="0.95"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </>
+        )}
+      </svg>
 
       {/* Tlačítko Course-Up: "Sledovat směr chůze" (3D rotace mapy s pohledem chodce) */}
       <button
