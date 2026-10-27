@@ -1,9 +1,9 @@
 /**
- * Bezpečnostní body podél trasy (semafory, MKS kamery, přechody, safe havens).
- * Dynamický spatial filtr podél koridoru trasy.
+ * Bezpečnostní body podél trasy (semafory, MKS kamery, přechody, safe havens, riziková místa).
+ * Přísný prostorový koridorový filtr na vyžádání.
  */
 
-export type SafetyPointType = 'traffic_signal' | 'crossing' | 'camera' | 'safe_haven' | 'light';
+export type SafetyPointType = 'traffic_signal' | 'crossing' | 'camera' | 'safe_haven' | 'hazard' | 'light';
 
 export interface SafetyPoint {
   id: string | number;
@@ -15,37 +15,90 @@ export interface SafetyPoint {
   safetyInfo?: string;
   is247?: boolean;
   phone?: string;
+  direction?: number; // azimut natočení kamery (0-360 stupňů)
+  fovAngle?: number;  // šířka zorného pole (např. 60 stupňů)
+  rangeMeters?: number; // dosah kamery
+  severity?: number;
   details?: Record<string, any>;
 }
 
 /**
- * Výpočet vzdálenosti bodu od linie trasy a vyfiltrování relevantních prvků
- * Maximální odstup od linie koridoru trasy je ve výchozím stavu 45 metrů.
+ * Spočítá přesnou kolmou vzdálenost bodu od linie trasy v metrech.
+ */
+export function getDistanceToPolylineMeters(
+  point: { lat: number; lng: number },
+  routeCoords: [number, number][]
+): number {
+  if (!routeCoords || routeCoords.length < 2) return Infinity;
+
+  let minDistance = Infinity;
+
+  // Přepočet stupňů zeměpisné šířky a délky na metry v okolí Prahy (lat ~50.08)
+  const latToM = 110540;
+  const lngToM = Math.cos((point.lat * Math.PI) / 180) * 111320;
+
+  const px = point.lng * lngToM;
+  const py = point.lat * latToM;
+
+  for (let i = 0; i < routeCoords.length - 1; i++) {
+    const ax = routeCoords[i][0] * lngToM;
+    const ay = routeCoords[i][1] * latToM;
+    const bx = routeCoords[i + 1][0] * lngToM;
+    const by = routeCoords[i + 1][1] * latToM;
+
+    const dx = bx - ax;
+    const dy = by - ay;
+    const lenSq = dx * dx + dy * dy;
+
+    let dist = 0;
+    if (lenSq === 0) {
+      const dpx = px - ax;
+      const dpy = py - ay;
+      dist = Math.sqrt(dpx * dpx + dpy * dpy);
+    } else {
+      // Projekce bodu na úsečku AB: parametr t oříznutý mezi 0 a 1
+      const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lenSq));
+      const projX = ax + t * dx;
+      const projY = ay + t * dy;
+      const dpx = px - projX;
+      const dpy = py - projY;
+      dist = Math.sqrt(dpx * dpx + dpy * dpy);
+    }
+
+    if (dist < minDistance) {
+      minDistance = dist;
+    }
+  }
+
+  return minDistance;
+}
+
+/**
+ * Ověří, zda bod leží v definovaném koridoru (výchozí 35 metrů od zelené linie).
  */
 export function isPointNearRoute(
   point: { lat: number; lng: number },
   routeCoords: [number, number][],
-  maxDistanceMeters = 45
+  maxDistanceMeters = 35
 ): boolean {
   if (!routeCoords || routeCoords.length < 2) return false;
-  return routeCoords.some(coord => {
-    const dLng = (point.lng - coord[0]) * Math.cos((coord[1] * Math.PI) / 180) * 111320;
-    const dLat = (point.lat - coord[1]) * 110540;
-    return (dLng * dLng + dLat * dLat) <= maxDistanceMeters * maxDistanceMeters;
-  });
+  return getDistanceToPolylineMeters(point, routeCoords) <= maxDistanceMeters;
 }
 
+/**
+ * Vybere POUZE body, jejichž kolmá vzdálenost od zelené čáry je menší než maxDistanceMeters (výchozí 35m).
+ */
 export function getSafetyPointsAlongRoute(
   routeCoords: [number, number][],
   allPoints: SafetyPoint[],
-  maxDistanceMeters = 45
+  maxDistanceMeters = 35
 ): SafetyPoint[] {
   if (!routeCoords || routeCoords.length < 2) return [];
   return allPoints.filter(point => isPointNearRoute(point, routeCoords, maxDistanceMeters));
 }
 
 /**
- * Sestaví sjednocený seznam bezpečnostních bodů ze všech dostupných datových zdrojů
+ * Sestaví sjednocený seznam bezpečnostních prvků ze všech dostupných datových zdrojů
  */
 export function buildSafetyPointsCollection(options: {
   snappedCrossings?: any[];
@@ -54,12 +107,13 @@ export function buildSafetyPointsCollection(options: {
   safetyNodes?: any[];
   staticCameras?: any[];
   safeHavens?: any[];
+  incidents?: any[];
 }): SafetyPoint[] {
   const points: SafetyPoint[] = [];
   const seenKeys = new Set<string>();
 
   const addPoint = (pt: SafetyPoint) => {
-    // Deduplikace podle přibližné polohy (cca 10 metrů) a typu
+    // Deduplikace podle přibližné polohy (cca 12 metrů) a typu
     const key = `${pt.type}_${pt.lat.toFixed(4)}_${pt.lng.toFixed(4)}`;
     if (seenKeys.has(key)) return;
     seenKeys.add(key);
@@ -98,7 +152,25 @@ export function buildSafetyPointsCollection(options: {
     });
   }
 
-  // 3. OSM dohledové kamery
+  // 3. Statické kamery s definovaným azimutem a zorným polem
+  if (options.staticCameras && Array.isArray(options.staticCameras)) {
+    options.staticCameras.forEach((cam, idx) => {
+      addPoint({
+        id: cam.id ?? `static_cam_${idx}`,
+        lat: cam.lat,
+        lng: cam.lng,
+        type: 'camera',
+        title: `Dohledová kamera MKS #${cam.id || idx + 1}`,
+        description: cam.description || 'Kamerový systém hl. m. Prahy',
+        safetyInfo: 'Pod stálým dohledem PČR a operačního střediska',
+        direction: typeof cam.direction === 'number' ? cam.direction : undefined,
+        fovAngle: typeof cam.angle === 'number' ? cam.angle : 60,
+        rangeMeters: typeof cam.rangeMeters === 'number' ? cam.rangeMeters : 45
+      });
+    });
+  }
+
+  // 4. OSM dohledové kamery
   if (options.osmCameras && Array.isArray(options.osmCameras)) {
     options.osmCameras.forEach((cam, idx) => {
       addPoint({
@@ -108,12 +180,13 @@ export function buildSafetyPointsCollection(options: {
         type: 'camera',
         title: `Dohledová kamera MKS #${cam.id || idx + 1}`,
         description: cam.operator || 'Městský kamerový systém hl. m. Prahy',
-        safetyInfo: 'Pod stálým dohledem PČR a Městské policie'
+        safetyInfo: 'Pod stálým dohledem PČR a Městské policie',
+        direction: typeof cam.direction === 'number' ? cam.direction : undefined
       });
     });
   }
 
-  // 4. Bezpečnostní uzly s kamerami
+  // 5. Bezpečnostní uzly s kamerami
   if (options.safetyNodes && Array.isArray(options.safetyNodes)) {
     options.safetyNodes.forEach((node, idx) => {
       if (node.type === 'camera' && node.coords && node.coords.length >= 2) {
@@ -130,21 +203,6 @@ export function buildSafetyPointsCollection(options: {
     });
   }
 
-  // 5. Statické kamery
-  if (options.staticCameras && Array.isArray(options.staticCameras)) {
-    options.staticCameras.forEach((cam, idx) => {
-      addPoint({
-        id: cam.id ?? `static_cam_${idx}`,
-        lat: cam.lat,
-        lng: cam.lng,
-        type: 'camera',
-        title: `Dohledová kamera MKS #${cam.id || idx + 1}`,
-        description: cam.description || 'Kamerový systém hl. m. Prahy',
-        safetyInfo: 'Pod stálým dohledem PČR a operačního střediska'
-      });
-    });
-  }
-
   // 6. Safe Havens (Záchranné stanice, lékárny, policejní služebny)
   if (options.safeHavens && Array.isArray(options.safeHavens)) {
     options.safeHavens.forEach((h, idx) => {
@@ -154,12 +212,31 @@ export function buildSafetyPointsCollection(options: {
         lat: h.lat,
         lng: h.lng,
         type: 'safe_haven',
-        title: h.name || 'Safe Haven (Bezpečný přístav)',
+        title: h.name || 'Safe Haven (Nouzový úkryt)',
         description: `Typ: ${h.type || 'Pohotovostní bod'}${h.phone ? ` • Tel: ${h.phone}` : ''}`,
-        safetyInfo: is247 ? '⚡ 24/7 Nepřetržitá pomoc a asistence' : 'Ověřené bezpečné útočiště pro děti a chodce',
+        safetyInfo: is247 ? '⚡ 24/7 Nepřetržitá pomoc a asistence' : 'Ověřené bezpečné útočiště na trase',
         is247,
         phone: h.phone
       });
+    });
+  }
+
+  // 7. Riziková místa (Hrozby / Kolizní body z nehodové databáze PČR / CDV)
+  if (options.incidents && Array.isArray(options.incidents)) {
+    options.incidents.forEach((inc, idx) => {
+      const coords = inc.coordinates;
+      if (Array.isArray(coords) && coords.length >= 2) {
+        addPoint({
+          id: inc.id ?? `incident_${idx}`,
+          lat: coords[0],
+          lng: coords[1],
+          type: 'hazard',
+          title: inc.title || 'Rizikové místo (Hrozba)',
+          description: inc.summary || inc.location_name || 'Evidované kolizní či nepřehledné místo',
+          safetyInfo: inc.recommendation || 'Doporučena zvýšená opatrnost a pozornost',
+          severity: inc.severity ?? 5
+        });
+      }
     });
   }
 

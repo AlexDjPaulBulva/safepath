@@ -50,8 +50,8 @@ type AppState = {
   setPairedChildrenList: (list: string[]) => void;
 
   // Statistiky bezpečnostních bodů podél aktivní trasy
-  activeSafetyStats: { camerasCount: number; crossingsCount: number };
-  setActiveSafetyStats: (stats: { camerasCount: number; crossingsCount: number }) => void;
+  activeSafetyStats: { camerasCount: number; crossingsCount: number; hazardsCount?: number; havensCount?: number };
+  setActiveSafetyStats: (stats: { camerasCount: number; crossingsCount: number; hazardsCount?: number; havensCount?: number }) => void;
 };
 
 const getInitialPairedCode = (): string | null => {
@@ -122,6 +122,6 @@ export const useAppStore = create<AppState>((set) => ({
   pairedChildrenList: [],
   setPairedChildrenList: (list) => set({ pairedChildrenList: list }),
 
-  activeSafetyStats: { camerasCount: 0, crossingsCount: 0 },
+  activeSafetyStats: { camerasCount: 0, crossingsCount: 0, hazardsCount: 0, havensCount: 0 },
   setActiveSafetyStats: (stats) => set({ activeSafetyStats: stats }),
 }));

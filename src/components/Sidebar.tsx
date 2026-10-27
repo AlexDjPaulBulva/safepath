@@ -169,6 +169,10 @@ function RouteCard({
     ? activeSafetyStats.crossingsCount
     : (route.snappedCrossings?.length || route.metrics?.snappedCrossingsCount || 0);
 
+  const hazardsCount = activeSafetyStats.hazardsCount !== undefined
+    ? activeSafetyStats.hazardsCount
+    : (route.metrics?.collisionIntersectionsCount ?? route.riskPoints ?? 0);
+
   return (
     <div className="w-full text-left p-4 rounded-xl border border-emerald-500/80 bg-emerald-950/20 shadow-[0_0_20px_rgba(16,185,129,0.12)] mb-3 relative overflow-hidden">
       {/* 3. Sjednocené záhlaví bez štítku "VYBRÁNO" a bez duplicit */}
@@ -254,10 +258,10 @@ function RouteCard({
           <span className="text-xl">⚠️</span>
           <div>
             <div className="text-[10px] text-slate-500 uppercase font-bold">Rizika (CDV)</div>
-            <div className={`font-bold leading-tight ${(route.metrics?.collisionIntersectionsCount ?? route.riskPoints) === 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-              {(route.metrics?.collisionIntersectionsCount ?? route.riskPoints) === 0
+            <div className={`font-bold leading-tight ${hazardsCount === 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              {hazardsCount === 0
                 ? '0 kolizních míst'
-                : `${route.metrics?.collisionIntersectionsCount ?? route.riskPoints} rizik`}
+                : `${hazardsCount} rizik`}
             </div>
             <div className="text-[10px] text-slate-400">databáze nehod PČR</div>
           </div>
