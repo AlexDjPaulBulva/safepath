@@ -621,17 +621,22 @@ export function Map(props: MapEngineProps) {
 
     const drawRouteNow = () => {
       try {
-        const existingSource = map.getSource('safe-route-line-source') as maplibregl.GeoJSONSource;
-        
-        const geojsonFeature: GeoJSON.Feature<GeoJSON.LineString> = {
-          type: 'Feature',
-          properties: {},
-          geometry: {
-            type: 'LineString',
-            coordinates: validCoords
-          }
+        const geojsonFeature: GeoJSON.FeatureCollection<GeoJSON.LineString> = {
+          type: 'FeatureCollection',
+          features: [
+            {
+              type: 'Feature',
+              properties: {},
+              geometry: {
+                type: 'LineString',
+                coordinates: validCoords
+              }
+            }
+          ]
         };
 
+        // 1. ZDROJ DAT (GeoJSON Source)
+        const existingSource = map.getSource('safe-route-line-source') as maplibregl.GeoJSONSource;
         if (existingSource) {
           existingSource.setData(geojsonFeature);
         } else {
@@ -639,27 +644,31 @@ export function Map(props: MapEngineProps) {
             type: 'geojson',
             data: geojsonFeature
           });
+        }
 
-          // Záře pod trasou
+        // 2. SPODNÍ ZÁŘE (AURA) - kontroluj a přidej nezávisle na zdroji!
+        if (!map.getLayer('safe-route-aura')) {
           map.addLayer({
             id: 'safe-route-aura',
             type: 'line',
             source: 'safe-route-line-source',
-            layout: { 'line-join': 'round', 'line-cap': 'round' },
+            layout: { 'line-join': 'round', 'line-cap': 'round', 'visibility': 'visible' },
             paint: {
               'line-color': '#10b981',
-              'line-width': 14,
-              'line-opacity': 0.5,
+              'line-width': 16,
+              'line-opacity': 0.6,
               'line-blur': 3
             }
           });
+        }
 
-          // Hlavní zelená linka
+        // 3. HLAVNÍ ZELENÝ KORIDOR - kontroluj a přidej nezávisle na zdroji!
+        if (!map.getLayer('safe-route-core')) {
           map.addLayer({
             id: 'safe-route-core',
             type: 'line',
             source: 'safe-route-line-source',
-            layout: { 'line-join': 'round', 'line-cap': 'round' },
+            layout: { 'line-join': 'round', 'line-cap': 'round', 'visibility': 'visible' },
             paint: {
               'line-color': '#059669',
               'line-width': 7,
@@ -668,14 +677,17 @@ export function Map(props: MapEngineProps) {
           });
         }
 
-        // KLÍČOVÝ KROK: Vytáhni vrstvy na absolutní vrchol nad rastrové dlaždice!
-        if (map.getLayer('safe-route-aura')) map.moveLayer('safe-route-aura');
-        if (map.getLayer('safe-route-core')) map.moveLayer('safe-route-core');
+        // 4. VYTÁHNI VRSTVY NA ÚPLNÝ VRCHOL NAD DLAŽDICE ULIC
+        try {
+          map.moveLayer('safe-route-aura');
+          map.moveLayer('safe-route-core');
+        } catch (e) {
+          console.warn('moveLayer warning:', e);
+        }
 
         const bounds = validCoords.reduce((b, c) => b.extend(c), new maplibregl.LngLatBounds(validCoords[0], validCoords[0]));
         map.fitBounds(bounds, { padding: 80, duration: 600 });
 
-        // Vynucený překreslovací cyklus WebGL
         map.triggerRepaint();
 
         setRenderStatus(`VYKRESLENO (${validCoords.length} b.) [${validCoords[0][0].toFixed(2)}, ${validCoords[0][1].toFixed(2)}]`);
@@ -1053,7 +1065,7 @@ export function Map(props: MapEngineProps) {
 
       {/* Dočasný ladicí štítek přímo do levého horního rohu mapy */}
       <div className="absolute top-16 left-4 z-50 bg-black/90 text-emerald-400 text-xs px-2.5 py-1.5 rounded font-mono shadow-lg border border-emerald-500/40 pointer-events-none">
-        {renderStatus || `Trasa: ${validCoords.length} bodů`}
+        {mapRef.current?.getLayer('safe-route-core') ? '🟢 KORIDOR AKTIVNÍ' : '🔴 VRSTVA CHYBÍ'} ({validCoords.length} b.)
       </div>
 
       {/* Tlačítko Course-Up: "Sledovat směr chůze" (3D rotace mapy s pohledem chodce) */}
