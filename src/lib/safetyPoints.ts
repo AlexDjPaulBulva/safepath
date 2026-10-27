@@ -22,21 +22,26 @@ export interface SafetyPoint {
  * Výpočet vzdálenosti bodu od linie trasy a vyfiltrování relevantních prvků
  * Maximální odstup od linie koridoru trasy je ve výchozím stavu 45 metrů.
  */
+export function isPointNearRoute(
+  point: { lat: number; lng: number },
+  routeCoords: [number, number][],
+  maxDistanceMeters = 45
+): boolean {
+  if (!routeCoords || routeCoords.length < 2) return false;
+  return routeCoords.some(coord => {
+    const dLng = (point.lng - coord[0]) * Math.cos((coord[1] * Math.PI) / 180) * 111320;
+    const dLat = (point.lat - coord[1]) * 110540;
+    return (dLng * dLng + dLat * dLat) <= maxDistanceMeters * maxDistanceMeters;
+  });
+}
+
 export function getSafetyPointsAlongRoute(
   routeCoords: [number, number][],
   allPoints: SafetyPoint[],
   maxDistanceMeters = 45
 ): SafetyPoint[] {
   if (!routeCoords || routeCoords.length < 2) return [];
-  return allPoints.filter(point => {
-    return routeCoords.some(coord => {
-      // coord je [lng, lat]
-      // Rychlý euklidovský odhad vzdálenosti v metrech
-      const dLng = (point.lng - coord[0]) * Math.cos((coord[1] * Math.PI) / 180) * 111320;
-      const dLat = (point.lat - coord[1]) * 110540;
-      return Math.sqrt(dLng * dLng + dLat * dLat) <= maxDistanceMeters;
-    });
-  });
+  return allPoints.filter(point => isPointNearRoute(point, routeCoords, maxDistanceMeters));
 }
 
 /**

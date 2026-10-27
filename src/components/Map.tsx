@@ -10,7 +10,7 @@ import { subscribeToChildSession, ChildSessionData } from '../lib/liveSync';
 import { RouteResult, getPointAlongRoute } from '../lib/routing';
 import { SafetyFeature, SafeHavenFeature } from '../lib/opendata';
 import { OSMSurveillanceFeature } from '../lib/osm-surveillance-harvester';
-import { SafetyPoint, getSafetyPointsAlongRoute, buildSafetyPointsCollection } from '../lib/safetyPoints';
+import { SafetyPoint, getSafetyPointsAlongRoute, buildSafetyPointsCollection, isPointNearRoute } from '../lib/safetyPoints';
 import { SafetyReveal } from '../types/safety';
 import { useVoiceNavigation } from '../hooks/useVoiceNavigation';
 import { useCompassHeading } from '../hooks/useCompassHeading';
@@ -143,6 +143,55 @@ const normalizeToLngLat = (coords: [number, number][]): [number, number][] => {
   });
 };
 
+const initSafeRouteLayers = (map: maplibregl.Map) => {
+  if (!map.isStyleLoaded()) return;
+
+  if (!map.getSource('safe-route-source')) {
+    map.addSource('safe-route-source', {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] }
+    });
+  }
+
+  // Spodní neonová záře
+  if (!map.getLayer('safe-route-glow')) {
+    map.addLayer({
+      id: 'safe-route-glow',
+      type: 'line',
+      source: 'safe-route-source',
+      layout: { 'line-join': 'round', 'line-cap': 'round' },
+      paint: {
+        'line-color': '#10b981',
+        'line-width': 14,
+        'line-opacity': 0.45,
+        'line-blur': 3
+      }
+    });
+  }
+
+  // Hlavní sytý koridor
+  if (!map.getLayer('safe-route-core')) {
+    map.addLayer({
+      id: 'safe-route-core',
+      type: 'line',
+      source: 'safe-route-source',
+      layout: { 'line-join': 'round', 'line-cap': 'round' },
+      paint: {
+        'line-color': '#059669',
+        'line-width': 6,
+        'line-opacity': 1.0
+      }
+    });
+  }
+
+  try {
+    if (map.getLayer('safe-route-glow')) map.moveLayer('safe-route-glow');
+    if (map.getLayer('safe-route-core')) map.moveLayer('safe-route-core');
+  } catch (e) {
+    console.warn('moveLayer safe-route error:', e);
+  }
+};
+
 export function Map(props: MapEngineProps) {
   console.log('DEBUG SAFE PATH DATA:', props.routeCoordinates);
 
@@ -150,7 +199,6 @@ export function Map(props: MapEngineProps) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [isCourseUp, setIsCourseUp] = useState(false);
-  const [svgPath, setSvgPath] = useState<string>('');
   const pendingRouteRef = useRef<[number, number][] | null>(null);
 
   // References pro zamezení stale closures při kliknutí do mapy
@@ -477,11 +525,13 @@ export function Map(props: MapEngineProps) {
 
     map.on('load', () => {
       map.resize();
+      initSafeRouteLayers(map);
       drawFastestRoute(map);
       setIsMapLoaded(true);
     });
 
     map.on('style.load', () => {
+      initSafeRouteLayers(map);
       drawFastestRoute(map);
     });
 
@@ -595,50 +645,48 @@ export function Map(props: MapEngineProps) {
     (props.startPoint && !props.endPoint) || (!props.startPoint && props.endPoint)
   );
 
-  // 2. Synchronizace SVG overlaye trasy s plátnem mapy
+  // 2. Nativní WebGL vykreslení bezpečné trasy na GPU (podpora 3D rotace a náklonu)
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !validCoords || validCoords.length < 2) {
-      setSvgPath('');
-      return;
+    if (!map || !isMapLoaded) return;
+
+    initSafeRouteLayers(map);
+
+    const geojson: GeoJSON.FeatureCollection<GeoJSON.LineString> = {
+      type: 'FeatureCollection',
+      features: (validCoords && validCoords.length >= 2) ? [
+        {
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'LineString',
+            coordinates: validCoords
+          }
+        }
+      ] : []
+    };
+
+    const src = map.getSource('safe-route-source') as maplibregl.GeoJSONSource | undefined;
+    if (src) {
+      src.setData(geojson);
     }
 
-    const syncPath = () => {
-      try {
-        const d = validCoords
-          .map((coord, idx) => {
-            const pixel = map.project(coord);
-            return `${idx === 0 ? 'M' : 'L'} ${pixel.x.toFixed(1)} ${pixel.y.toFixed(1)}`;
-          })
-          .join(' ');
-        setSvgPath(d);
-      } catch (err) {
-        console.error('Chyba přepočtu trasy:', err);
-      }
-    };
+    try {
+      if (map.getLayer('safe-route-glow')) map.moveLayer('safe-route-glow');
+      if (map.getLayer('safe-route-core')) map.moveLayer('safe-route-core');
+    } catch (e) {
+      console.warn('moveLayer safe-route warning:', e);
+    }
 
-    // Prvotní vykreslení
-    syncPath();
+    if (validCoords && validCoords.length >= 2) {
+      const bounds = validCoords.reduce(
+        (b, c) => b.extend(c),
+        new maplibregl.LngLatBounds(validCoords[0], validCoords[0])
+      );
+      map.fitBounds(bounds, { padding: 90, duration: 600 });
+    }
 
-    // Překreslování při jakémkoliv pohybu, rotaci, náklonu či zoomu mapy
-    map.on('move', syncPath);
-    map.on('zoom', syncPath);
-    map.on('rotate', syncPath);
-    map.on('pitch', syncPath);
-
-    // Automatické vycentrování na trasu při prvním načtení
-    const bounds = validCoords.reduce(
-      (b, c) => b.extend(c),
-      new maplibregl.LngLatBounds(validCoords[0], validCoords[0])
-    );
-    map.fitBounds(bounds, { padding: 90, duration: 600 });
-
-    return () => {
-      map.off('move', syncPath);
-      map.off('zoom', syncPath);
-      map.off('rotate', syncPath);
-      map.off('pitch', syncPath);
-    };
+    map.triggerRepaint();
   }, [validCoords, isMapLoaded]);
 
   // Podpora pro volitelnou linku nejrychlejší alternativní trasy
@@ -758,53 +806,43 @@ export function Map(props: MapEngineProps) {
     if (!map) return;
 
     // Start
-    if (props.startPoint && props.startPoint.name !== 'Moje aktuální poloha') {
-      if (!startMarkerRef.current) {
-        const startEl = document.createElement('div');
-        startEl.innerHTML = `
-          <div style="position: relative; display: flex; flex-direction: column; align-items: center; cursor: pointer;">
-            <div style="background: #064e3b; border: 2px solid #ffffff; color: #ffffff; font-size: 11px; font-weight: 800; text-transform: uppercase; padding: 2px 8px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.6); margin-bottom: 2px; white-space: nowrap;">
-              Start
-            </div>
-            <div style="width: 16px; height: 16px; border-radius: 50%; background: #10b981; border: 3px solid #ffffff; box-shadow: 0 0 12px rgba(16, 185, 129, 0.9), 0 3px 6px rgba(0,0,0,0.5);"></div>
-          </div>
-        `;
-        startMarkerRef.current = new maplibregl.Marker({ element: startEl, anchor: 'bottom' })
-          .setLngLat([props.startPoint.lng, props.startPoint.lat])
-          .addTo(map);
-      } else {
-        startMarkerRef.current.setLngLat([props.startPoint.lng, props.startPoint.lat]);
-      }
-    } else if (startMarkerRef.current) {
+    if (startMarkerRef.current) {
       startMarkerRef.current.remove();
       startMarkerRef.current = null;
     }
+    if (props.startPoint && props.startPoint.name !== 'Moje aktuální poloha') {
+      const startEl = document.createElement('div');
+      startEl.className = 'safepath-start-badge cursor-pointer transition-transform hover:scale-110';
+      startEl.innerHTML = `
+        <div style="background: #059669; border: 2px solid #ffffff; color: #ffffff; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; padding: 3px 12px; border-radius: 9999px; box-shadow: 0 4px 12px rgba(0,0,0,0.5), 0 0 10px rgba(16,185,129,0.7); min-width: 56px; text-align: center; user-select: none;">
+          START
+        </div>
+      `;
+      startMarkerRef.current = new maplibregl.Marker({ element: startEl, anchor: 'center' })
+        .setLngLat([props.startPoint.lng, props.startPoint.lat])
+        .addTo(map);
+    }
 
     // Cíl
-    if (props.endPoint) {
-      if (!endMarkerRef.current) {
-        const endEl = document.createElement('div');
-        endEl.innerHTML = `
-          <div style="position: relative; display: flex; flex-direction: column; align-items: center; cursor: pointer;">
-            <div style="background: #312e81; border: 2px solid #ffffff; color: #ffffff; font-size: 11px; font-weight: 800; text-transform: uppercase; padding: 2px 8px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.6); margin-bottom: 2px; white-space: nowrap;">
-              Cíl
-            </div>
-            <div style="width: 16px; height: 16px; border-radius: 50%; background: #6366f1; border: 3px solid #ffffff; box-shadow: 0 0 12px rgba(99, 102, 241, 0.9), 0 3px 6px rgba(0,0,0,0.5);"></div>
-          </div>
-        `;
-        endMarkerRef.current = new maplibregl.Marker({ element: endEl, anchor: 'bottom' })
-          .setLngLat([props.endPoint.lng, props.endPoint.lat])
-          .addTo(map);
-      } else {
-        endMarkerRef.current.setLngLat([props.endPoint.lng, props.endPoint.lat]);
-      }
-    } else if (endMarkerRef.current) {
+    if (endMarkerRef.current) {
       endMarkerRef.current.remove();
       endMarkerRef.current = null;
     }
+    if (props.endPoint) {
+      const endEl = document.createElement('div');
+      endEl.className = 'safepath-end-badge cursor-pointer transition-transform hover:scale-110';
+      endEl.innerHTML = `
+        <div style="background: #4f46e5; border: 2px solid #ffffff; color: #ffffff; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; padding: 3px 12px; border-radius: 9999px; box-shadow: 0 4px 12px rgba(0,0,0,0.5), 0 0 10px rgba(99,102,241,0.7); min-width: 56px; text-align: center; user-select: none;">
+          CÍL
+        </div>
+      `;
+      endMarkerRef.current = new maplibregl.Marker({ element: endEl, anchor: 'center' })
+        .setLngLat([props.endPoint.lng, props.endPoint.lat])
+        .addTo(map);
+    }
   }, [props.startPoint, props.endPoint]);
 
-  // 7. Dynamické filtrování a moderní vizuální styl bezpečnostních bodů podél aktivní trasy (semafory, MKS kamery, safe havens)
+  // 7. Obnova celé bezpečnostní sítě (Safe Havens, Kamery, Semafory)
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -817,12 +855,6 @@ export function Map(props: MapEngineProps) {
     crossingMarkersRef.current.forEach((m) => m.remove());
     crossingMarkersRef.current = [];
 
-    // Pokud nemáme platnou trasu s alespoň 2 body, resetujeme statistiky
-    if (!validCoords || validCoords.length < 2) {
-      setActiveSafetyStats({ camerasCount: 0, crossingsCount: 0 });
-      return;
-    }
-
     // 1. Shromáždění všech bezpečnostních prvků ze všech dostupných zdrojů
     const allCollectionPoints = buildSafetyPointsCollection({
       snappedCrossings: activeRoute?.snappedCrossings,
@@ -833,78 +865,107 @@ export function Map(props: MapEngineProps) {
       safeHavens: props.safeHavens
     });
 
-    // 2. Filtrování bodů podél koridoru trasy (Spatial Filter <= 45m)
-    const pointsAlongRoute = getSafetyPointsAlongRoute(validCoords, allCollectionPoints, 45);
+    const hasRoute = Boolean(validCoords && validCoords.length >= 2);
 
-    // Pokud je aktivní SOS režim nebo zapnutá vrstva havens, doplň i Safe Havens v širším okolí
-    const shouldShowHavens = isSos || props.layers?.havens || props.proximityPoint;
-    if (shouldShowHavens && props.safeHavens && props.safeHavens.length > 0) {
-      const havenPoints = buildSafetyPointsCollection({ safeHavens: props.safeHavens });
-      const wideHavens = isSos 
-        ? havenPoints 
-        : getSafetyPointsAlongRoute(validCoords, havenPoints, 150);
+    // 2. Synchronizace statistik se Sidebarem (body přímo na aktivní trase)
+    const onRouteCameras = allCollectionPoints.filter(
+      (p) => p.type === 'camera' && hasRoute && isPointNearRoute(p, validCoords, 45)
+    ).length;
 
-      wideHavens.forEach((havenPt) => {
-        if (!pointsAlongRoute.some((p) => p.id === havenPt.id)) {
-          pointsAlongRoute.push(havenPt);
-        }
-      });
-    }
+    const onRouteCrossings = allCollectionPoints.filter(
+      (p) => (p.type === 'traffic_signal' || p.type === 'crossing') && hasRoute && isPointNearRoute(p, validCoords, 45)
+    ).length;
 
-    // 3. Spočítat a synchronizovat statistiky se Sidebarem
-    const camerasCount = pointsAlongRoute.filter((p) => p.type === 'camera').length;
-    const crossingsCount = pointsAlongRoute.filter((p) => p.type === 'traffic_signal' || p.type === 'crossing').length;
-    setActiveSafetyStats({ camerasCount, crossingsCount });
+    setActiveSafetyStats({
+      camerasCount: onRouteCameras,
+      crossingsCount: onRouteCrossings
+    });
 
-    // 4. Vytvoření moderních mikro-odznaků (HTML MapLibre Markers) s popupy
-    pointsAlongRoute.forEach((point) => {
+    // 3. Vykreslení celé bezpečnostní sítě v městské části
+    allCollectionPoints.forEach((point) => {
+      const isOnRoute = hasRoute && isPointNearRoute(point, validCoords, 45);
       const el = document.createElement('div');
       el.className = 'safepath-safety-marker-container';
 
       if (point.type === 'safe_haven') {
-        // Safe Haven: Výrazný červený štít
+        // Safe Havens (Nouzové úkryty): VŠECHNY dostupné úkryty jako zřetelné červeno-zlaté štíty s pulzující aurou
         el.innerHTML = `
-          <div class="cursor-pointer transition-transform duration-200 hover:scale-125 flex items-center justify-center">
-            <div class="bg-rose-600 text-white shadow-lg p-2 rounded-full animate-bounce flex items-center justify-center ring-2 ring-white/80">
-              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <div class="safepath-haven-marker cursor-pointer transition-transform duration-200 hover:scale-125 flex items-center justify-center relative" title="${point.title}">
+            <span class="absolute -inset-1 rounded-full bg-rose-500/40 animate-ping"></span>
+            <div class="relative bg-gradient-to-br from-rose-600 via-rose-500 to-amber-500 text-white shadow-[0_0_15px_rgba(225,29,72,0.6)] p-2 rounded-full border-2 border-amber-300 ring-2 ring-rose-500/50 flex items-center justify-center">
+              <svg class="w-4 h-4 text-amber-100" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
               </svg>
             </div>
           </div>
         `;
       } else if (point.type === 'camera') {
-        // MKS Kamera: Indigo/modrý kruh
-        el.innerHTML = `
-          <div class="cursor-pointer transition-transform duration-200 hover:scale-125 flex items-center justify-center">
-            <div class="bg-slate-900 border border-cyan-400/80 text-cyan-300 shadow-lg p-1.5 rounded-full flex items-center justify-center ring-1 ring-cyan-500/30">
-              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M23 7l-7 5 7 5V7z"></path>
-                <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
-              </svg>
+        // MKS Kamery: body na trase zvýrazněné (zelený border, jasná aura), ostatní v decentním poloprůhledném stavu
+        if (isOnRoute) {
+          el.innerHTML = `
+            <div class="safepath-marker-wrap cursor-pointer transition-all duration-200 hover:scale-125 hover:z-50 flex items-center justify-center scale-110" title="${point.title} (na trase)">
+              <div class="bg-slate-900 border-2 border-emerald-400 text-cyan-300 shadow-[0_0_12px_rgba(16,185,129,0.7)] p-1.5 rounded-full flex items-center justify-center ring-2 ring-emerald-500/40">
+                <svg class="w-3.5 h-3.5 text-emerald-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M23 7l-7 5 7 5V7z"></path>
+                  <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+                </svg>
+              </div>
             </div>
-          </div>
-        `;
+          `;
+        } else {
+          el.innerHTML = `
+            <div class="safepath-marker-wrap cursor-pointer transition-all duration-200 hover:scale-110 hover:opacity-100 flex items-center justify-center opacity-50 hover:z-40" title="${point.title} (okolní síť)">
+              <div class="bg-slate-900/80 border border-cyan-400/50 text-cyan-400/80 shadow p-1 rounded-full flex items-center justify-center">
+                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M23 7l-7 5 7 5V7z"></path>
+                  <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+                </svg>
+              </div>
+            </div>
+          `;
+        }
       } else {
-        // Semafor / Přechod: Smaragdový kruh
+        // Semafor / Přechod: body na trase zvýrazněné, ostatní v decentním poloprůhledném stavu
         const isSignal = point.type === 'traffic_signal';
-        el.innerHTML = `
-          <div class="cursor-pointer transition-transform duration-200 hover:scale-125 flex items-center justify-center">
-            <div class="bg-emerald-500 text-white shadow-md ring-2 ring-white/80 p-1.5 rounded-full flex items-center justify-center">
-              ${isSignal ? `
-                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="7" y="2" width="10" height="20" rx="3"></rect>
-                  <circle cx="12" cy="7" r="1.5" fill="currentColor"></circle>
-                  <circle cx="12" cy="12" r="1.5" fill="currentColor"></circle>
-                  <circle cx="12" cy="17" r="1.5" fill="currentColor"></circle>
-                </svg>
-              ` : `
-                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7z"/>
-                </svg>
-              `}
+        if (isOnRoute) {
+          el.innerHTML = `
+            <div class="safepath-marker-wrap cursor-pointer transition-all duration-200 hover:scale-125 hover:z-50 flex items-center justify-center scale-110" title="${point.title} (na trase)">
+              <div class="bg-emerald-500 text-white shadow-[0_0_12px_rgba(16,185,129,0.8)] ring-2 ring-white p-1.5 rounded-full flex items-center justify-center">
+                ${isSignal ? `
+                  <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="7" y="2" width="10" height="20" rx="3"></rect>
+                    <circle cx="12" cy="7" r="1.5" fill="currentColor"></circle>
+                    <circle cx="12" cy="12" r="1.5" fill="currentColor"></circle>
+                    <circle cx="12" cy="17" r="1.5" fill="currentColor"></circle>
+                  </svg>
+                ` : `
+                  <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7z"/>
+                  </svg>
+                `}
+              </div>
             </div>
-          </div>
-        `;
+          `;
+        } else {
+          el.innerHTML = `
+            <div class="safepath-marker-wrap cursor-pointer transition-all duration-200 hover:scale-110 hover:opacity-100 flex items-center justify-center opacity-50 hover:z-40" title="${point.title} (okolní síť)">
+              <div class="bg-emerald-900/70 text-emerald-300 border border-emerald-500/50 shadow p-1 rounded-full flex items-center justify-center">
+                ${isSignal ? `
+                  <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="7" y="2" width="10" height="20" rx="3"></rect>
+                    <circle cx="12" cy="7" r="1.5" fill="currentColor"></circle>
+                    <circle cx="12" cy="12" r="1.5" fill="currentColor"></circle>
+                    <circle cx="12" cy="17" r="1.5" fill="currentColor"></circle>
+                  </svg>
+                ` : `
+                  <svg class="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7z"/>
+                  </svg>
+                `}
+              </div>
+            </div>
+          `;
+        }
       }
 
       // Informační Popup po klepnutí na bod
@@ -921,9 +982,10 @@ export function Map(props: MapEngineProps) {
             <span style="line-height: 1.2;">${point.title}</span>
           </div>
           ${point.description ? `<div style="font-size: 11px; color: #475569; margin-bottom: 4px; line-height: 1.3;">${point.description}</div>` : ''}
-          <div style="font-size: 10px; font-weight: 600; color: #15803d; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 3px 6px; display: flex; align-items: center; gap: 4px;">
-            <span>✓</span>
-            <span>${point.safetyInfo || 'Aktivní prvek bezpečného koridoru'}</span>
+          <div style="font-size: 10px; font-weight: 600; color: ${isOnRoute ? '#15803d' : '#0369a1'}; background: ${isOnRoute ? '#f0fdf4' : '#f0f9ff'}; border: 1px solid ${isOnRoute ? '#bbf7d0' : '#bae6fd'}; border-radius: 6px; padding: 3px 6px; display: flex; align-items: center; gap: 4px;">
+            <span>${point.type === 'safe_haven' ? '⚡ 24/7 Asistence' : (isOnRoute ? '✓ Přímo na trase' : 'ℹ️ Městská síť')}</span>
+            <span>•</span>
+            <span>${point.safetyInfo || 'Aktivní prvek'}</span>
           </div>
           ${point.phone ? `<div style="margin-top: 4px; font-size: 11px; font-weight: 600; color: #0284c7;">Tel: ${point.phone}</div>` : ''}
         </div>
@@ -1051,37 +1113,6 @@ export function Map(props: MapEngineProps) {
     <div className="relative w-full h-full overflow-hidden select-none bg-slate-950">
       {/* Plátno MapLibre GL WebGL mapy pevně roztažené přes celou plochu */}
       <div id="map" ref={mapContainerRef} className="w-full h-full absolute inset-0" />
-
-      {/* Garantovaný SVG Route Overlay pro spolehlivé vykreslení bezpečné trasy */}
-      <svg 
-        className="absolute inset-0 w-full h-full pointer-events-none z-10"
-        style={{ overflow: 'visible' }}
-      >
-        {svgPath && (
-          <>
-            {/* Zelená podkladová aura */}
-            <path
-              d={svgPath}
-              fill="none"
-              stroke="#10b981"
-              strokeWidth="14"
-              strokeOpacity="0.4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            {/* Hlavní sytý koridor bezpečné trasy */}
-            <path
-              d={svgPath}
-              fill="none"
-              stroke="#059669"
-              strokeWidth="6"
-              strokeOpacity="0.95"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </>
-        )}
-      </svg>
 
       {/* Tlačítko Course-Up: "Sledovat směr chůze" (3D rotace mapy s pohledem chodce) */}
       <button
@@ -1251,21 +1282,21 @@ export function Map(props: MapEngineProps) {
         </div>
       )}
 
-      {/* Stavová lišta spárovaného dítěte */}
+      {/* Minimalistická stavová pilulka spárovaného dítěte */}
       {pairedCode && isParentMode && (
-        <div className="absolute top-4 left-4 z-[400] hidden sm:flex items-center gap-2.5 bg-slate-900/90 backdrop-blur border border-slate-700/80 px-3.5 py-1.5 rounded-xl shadow-lg text-xs font-semibold text-slate-200">
-          <span className="relative flex h-2.5 w-2.5">
+        <div className="absolute top-3 left-3 z-[400] hidden sm:flex items-center gap-2 bg-slate-900/85 backdrop-blur-md border border-slate-700/70 px-2.5 py-1 rounded-full shadow-md text-[11px] font-semibold text-slate-200">
+          <span className="relative flex h-2 w-2">
             <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${isHeartbeatLost ? 'bg-slate-500' : (childData ? 'bg-lime-400' : 'bg-amber-400')} opacity-75`}></span>
-            <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${isHeartbeatLost ? 'bg-slate-400' : (childData ? 'bg-lime-500' : 'bg-amber-500')}`}></span>
+            <span className={`relative inline-flex rounded-full h-2 w-2 ${isHeartbeatLost ? 'bg-slate-400' : (childData ? 'bg-lime-500' : 'bg-amber-500')}`}></span>
           </span>
-          <span className={isHeartbeatLost ? 'text-slate-300 font-bold' : (childData ? 'text-lime-300 font-bold' : 'text-amber-300 font-medium')}>
-            {isHeartbeatLost ? 'Offline / Ztráta signálu' : (childData ? 'Dítě živě sledováno' : 'Čekám na polohu dítěte')}
+          <span className={isHeartbeatLost ? 'text-slate-300' : (childData ? 'text-lime-300 font-bold' : 'text-amber-300')}>
+            {isHeartbeatLost ? 'Offline' : (childData ? 'Dítě sledováno' : 'Čekám na polohu')}
           </span>
-          <span className="text-slate-400 font-mono">({pairedCode})</span>
+          <span className="text-slate-400 font-mono text-[10px]">({pairedCode})</span>
 
           {childData?.battery !== undefined && (
-            <span className={`text-[11px] font-mono font-bold px-1.5 py-0.5 rounded-md flex items-center gap-0.5 ${
-              isLowBattery ? 'bg-red-500/20 text-red-300 border border-red-500/40' : 'bg-slate-800 text-slate-300'
+            <span className={`text-[10px] font-mono px-1 py-0.5 rounded flex items-center gap-0.5 ${
+              isLowBattery ? 'bg-red-500/20 text-red-300' : 'bg-slate-800 text-slate-300'
             }`}>
               <span>{childData.charging ? '⚡' : (isLowBattery ? '🪫' : '🔋')}</span>
               <span>{childData.battery}%</span>
@@ -1275,8 +1306,8 @@ export function Map(props: MapEngineProps) {
           <button
             type="button"
             onClick={() => setShowSafePassModal(true)}
-            className="ml-1 bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 border border-emerald-500/40 hover:border-emerald-400 px-2 py-0.5 rounded-lg text-[11px] font-bold transition-colors flex items-center gap-1 active:scale-95"
-            title="Zobrazit / Vytisknout SafePass QR krizovou kartičku"
+            className="ml-0.5 bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 border border-emerald-500/40 px-1.5 py-0.5 rounded-full text-[10px] font-bold transition-colors flex items-center gap-1 active:scale-95"
+            title="SafePass QR"
           >
             <span>🏷️</span> SafePass
           </button>

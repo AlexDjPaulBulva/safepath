@@ -597,7 +597,7 @@ export function Sidebar({
           </div>
 
           {/* Samostatně scrollovatelný obsah */}
-          <div className="flex-1 overflow-y-auto space-y-3 pb-8 pr-1 custom-scrollbar">
+          <div className="flex-1 h-full max-h-screen overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700 space-y-3 pb-16">
             {routingError ? (
               <div className="p-4 rounded-xl bg-red-950/70 border border-red-500/70 text-red-200 text-sm shadow-lg">
                 <div className="flex items-center gap-2 font-bold mb-1.5 text-red-400">

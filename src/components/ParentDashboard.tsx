@@ -900,56 +900,50 @@ export function ParentDashboard({
           className="fixed z-[2500] pointer-events-none flex flex-col items-center gap-2 max-w-[calc(100vw-1.5rem)] md:max-w-md w-full"
           style={{ top: 'calc(0.75rem + env(safe-area-inset-top, 0px))', left: '50%', transform: 'translateX(-50%)' }}
         >
-          {/* 1. Karta pro odblokování GPS při PERMISSION_DENIED */}
+          {/* 1. Karta pro odblokování GPS při PERMISSION_DENIED (Diskrétní plovoucí pilulka) */}
           <AnimatePresence>
             {locationPermissionDenied && !userLocation && (
               <motion.div
-                initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                initial={{ opacity: 0, y: -10, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -15, scale: 0.95 }}
-                transition={{ duration: 0.25 }}
-                className="w-full flex justify-center pointer-events-auto"
+                exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                transition={{ duration: 0.2 }}
+                className="w-auto flex justify-center pointer-events-auto"
               >
                 <div 
                   onClick={() => setShowPermissionModal(true)}
-                  className="bg-slate-900/95 border-2 border-amber-500/90 hover:border-amber-400 text-white px-4 py-2.5 rounded-2xl shadow-[0_10px_25px_rgba(0,0,0,0.6),0_0_15px_rgba(245,158,11,0.3)] backdrop-blur-md flex items-center justify-between gap-3 cursor-pointer group transition-all"
+                  className="bg-slate-900/90 border border-amber-500/80 hover:border-amber-400 text-white px-3 py-1.5 rounded-full shadow-lg backdrop-blur-md flex items-center gap-2 cursor-pointer group transition-all text-xs"
+                  title="Poloha je zablokována. Klepněte pro návod k odblokování."
                 >
-                  <div className="flex items-center gap-2.5">
-                    <span className="flex h-3 w-3 relative shrink-0">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
-                    </span>
-                    <span className="text-xs md:text-sm font-bold tracking-wide text-amber-300 group-hover:text-amber-200">
-                      Poloha je zablokována. Klepněte pro návod k odblokování.
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRetryLocation();
-                      }}
-                      disabled={isRetryingLocation}
-                      className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 hover:text-white border border-amber-500/40 text-xs font-bold transition-colors flex items-center gap-1 active:scale-95"
-                    >
-                      {isRetryingLocation ? (
-                        <span className="animate-spin text-xs">⟳</span>
-                      ) : (
-                        <span className="text-xs">⟳</span>
-                      )}
-                      <span>Zkusit znovu</span>
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setLocationPermissionDenied(false);
-                      }}
-                      className="text-slate-400 hover:text-white text-xs px-1 font-bold transition-colors"
-                      aria-label="Zavřít"
-                    >
-                      ✕
-                    </button>
-                  </div>
+                  <span className="flex h-2 w-2 relative shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                  </span>
+                  <span className="text-[11px] font-bold tracking-wide text-amber-300 group-hover:text-amber-200">
+                    GPS zablokována
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRetryLocation();
+                    }}
+                    disabled={isRetryingLocation}
+                    className="px-1.5 py-0.5 rounded-md bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 hover:text-white border border-amber-500/30 text-[10px] font-bold transition-colors flex items-center gap-1 active:scale-95"
+                    title="Zkusit znovu zaměřit polohu"
+                  >
+                    <span>{isRetryingLocation ? '⟳...' : '⟳ Zkusit'}</span>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setLocationPermissionDenied(false);
+                    }}
+                    className="text-slate-400 hover:text-white text-xs px-1 font-bold transition-colors ml-0.5"
+                    aria-label="Trvale zavřít"
+                    title="Zavřít upozornění"
+                  >
+                    ✕
+                  </button>
                 </div>
               </motion.div>
             )}
