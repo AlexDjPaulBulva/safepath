@@ -1018,7 +1018,7 @@ export function ParentDashboard({
         )}
         <MapErrorBoundary fallback={<MapErrorFallback />}>
           <Map 
-            routeCoordinates={currentRoute?.coordinates || currentRoute?.geometry || currentRoute}
+            routeCoordinates={currentRoute}
             isSosActive={sosAlert.active || Boolean(activeSafeHaven)}
             routeA={routeA}
             routeB={routeB}

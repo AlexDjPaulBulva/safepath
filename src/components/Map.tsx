@@ -148,7 +148,7 @@ export function Map(props: MapEngineProps) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [isCourseUp, setIsCourseUp] = useState(false);
-  const pendingRouteRef = useRef<{ geojson: GeoJSON.Feature<GeoJSON.LineString>; coords: [number, number][] } | null>(null);
+  const pendingRouteRef = useRef<[number, number][] | null>(null);
 
   // References pro zamezení stale closures při kliknutí do mapy
   const onMapClickRef = useRef(props.onMapClick);
@@ -391,73 +391,37 @@ export function Map(props: MapEngineProps) {
     }
   };
 
-  // Pomocná funkce pro zaručené vykreslení GeoJSON zdrojů a vrstev trasy
-  const drawRoute = (map: maplibregl.Map) => {
-    if (!map.isStyleLoaded()) {
-      map.once('load', () => drawRoute(map));
+  // Univerzální funkce renderGeoJson a normalizace souřadnic
+  const renderGeoJson = (coords: [number, number][]) => {
+    if (!mapRef.current) return;
+    const source = mapRef.current.getSource('safe-route') as maplibregl.GeoJSONSource;
+    if (!source) {
+      pendingRouteRef.current = coords;
       return;
     }
 
-    const rawCoords = getRouteCoordinates(activeRoute);
-    const normalizedCoords = normalizeToLngLat(rawCoords);
-
-    const routeData: GeoJSON.Feature<GeoJSON.LineString> = {
+    source.setData({
       type: 'Feature',
       properties: {},
       geometry: {
         type: 'LineString',
-        coordinates: normalizedCoords
+        coordinates: coords
       }
-    };
+    });
 
-    const existingSafeSource = map.getSource('safe-route') as maplibregl.GeoJSONSource | undefined;
-    if (!existingSafeSource) {
-      map.addSource('safe-route', {
-        type: 'geojson',
-        data: routeData
-      });
-    } else {
-      existingSafeSource.setData(routeData);
-    }
+    console.log('✅ ZELENÁ TRASA ÚSPĚŠNĚ VYKRESLENA NA GPU, bodů:', coords.length);
 
-    // Podkladová záře (Aura)
-    if (!map.getLayer('safe-route-aura')) {
-      map.addLayer({
-        id: 'safe-route-aura',
-        type: 'line',
-        source: 'safe-route',
-        layout: {
-          'line-cap': 'round',
-          'line-join': 'round'
-        },
-        paint: {
-          'line-color': '#10b981',
-          'line-width': 14,
-          'line-blur': 6,
-          'line-opacity': 0.4
-        }
-      });
-    }
+    const bounds = coords.reduce(
+      (acc, c) => acc.extend(c),
+      new maplibregl.LngLatBounds(coords[0], coords[0])
+    );
+    mapRef.current.fitBounds(bounds, { padding: 80, duration: 800 });
+  };
 
-    // Hlavní koridor trasy
-    if (!map.getLayer('safe-route-corridor')) {
-      map.addLayer({
-        id: 'safe-route-corridor',
-        type: 'line',
-        source: 'safe-route',
-        layout: {
-          'line-cap': 'round',
-          'line-join': 'round'
-        },
-        paint: {
-          'line-color': '#10b981',
-          'line-width': 6,
-          'line-opacity': 1.0
-        }
-      });
-    }
+  // Pomocná funkce pro zaručené vykreslení vrstvy nejrychlejší alternativní trasy
+  const drawFastestRoute = (map: maplibregl.Map) => {
+    if (!map.isStyleLoaded()) return;
 
-    // Volitelná linka nejrychlejší alternativní trasy
     const rawFastestCoords = getRouteCoordinates(props.fastestRoute);
     const normalizedFastestCoords = (props.showFastestRoute && rawFastestCoords.length >= 2)
       ? normalizeToLngLat(rawFastestCoords)
@@ -533,22 +497,54 @@ export function Map(props: MapEngineProps) {
     // Navigační kompas v pravém horním rohu
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
 
+    const initSafeRouteLayers = (m: maplibregl.Map) => {
+      if (!m.getSource('safe-route')) {
+        m.addSource('safe-route', {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: [] }
+        });
+
+        m.addLayer({
+          id: 'safe-route-glow',
+          type: 'line',
+          source: 'safe-route',
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: {
+            'line-color': '#10b981',
+            'line-width': 12,
+            'line-opacity': 0.4,
+            'line-blur': 3
+          }
+        });
+
+        m.addLayer({
+          id: 'safe-route-line',
+          type: 'line',
+          source: 'safe-route',
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: {
+            'line-color': '#10b981',
+            'line-width': 6,
+            'line-opacity': 0.95
+          }
+        });
+      }
+
+      if (pendingRouteRef.current) {
+        renderGeoJson(pendingRouteRef.current);
+      }
+    };
+
     map.on('load', () => {
       map.resize();
-      if (pendingRouteRef.current) {
-        renderGeoJsonRoute(map, pendingRouteRef.current.geojson, pendingRouteRef.current.coords);
-      } else {
-        drawRoute(map);
-      }
+      initSafeRouteLayers(map);
+      drawFastestRoute(map);
       setIsMapLoaded(true);
     });
 
     map.on('style.load', () => {
-      if (pendingRouteRef.current) {
-        renderGeoJsonRoute(map, pendingRouteRef.current.geojson, pendingRouteRef.current.coords);
-      } else {
-        drawRoute(map);
-      }
+      initSafeRouteLayers(map);
+      drawFastestRoute(map);
     });
 
     map.on('click', (e: maplibregl.MapMouseEvent) => {
@@ -606,109 +602,12 @@ export function Map(props: MapEngineProps) {
     };
   }, []);
 
-  // Funkce pro garantované vložení/aktualizaci GeoJSON trasy s ověřením existence zdrojů i vrstev
-  const renderGeoJsonRoute = (map: maplibregl.Map, geojson: GeoJSON.Feature<GeoJSON.LineString>, coords: [number, number][]) => {
-    if (!map.isStyleLoaded()) return;
-
-    const existingSource = map.getSource('safe-path-source') as maplibregl.GeoJSONSource | undefined;
-    if (existingSource) {
-      existingSource.setData(geojson);
-    } else {
-      map.addSource('safe-path-source', {
-        type: 'geojson',
-        data: geojson
-      });
-    }
-
-    // Podkladová zelená záře
-    if (!map.getLayer('safe-path-glow')) {
-      map.addLayer({
-        id: 'safe-path-glow',
-        type: 'line',
-        source: 'safe-path-source',
-        layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: {
-          'line-color': '#10b981',
-          'line-width': 12,
-          'line-opacity': 0.45,
-          'line-blur': 4
-        }
-      });
-    }
-
-    // Hlavní sytá zelená linie koridoru: barva '#10b981', šířka 6px
-    if (!map.getLayer('safe-path-main')) {
-      map.addLayer({
-        id: 'safe-path-main',
-        type: 'line',
-        source: 'safe-path-source',
-        layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: {
-          'line-color': '#10b981',
-          'line-width': 6,
-          'line-opacity': 0.95
-        }
-      });
-    }
-
-    // Automatické vycentrování mapy na celou trasu
-    if (coords.length >= 2) {
-      const bounds = coords.reduce(
-        (acc, c) => acc.extend(c),
-        new maplibregl.LngLatBounds(coords[0], coords[0])
-      );
-      map.fitBounds(bounds, { padding: 80, duration: 600 });
-    }
-  };
-
-  const effectiveRouteCoordinates = props.routeCoordinates !== undefined 
+  const routeCoordinates = props.routeCoordinates !== undefined 
     ? props.routeCoordinates 
     : (activeRoute?.geometry || activeRoute);
 
-  // 1. Detekce a dekódování geometrie (podpora pole [lat, lng], [lng, lat], objektů i OSRM encoded polyline)
-  const decodedCoords: [number, number][] = useMemo(() => {
-    try {
-      let raw: any = effectiveRouteCoordinates;
-      if (raw && typeof raw === 'object') {
-        if (typeof raw.geometry === 'string') {
-          raw = raw.geometry;
-        } else if (typeof raw.coordinates === 'string') {
-          raw = raw.coordinates;
-        } else if (Array.isArray(raw.coordinates)) {
-          raw = raw.coordinates;
-        } else if (Array.isArray(raw.geometry)) {
-          raw = raw.geometry;
-        }
-      }
-
-      if (typeof raw === 'string' && raw.trim().length > 0) {
-        // OSRM encoded polyline dekodér -> vrátí [ [lat, lng], ... ]
-        const decoded = polyline.decode(raw.trim());
-        // Otočíme na GeoJSON standard [lng, lat]
-        return decoded.map(([lat, lng]: [number, number]) => [lng, lat]);
-      }
-
-      if (Array.isArray(raw) && raw.length >= 2) {
-        return (raw.map((pt: any): [number, number] => {
-          if (Array.isArray(pt)) {
-            return Number(pt[0]) > 30 ? [Number(pt[1]), Number(pt[0])] : [Number(pt[0]), Number(pt[1])];
-          }
-          if (pt && typeof pt === 'object') {
-            const lat = pt.lat ?? pt.latitude;
-            const lng = pt.lng ?? pt.longitude ?? pt.lon;
-            return [Number(lng), Number(lat)];
-          }
-          return [0, 0];
-        })).filter((c): c is [number, number] => c[0] !== 0 && c[1] !== 0 && !isNaN(c[0]));
-      }
-    } catch (err) {
-      console.warn('MapLibre: Chyba při zpracování geometrie trasy:', err);
-    }
-    return [];
-  }, [effectiveRouteCoordinates]);
-
   const hasBothPoints = Boolean(props.startPoint && props.endPoint);
-  const hasCalculatedRoute = decodedCoords.length >= 2 || Boolean(
+  const hasCalculatedRoute = Boolean(
     pendingRouteRef.current ||
     (activeRoute && ((activeRoute.geometry && activeRoute.geometry.length >= 2) || (activeRoute.segments && activeRoute.segments.length > 0)))
   );
@@ -717,51 +616,51 @@ export function Map(props: MapEngineProps) {
     (props.startPoint && !props.endPoint) || (!props.startPoint && props.endPoint)
   );
 
-  // 2. Reaktivní a garantované vykreslení trasy ve WebGL GeoJSON vrstvě (safe-path-source)
+  // 2. Reaktivní parser pro bezpečné vykreslení trasy ve WebGL GeoJSON vrstvě (safe-route)
   useEffect(() => {
-    if (!mapRef.current) return;
-    const map = mapRef.current;
-
-    if (decodedCoords.length < 2) {
+    let raw = routeCoordinates?.coordinates 
+      || routeCoordinates?.geometry?.coordinates 
+      || (Array.isArray(routeCoordinates?.geometry) || typeof routeCoordinates?.geometry === 'string' ? routeCoordinates.geometry : null)
+      || routeCoordinates;
+    if (!raw) {
       pendingRouteRef.current = null;
-      if (map.isStyleLoaded()) {
-        const existingSource = map.getSource('safe-path-source') as maplibregl.GeoJSONSource | undefined;
-        if (existingSource) {
-          existingSource.setData({ type: 'FeatureCollection', features: [] });
+      if (mapRef.current?.isStyleLoaded()) {
+        const source = mapRef.current.getSource('safe-route') as maplibregl.GeoJSONSource | undefined;
+        if (source) {
+          source.setData({ type: 'FeatureCollection', features: [] });
         }
       }
       return;
     }
 
-    const geojson: GeoJSON.Feature<GeoJSON.LineString> = {
-      type: 'Feature',
-      properties: {},
-      geometry: {
-        type: 'LineString',
-        coordinates: decodedCoords
-      }
-    };
-
-    // Uložíme trasu do paměti pro případné znovunačtení stylu / pozdější load
-    pendingRouteRef.current = { geojson, coords: decodedCoords };
-
-    const executeRender = () => {
-      renderGeoJsonRoute(map, geojson, decodedCoords);
-    };
-
-    if (map.isStyleLoaded()) {
-      executeRender();
-    } else {
-      map.once('load', executeRender);
+    // Pokud OSRM vrátilo string (encoded polyline)
+    if (typeof raw === 'string') {
+      raw = polyline.decode(raw).map(([lat, lng]) => [lng, lat]);
     }
-  }, [decodedCoords, isMapLoaded]);
+
+    const validCoords: [number, number][] = (Array.isArray(raw) ? raw : [])
+      .map((p: any) => {
+        if (Array.isArray(p)) {
+          return p[0] > 30 ? [Number(p[1]), Number(p[0])] : [Number(p[0]), Number(p[1])];
+        }
+        if (p && typeof p === 'object') {
+          return [Number(p.lng ?? p.longitude), Number(p.lat ?? p.latitude)];
+        }
+        return null;
+      })
+      .filter((p): p is [number, number] => p !== null && !isNaN(p[0]) && !isNaN(p[1]));
+
+    if (validCoords.length >= 2) {
+      renderGeoJson(validCoords);
+    }
+  }, [routeCoordinates]);
 
   // Podpora pro volitelnou linku nejrychlejší alternativní trasy
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    drawRoute(map);
-  }, [activeRoute, props.showFastestRoute, props.fastestRoute, isMapLoaded]);
+    drawFastestRoute(map);
+  }, [props.showFastestRoute, props.fastestRoute, isMapLoaded]);
 
   // 3. Plynulé vycentrování mapy / přizpůsobení geometrii
   const lastRecenterRef = useRef<number>(0);
