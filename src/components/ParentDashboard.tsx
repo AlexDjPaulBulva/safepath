@@ -11,6 +11,7 @@ import { getDistance } from '../lib/safety-engine';
 import { fetchOSMCameras, OSMSurveillanceFeature } from '../lib/osm-surveillance-harvester';
 import { reverseGeocode } from '../lib/geocoding';
 import { fetchOSMSafeHavens, SafeHavenFeature } from '../lib/opendata';
+import polyline from '@mapbox/polyline';
 
 import { SyncEngine, SyncMessage } from '../lib/sync-engine';
 import { useAppStore } from '../store/useAppStore';
@@ -432,7 +433,15 @@ export function ParentDashboard({
 
         if (!isCurrentRequest) return;
         setRouteA(rA);
-        setCurrentRoute(rA);
+        const rACoords = Array.isArray(rA?.geometry)
+          ? rA.geometry
+          : (typeof rA?.geometry === 'string' ? polyline.decode(rA.geometry).map(([lat, lng]) => [lat, lng]) : []);
+        setCurrentRoute({
+          ...rA,
+          coordinates: rACoords,
+          distance: rA?.distance,
+          duration: rA?.duration
+        });
         if (rA?.infoPoints && rA.infoPoints.length > 0) {
           setSafeStops(rA.infoPoints.map(p => ({ lat: p.lat, lng: p.lng, name: p.name })));
         } else {

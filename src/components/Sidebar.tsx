@@ -86,6 +86,41 @@ export function RouteSafetyBenefits() {
   );
 }
 
+export function extractRouteCoordinates(route: any): [number, number][] {
+  if (!route) return [];
+  let raw = route.coordinates 
+    || route.geometry?.coordinates 
+    || route.geometry 
+    || route.path 
+    || route.points 
+    || route.latlngs 
+    || (Array.isArray(route) ? route : null);
+
+  if (typeof raw === 'string') {
+    try {
+      raw = polyline.decode(raw).map(([lat, lng]: [number, number]) => [lat, lng]);
+    } catch (e) {
+      console.warn('Sidebar polyline decode error:', e);
+    }
+  }
+
+  if (Array.isArray(raw) && raw.length > 0) {
+    return raw;
+  }
+
+  if (route.segments && Array.isArray(route.segments)) {
+    const coords: [number, number][] = [];
+    route.segments.forEach((seg: any) => {
+      if (Array.isArray(seg.coordinates)) {
+        seg.coordinates.forEach((c: any) => coords.push(c));
+      }
+    });
+    if (coords.length > 0) return coords;
+  }
+
+  return [];
+}
+
 function RouteCard({ 
   route, 
   onMetricHover,
@@ -103,7 +138,14 @@ function RouteCard({
 }) {
   useEffect(() => {
     if (route) {
-      onRouteCalculated?.(route);
+      const routeCoordinatesArray = extractRouteCoordinates(route);
+      onRouteCalculated?.({
+        ...route,
+        coordinates: routeCoordinatesArray,
+        distance: route.distance,
+        duration: route.duration,
+        steps: route.navigationSteps || []
+      });
     }
   }, [route, onRouteCalculated]);
 
@@ -242,7 +284,14 @@ export function Sidebar({
 
   useEffect(() => {
     if (calculatedRoute) {
-      onRouteCalculated?.(calculatedRoute);
+      const routeCoordinatesArray = extractRouteCoordinates(calculatedRoute);
+      onRouteCalculated?.({
+        ...calculatedRoute,
+        coordinates: routeCoordinatesArray, // Pole bodů trasy z OSRM / routovací funkce
+        distance: calculatedRoute.distance,
+        duration: calculatedRoute.duration,
+        steps: calculatedRoute.navigationSteps || (calculatedRoute as any).steps || []
+      });
     }
   }, [calculatedRoute, onRouteCalculated]);
   // 1. Třípolohový ergonomický Bottom Sheet pro mobil:
