@@ -10,6 +10,7 @@ import { subscribeToChildSession, ChildSessionData } from '../lib/liveSync';
 import { RouteResult, getPointAlongRoute } from '../lib/routing';
 import { SafetyFeature, SafeHavenFeature } from '../lib/opendata';
 import { OSMSurveillanceFeature } from '../lib/osm-surveillance-harvester';
+import { SafetyPoint, getSafetyPointsAlongRoute, buildSafetyPointsCollection } from '../lib/safetyPoints';
 import { SafetyReveal } from '../types/safety';
 import { useVoiceNavigation } from '../hooks/useVoiceNavigation';
 import { useCompassHeading } from '../hooks/useCompassHeading';
@@ -175,11 +176,13 @@ export function Map(props: MapEngineProps) {
   const avatarMarkerRef = useRef<maplibregl.Marker | null>(null);
   const havenMarkersRef = useRef<maplibregl.Marker[]>([]);
   const crossingMarkersRef = useRef<maplibregl.Marker[]>([]);
+  const safetyMarkersRef = useRef<maplibregl.Marker[]>([]);
 
   const activeMode = useAppStore((state) => state.activeMode);
   const storePairedCode = useAppStore((state) => state.pairedChildCode);
   const setStoreChildLocation = useAppStore((state) => state.setChildLocation);
   const setChildSession = useAppStore((state) => state.setChildSession);
+  const setActiveSafetyStats = useAppStore((state) => state.setActiveSafetyStats);
 
   const pairedCode = storePairedCode || (typeof window !== 'undefined' ? localStorage.getItem('safepath_paired_child_code') : null);
   const isChildMode = props.activeProfiles?.includes('child') || activeMode === 'child';
@@ -530,6 +533,8 @@ export function Map(props: MapEngineProps) {
       clearTimeout(resizeTimer2);
       clearTimeout(resizeTimer3);
       setIsMapLoaded(false);
+      safetyMarkersRef.current.forEach((m) => m.remove());
+      safetyMarkersRef.current = [];
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;
@@ -799,105 +804,154 @@ export function Map(props: MapEngineProps) {
     }
   }, [props.startPoint, props.endPoint]);
 
-  // 7. Safe Havens (Záchranné stanice, lékárny, policie)
+  // 7. Dynamické filtrování a moderní vizuální styl bezpečnostních bodů podél aktivní trasy (semafory, MKS kamery, safe havens)
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
+    // Čištění a životní cyklus markerů - odstranění starých markerů
+    safetyMarkersRef.current.forEach((m) => m.remove());
+    safetyMarkersRef.current = [];
     havenMarkersRef.current.forEach((m) => m.remove());
     havenMarkersRef.current = [];
-
-    const shouldShowHavens = isSos || props.layers?.havens || props.proximityPoint;
-    if (!shouldShowHavens || !props.safeHavens || props.safeHavens.length === 0) return;
-
-    let routeLine: ReturnType<typeof turf.lineString> | null = null;
-    const safeRouteCoords = normalizeToLngLat(getRouteCoordinates(activeRoute));
-    if (!isSos && safeRouteCoords.length >= 2) {
-      routeLine = turf.lineString(safeRouteCoords);
-    }
-
-    const filteredHavens = props.safeHavens.filter((h) => {
-      if (isSos) return true;
-      if (routeLine) {
-        const pt = turf.point([h.lng, h.lat]);
-        return turf.pointToLineDistance(pt, routeLine, { units: 'meters' }) <= 150;
-      }
-      return false;
-    });
-
-    filteredHavens.forEach((haven) => {
-      const havenEl = document.createElement('div');
-      const is247 = Boolean(haven.is247);
-      const icon = haven.type === 'police' ? '👮' : (haven.type === 'pharmacy' ? '💊' : (haven.type === 'fire_station' ? '🚒' : (haven.type === 'fuel' ? '⛽' : '🛡️')));
-
-      havenEl.className = 'safepath-haven-marker';
-      havenEl.innerHTML = `
-        <div style="position: relative; display: flex; align-items: center; justify-content: center; cursor: pointer;">
-          ${is247 ? `
-            <div style="position: absolute; top: -20px; background: #0f172a; border: 1px solid #eab308; color: #facc15; font-size: 9px; font-weight: bold; padding: 1px 4px; border-radius: 4px; white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.5);">
-              24/7
-            </div>
-          ` : ''}
-          <div style="width: 28px; height: 28px; border-radius: 8px; background: ${is247 ? '#ca8a04' : '#2563eb'}; border: 2px solid #ffffff; box-shadow: 0 0 10px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; font-size: 14px;">
-            ${icon}
-          </div>
-        </div>
-      `;
-
-      const popup = new maplibregl.Popup({ offset: 15 }).setHTML(`
-        <div style="font-family: sans-serif; color: #0f172a; padding: 4px; font-size: 12px; min-width: 140px;">
-          <div style="font-weight: bold; font-size: 13px; margin-bottom: 4px; border-bottom: 1px solid #cbd5e1; padding-bottom: 2px; color: #0f172a;">${haven.name}</div>
-          <div style="color: #475569; margin-bottom: 2px;">Typ: ${haven.type}</div>
-          ${haven.phone ? `<div style="color: #0369a1; font-weight: 600;">Tel: ${haven.phone}</div>` : ''}
-          ${is247 ? `<div style="color: #b45309; font-weight: bold; margin-top: 4px;">⚡ 24/7 Pohotovost</div>` : ''}
-        </div>
-      `);
-
-      const marker = new maplibregl.Marker({ element: havenEl })
-        .setLngLat([haven.lng, haven.lat])
-        .setPopup(popup)
-        .addTo(map);
-
-      havenMarkersRef.current.push(marker);
-    });
-  }, [isSos, props.layers?.havens, props.safeHavens, activeRoute, props.proximityPoint]);
-
-  // 8. Chráněné přechody a semafory na trase (Checkpoints)
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-
     crossingMarkersRef.current.forEach((m) => m.remove());
     crossingMarkersRef.current = [];
 
-    if (!activeRoute?.snappedCrossings || activeRoute.snappedCrossings.length === 0) return;
+    // Pokud nemáme platnou trasu s alespoň 2 body, resetujeme statistiky
+    if (!validCoords || validCoords.length < 2) {
+      setActiveSafetyStats({ camerasCount: 0, crossingsCount: 0 });
+      return;
+    }
 
-    activeRoute.snappedCrossings.forEach((crossing) => {
-      const isSignal = crossing.hasSignals || crossing.crossingType === 'traffic_signals';
+    // 1. Shromáždění všech bezpečnostních prvků ze všech dostupných zdrojů
+    const allCollectionPoints = buildSafetyPointsCollection({
+      snappedCrossings: activeRoute?.snappedCrossings,
+      staticCrossings: staticSafetyData?.crossings as any[],
+      osmCameras: props.osmCameras,
+      safetyNodes: props.safetyNodes,
+      staticCameras: staticSafetyData?.cameras as any[],
+      safeHavens: props.safeHavens
+    });
+
+    // 2. Filtrování bodů podél koridoru trasy (Spatial Filter <= 45m)
+    const pointsAlongRoute = getSafetyPointsAlongRoute(validCoords, allCollectionPoints, 45);
+
+    // Pokud je aktivní SOS režim nebo zapnutá vrstva havens, doplň i Safe Havens v širším okolí
+    const shouldShowHavens = isSos || props.layers?.havens || props.proximityPoint;
+    if (shouldShowHavens && props.safeHavens && props.safeHavens.length > 0) {
+      const havenPoints = buildSafetyPointsCollection({ safeHavens: props.safeHavens });
+      const wideHavens = isSos 
+        ? havenPoints 
+        : getSafetyPointsAlongRoute(validCoords, havenPoints, 150);
+
+      wideHavens.forEach((havenPt) => {
+        if (!pointsAlongRoute.some((p) => p.id === havenPt.id)) {
+          pointsAlongRoute.push(havenPt);
+        }
+      });
+    }
+
+    // 3. Spočítat a synchronizovat statistiky se Sidebarem
+    const camerasCount = pointsAlongRoute.filter((p) => p.type === 'camera').length;
+    const crossingsCount = pointsAlongRoute.filter((p) => p.type === 'traffic_signal' || p.type === 'crossing').length;
+    setActiveSafetyStats({ camerasCount, crossingsCount });
+
+    // 4. Vytvoření moderních mikro-odznaků (HTML MapLibre Markers) s popupy
+    pointsAlongRoute.forEach((point) => {
       const el = document.createElement('div');
-      el.innerHTML = `
-        <div style="width: 24px; height: 24px; border-radius: 50%; background: #0f172a; border: 2px solid ${isSignal ? '#10b981' : '#34d399'}; box-shadow: 0 0 8px rgba(16,185,129,0.7); display: flex; align-items: center; justify-content: center; font-size: 11px; cursor: pointer;">
-          ${isSignal ? '🚦' : '🚸'}
-        </div>
-      `;
+      el.className = 'safepath-safety-marker-container';
 
-      const popup = new maplibregl.Popup({ offset: 12 }).setHTML(`
-        <div style="font-family: sans-serif; color: #0f172a; padding: 4px; font-size: 11px; min-width: 140px;">
-          <div style="font-weight: bold; color: #059669; margin-bottom: 2px;">
-            ${isSignal ? '🚦 Řízený semafor' : '🚸 Přechod pro chodce'}
+      if (point.type === 'safe_haven') {
+        // Safe Haven: Výrazný červený štít
+        el.innerHTML = `
+          <div class="cursor-pointer transition-transform duration-200 hover:scale-125 flex items-center justify-center">
+            <div class="bg-rose-600 text-white shadow-lg p-2 rounded-full animate-bounce flex items-center justify-center ring-2 ring-white/80">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              </svg>
+            </div>
           </div>
-          <div style="color: #334155;">${crossing.streetName || 'Bezpečný uzel pro přecházení'}</div>
+        `;
+      } else if (point.type === 'camera') {
+        // MKS Kamera: Indigo/modrý kruh
+        el.innerHTML = `
+          <div class="cursor-pointer transition-transform duration-200 hover:scale-125 flex items-center justify-center">
+            <div class="bg-slate-900 border border-cyan-400/80 text-cyan-300 shadow-lg p-1.5 rounded-full flex items-center justify-center ring-1 ring-cyan-500/30">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M23 7l-7 5 7 5V7z"></path>
+                <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+              </svg>
+            </div>
+          </div>
+        `;
+      } else {
+        // Semafor / Přechod: Smaragdový kruh
+        const isSignal = point.type === 'traffic_signal';
+        el.innerHTML = `
+          <div class="cursor-pointer transition-transform duration-200 hover:scale-125 flex items-center justify-center">
+            <div class="bg-emerald-500 text-white shadow-md ring-2 ring-white/80 p-1.5 rounded-full flex items-center justify-center">
+              ${isSignal ? `
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="7" y="2" width="10" height="20" rx="3"></rect>
+                  <circle cx="12" cy="7" r="1.5" fill="currentColor"></circle>
+                  <circle cx="12" cy="12" r="1.5" fill="currentColor"></circle>
+                  <circle cx="12" cy="17" r="1.5" fill="currentColor"></circle>
+                </svg>
+              ` : `
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7z"/>
+                </svg>
+              `}
+            </div>
+          </div>
+        `;
+      }
+
+      // Informační Popup po klepnutí na bod
+      const popup = new maplibregl.Popup({ 
+        offset: 14, 
+        closeButton: true,
+        className: 'safepath-modern-popup' 
+      }).setHTML(`
+        <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 6px 8px; min-width: 170px; max-width: 240px; color: #0f172a;">
+          <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-weight: 700; font-size: 13px; color: ${
+            point.type === 'safe_haven' ? '#e11d48' : point.type === 'camera' ? '#0891b2' : '#059669'
+          };">
+            <span>${point.type === 'safe_haven' ? '🛡️' : point.type === 'camera' ? '🎥' : (point.type === 'traffic_signal' ? '🚦' : '🚸')}</span>
+            <span style="line-height: 1.2;">${point.title}</span>
+          </div>
+          ${point.description ? `<div style="font-size: 11px; color: #475569; margin-bottom: 4px; line-height: 1.3;">${point.description}</div>` : ''}
+          <div style="font-size: 10px; font-weight: 600; color: #15803d; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 3px 6px; display: flex; align-items: center; gap: 4px;">
+            <span>✓</span>
+            <span>${point.safetyInfo || 'Aktivní prvek bezpečného koridoru'}</span>
+          </div>
+          ${point.phone ? `<div style="margin-top: 4px; font-size: 11px; font-weight: 600; color: #0284c7;">Tel: ${point.phone}</div>` : ''}
         </div>
       `);
 
       const marker = new maplibregl.Marker({ element: el })
-        .setLngLat([crossing.lng, crossing.lat])
+        .setLngLat([point.lng, point.lat])
         .setPopup(popup)
         .addTo(map);
 
-      crossingMarkersRef.current.push(marker);
+      safetyMarkersRef.current.push(marker);
     });
-  }, [activeRoute?.snappedCrossings]);
+
+    return () => {
+      safetyMarkersRef.current.forEach((m) => m.remove());
+      safetyMarkersRef.current = [];
+    };
+  }, [
+    validCoords, 
+    activeRoute, 
+    props.osmCameras, 
+    props.safetyNodes, 
+    props.safeHavens, 
+    isSos, 
+    props.layers?.havens, 
+    props.proximityPoint, 
+    setActiveSafetyStats
+  ]);
 
   // 9. Živý marker dítěte pro rodičovský režim
   useEffect(() => {

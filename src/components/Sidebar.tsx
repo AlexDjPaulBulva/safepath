@@ -153,13 +153,21 @@ function RouteCard({
     return null;
   }
 
+  const activeSafetyStats = useAppStore((state) => state.activeSafetyStats);
+
   const durationMinutes = route.duration;
   const distanceText = `${route.distance.toFixed(2)} km`;
-  const camerasCount = Math.max(
-    3,
-    route.metrics?.camerasNearbyCount ||
-    (route.cameraCoverage > 0 ? Math.round(route.cameraCoverage / 12) : 5)
-  );
+  const camerasCount = activeSafetyStats.camerasCount > 0
+    ? activeSafetyStats.camerasCount
+    : Math.max(
+        3,
+        route.metrics?.camerasNearbyCount ||
+        (route.cameraCoverage > 0 ? Math.round(route.cameraCoverage / 12) : 5)
+      );
+
+  const crossingsCount = activeSafetyStats.crossingsCount > 0
+    ? activeSafetyStats.crossingsCount
+    : (route.snappedCrossings?.length || route.metrics?.snappedCrossingsCount || 0);
 
   return (
     <div className="w-full text-left p-4 rounded-xl border border-emerald-500/80 bg-emerald-950/20 shadow-[0_0_20px_rgba(16,185,129,0.12)] mb-3 relative overflow-hidden">
@@ -232,7 +240,7 @@ function RouteCard({
           <div>
             <div className="text-[10px] text-slate-500 uppercase font-bold">Přecházení</div>
             <div className="font-bold text-emerald-400 leading-tight">
-              100 % semaforů
+              {crossingsCount > 0 ? `${crossingsCount} semaforů / přechodů` : '100 % semaforů'}
             </div>
             <div className="text-[10px] text-slate-400">0 neřízených křížení</div>
           </div>
