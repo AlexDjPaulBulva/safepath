@@ -16,16 +16,21 @@ const readStoredMode = (): 'parent' | 'night_girl' => {
 };
 
 export interface SafePathAppProps {
+  routeData?: any;
+  currentRouteData?: any;
   currentRoute?: any;
   onRouteCalculated?: (route: any) => void;
 }
 
 export default function SafePathApp({ 
+  routeData: propRouteData,
+  currentRouteData: propCurrentRouteData,
   currentRoute: propCurrentRoute, 
   onRouteCalculated: propOnRouteCalculated 
 }: SafePathAppProps = {}) {
   const [internalRoute, setInternalRoute] = useState<any>(null);
-  const currentRoute = propCurrentRoute !== undefined ? propCurrentRoute : internalRoute;
+  const currentRouteData = propRouteData ?? propCurrentRouteData ?? propCurrentRoute ?? internalRoute;
+  const currentRoute = currentRouteData;
   const handleRouteCalculated = (route: any) => {
     setInternalRoute(route);
     propOnRouteCalculated?.(route);
@@ -165,7 +170,9 @@ export default function SafePathApp({
           initialProfiles={initialProfiles}
           onBackToMenu={() => setAppMode('login')}
           onLoginClick={() => setAppMode('login')}
-          currentRoute={currentRoute}
+          routeData={currentRouteData}
+          currentRouteData={currentRouteData}
+          currentRoute={currentRouteData}
           onRouteCalculated={handleRouteCalculated}
         />
       )}

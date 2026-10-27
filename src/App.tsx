@@ -4,12 +4,17 @@ import SafePathApp from './components/SafePathApp';
 export { SafePathApp };
 
 export default function App() {
-  const [currentRoute, setCurrentRoute] = useState<any>(null);
+  const [currentRouteData, setCurrentRouteData] = useState<any>(null);
 
   return (
     <SafePathApp 
-      currentRoute={currentRoute}
-      onRouteCalculated={setCurrentRoute}
+      routeData={currentRouteData}
+      currentRouteData={currentRouteData}
+      currentRoute={currentRouteData}
+      onRouteCalculated={(route) => {
+        console.log('App received route:', route);
+        setCurrentRouteData(route);
+      }}
     />
   );
 }

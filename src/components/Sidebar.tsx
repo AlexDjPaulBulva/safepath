@@ -88,10 +88,12 @@ export function RouteSafetyBenefits() {
 
 function RouteCard({ 
   route, 
-  onMetricHover
+  onMetricHover,
+  onRouteCalculated
 }: { 
   route: RouteStats | null; 
   onMetricHover: (reveal: SafetyReveal | null) => void;
+  onRouteCalculated?: (route: any) => void;
   layers?: any;
   onToggleLayer?: any;
   routeId?: 'A' | 'B' | 'C';
@@ -99,6 +101,12 @@ function RouteCard({
   onSelect?: () => void;
   isSingleRoute?: boolean;
 }) {
+  useEffect(() => {
+    if (route) {
+      onRouteCalculated?.(route);
+    }
+  }, [route, onRouteCalculated]);
+
   if (!route) {
     return null;
   }
@@ -230,12 +238,13 @@ export function Sidebar({
   isRoutingLoading = false, routingError = null,
   userLocation = null, onRecenterGps, onRouteCalculated
 }: SidebarProps) {
+  const calculatedRoute = selectedRoute === 'A' ? routeA : selectedRoute === 'B' ? (routeB || routeA) : (routeC || routeA);
+
   useEffect(() => {
-    const active = selectedRoute === 'A' ? routeA : selectedRoute === 'B' ? (routeB || routeA) : (routeC || routeA);
-    if (active && onRouteCalculated) {
-      onRouteCalculated(active);
+    if (calculatedRoute) {
+      onRouteCalculated?.(calculatedRoute);
     }
-  }, [routeA, routeB, routeC, selectedRoute, onRouteCalculated]);
+  }, [calculatedRoute, onRouteCalculated]);
   // 1. Třípolohový ergonomický Bottom Sheet pro mobil:
   // - minimized: tenká spodní lišta (cca 48px)
   // - peek: výchozí náhled s drag lištou a kompaktními vstupy (cca 148px)
@@ -558,6 +567,7 @@ export function Sidebar({
                 <RouteCard 
                   route={routeA} 
                   onMetricHover={onMetricHover}
+                  onRouteCalculated={onRouteCalculated}
                 />
 
                 {/* Výrazné tlačítko: Odeslat trasu dítěti */}

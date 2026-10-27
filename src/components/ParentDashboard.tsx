@@ -34,6 +34,8 @@ export function ParentDashboard({
   onLoginClick, 
   onBackToMenu,
   initialProfiles = ['parent'],
+  routeData: propRouteData,
+  currentRouteData: propCurrentRouteData,
   currentRoute: propCurrentRoute,
   onRouteCalculated: propOnRouteCalculated
 }: { 
@@ -41,15 +43,19 @@ export function ParentDashboard({
   onLoginClick?: () => void; 
   onBackToMenu?: () => void; 
   initialProfiles?: string[]; 
+  routeData?: any;
+  currentRouteData?: any;
   currentRoute?: any;
   onRouteCalculated?: (route: any) => void;
 }) {
   const [internalRoute, setInternalRoute] = useState<any>(null);
-  const currentRoute = propCurrentRoute !== undefined ? propCurrentRoute : internalRoute;
-  const setCurrentRoute = (route: any) => {
+  const currentRouteData = propRouteData ?? propCurrentRouteData ?? propCurrentRoute ?? internalRoute;
+  const currentRoute = currentRouteData;
+  const setCurrentRouteData = (route: any) => {
     setInternalRoute(route);
     propOnRouteCalculated?.(route);
   };
+  const setCurrentRoute = setCurrentRouteData;
 
   const activeMode = useAppStore((state) => state.activeMode);
   const setActiveMode = useAppStore((state) => state.setActiveMode);
@@ -863,7 +869,10 @@ export function ParentDashboard({
           activeProfiles={activeProfiles}
           activeMode={activeMode}
           onMetricHover={setSafetyReveal}
-          onRouteCalculated={setCurrentRoute}
+          onRouteCalculated={(route) => {
+            console.log('App received route:', route);
+            setCurrentRouteData(route);
+          }}
           isRoutingLoading={isRoutingLoading}
           routingError={routingError}
           userLocation={userLocation}
@@ -1018,7 +1027,8 @@ export function ParentDashboard({
         )}
         <MapErrorBoundary fallback={<MapErrorFallback />}>
           <Map 
-            routeCoordinates={currentRoute}
+            routeData={currentRouteData}
+            routeCoordinates={currentRouteData}
             isSosActive={sosAlert.active || Boolean(activeSafeHaven)}
             routeA={routeA}
             routeB={routeB}
