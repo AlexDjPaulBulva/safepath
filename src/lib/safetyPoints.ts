@@ -3,6 +3,8 @@
  * Přísný prostorový koridorový filtr na vyžádání.
  */
 
+import pragueSafetyCache from '../data/prague_safety_cache.json';
+
 export type SafetyPointType = 'traffic_signal' | 'crossing' | 'camera' | 'safe_haven' | 'hazard' | 'light';
 
 export interface SafetyPoint {
@@ -31,20 +33,32 @@ export function getDistanceToPolylineMeters(
 ): number {
   if (!routeCoords || routeCoords.length < 2) return Infinity;
 
+  // Normalizace souřadnic bodu pro ČR (lat ~50, lng ~14)
+  const pLat = point.lat > 30 ? point.lat : point.lng;
+  const pLng = point.lat > 30 ? point.lng : point.lat;
+
   let minDistance = Infinity;
 
   // Přepočet stupňů zeměpisné šířky a délky na metry v okolí Prahy (lat ~50.08)
   const latToM = 110540;
-  const lngToM = Math.cos((point.lat * Math.PI) / 180) * 111320;
+  const lngToM = Math.cos((pLat * Math.PI) / 180) * 111320;
 
-  const px = point.lng * lngToM;
-  const py = point.lat * latToM;
+  const px = pLng * lngToM;
+  const py = pLat * latToM;
 
   for (let i = 0; i < routeCoords.length - 1; i++) {
-    const ax = routeCoords[i][0] * lngToM;
-    const ay = routeCoords[i][1] * latToM;
-    const bx = routeCoords[i + 1][0] * lngToM;
-    const by = routeCoords[i + 1][1] * latToM;
+    const cA = routeCoords[i];
+    const cB = routeCoords[i + 1];
+
+    const aLng = cA[0] > 30 ? cA[1] : cA[0];
+    const aLat = cA[0] > 30 ? cA[0] : cA[1];
+    const bLng = cB[0] > 30 ? cB[1] : cB[0];
+    const bLat = cB[0] > 30 ? cB[0] : cB[1];
+
+    const ax = aLng * lngToM;
+    const ay = aLat * latToM;
+    const bx = bLng * lngToM;
+    const by = bLat * latToM;
 
     const dx = bx - ax;
     const dy = by - ay;
@@ -74,24 +88,24 @@ export function getDistanceToPolylineMeters(
 }
 
 /**
- * Ověří, zda bod leží v definovaném koridoru (výchozí 40 metrů od zelené linie).
+ * Ověří, zda bod leží v definovaném koridoru (výchozí 60 metrů od zelené linie).
  */
 export function isPointNearRoute(
   point: { lat: number; lng: number },
   routeCoords: [number, number][],
-  maxDistanceMeters = 40
+  maxDistanceMeters = 60
 ): boolean {
   if (!routeCoords || routeCoords.length < 2) return false;
   return getDistanceToPolylineMeters(point, routeCoords) <= maxDistanceMeters;
 }
 
 /**
- * Vybere POUZE body, jejichž kolmá vzdálenost od zelené čáry je menší než maxDistanceMeters (výchozí 40m).
+ * Vybere POUZE body, jejichž kolmá vzdálenost od zelené čáry je menší než maxDistanceMeters (výchozí 60m).
  */
 export function getSafetyPointsAlongRoute(
   routeCoords: [number, number][],
   allPoints: SafetyPoint[],
-  maxDistanceMeters = 40
+  maxDistanceMeters = 60
 ): SafetyPoint[] {
   if (!routeCoords || routeCoords.length < 2) return [];
   return allPoints.filter(point => isPointNearRoute(point, routeCoords, maxDistanceMeters));
@@ -160,12 +174,28 @@ export function buildSafetyPointsCollection(options: {
         lat: cam.lat,
         lng: cam.lng,
         type: 'camera',
-        title: `Dohledová kamera MKS #${cam.id || idx + 1}`,
-        description: cam.description || 'Kamerový systém hl. m. Prahy',
+        title: `MKS Kamera #${cam.id || idx + 1}`,
+        description: cam.description || 'Městský kamerový systém hl. m. Prahy',
         safetyInfo: 'Pod stálým dohledem PČR a operačního střediska',
         direction: typeof cam.direction === 'number' ? cam.direction : undefined,
         fovAngle: typeof cam.angle === 'number' ? cam.angle : 60,
         rangeMeters: typeof cam.rangeMeters === 'number' ? cam.rangeMeters : 45
+      });
+    });
+  }
+
+  // 3b. Rozsáhlá databáze pražských kamer (2541 MKS kamer)
+  if (pragueSafetyCache && Array.isArray((pragueSafetyCache as any).cameras)) {
+    ((pragueSafetyCache as any).cameras as any[]).forEach((cam, idx) => {
+      addPoint({
+        id: cam.id ?? `cache_cam_${idx}`,
+        lat: cam.lat,
+        lng: cam.lng,
+        type: 'camera',
+        title: `MKS Kamera #${cam.id || idx + 1}`,
+        description: cam.description || 'Městský kamerový systém hl. m. Prahy',
+        safetyInfo: 'Stálý záznam PČR',
+        direction: typeof cam.direction === 'number' ? cam.direction : undefined
       });
     });
   }

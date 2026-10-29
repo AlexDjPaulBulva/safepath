@@ -222,6 +222,7 @@ export function Map(props: MapEngineProps) {
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [isCourseUp, setIsCourseUp] = useState(false);
   const lastFittedRouteIdRef = useRef<string | null>(null);
+  const userInteractedRef = useRef<boolean>(false);
   const pathAuraRef = useRef<SVGPathElement | null>(null);
   const pathCoreRef = useRef<SVGPathElement | null>(null);
   const pendingRouteRef = useRef<[number, number][] | null>(null);
@@ -240,6 +241,22 @@ export function Map(props: MapEngineProps) {
   const setStartPointRef = useRef(props.setStartPoint);
   const setEndPointRef = useRef(props.setEndPoint);
   const onToastRef = useRef(props.onToast);
+
+  const prevStartKeyRef = useRef<string | null>(null);
+  const prevEndKeyRef = useRef<string | null>(null);
+
+  // Reset uživatelského zámku kamery POUZE při výběru nového startu nebo nového cíle
+  useEffect(() => {
+    const startKey = props.startPoint ? `${props.startPoint.lat.toFixed(5)},${props.startPoint.lng.toFixed(5)}` : null;
+    const endKey = props.endPoint ? `${props.endPoint.lat.toFixed(5)},${props.endPoint.lng.toFixed(5)}` : null;
+
+    if (startKey !== prevStartKeyRef.current || endKey !== prevEndKeyRef.current) {
+      prevStartKeyRef.current = startKey;
+      prevEndKeyRef.current = endKey;
+      userInteractedRef.current = false;
+      lastFittedRouteIdRef.current = null;
+    }
+  }, [props.startPoint, props.endPoint]);
 
   useEffect(() => { onMapClickRef.current = props.onMapClick; }, [props.onMapClick]);
   useEffect(() => { startPointRef.current = props.startPoint; }, [props.startPoint]);
@@ -564,6 +581,11 @@ export function Map(props: MapEngineProps) {
       drawFastestRoute(map);
     });
 
+    // Uživatelský zámek kamery pro zamezení gumového zoomu (Rubberbanding)
+    map.on('dragstart', () => { userInteractedRef.current = true; });
+    map.on('zoomstart', (e: any) => { if (e.originalEvent) userInteractedRef.current = true; });
+    map.on('rotatestart', () => { userInteractedRef.current = true; });
+
     map.on('click', (e: maplibregl.MapMouseEvent) => {
       const lat = e.lngLat.lat;
       const lng = e.lngLat.lng;
@@ -571,6 +593,7 @@ export function Map(props: MapEngineProps) {
       if (onMapClickRef.current) {
         onMapClickRef.current(lat, lng);
       } else if (setStartPointRef.current || setEndPointRef.current) {
+        userInteractedRef.current = false;
         if (startPointRef.current && !endPointRef.current) {
           setEndPointRef.current?.({ lat, lng });
           onToastRef.current?.('Cíl nastaven. Počítám bezpečnou trasu...');
@@ -761,15 +784,17 @@ export function Map(props: MapEngineProps) {
       console.warn('moveLayer safe-route warning:', e);
     }
 
-    // Automatické přizpůsobení pohledu na novou trasu POUZE JEDNOU při změně signatury trasy
+    // Automatické přizpůsobení pohledu na novou trasu POUZE JEDNOU, pokud uživatel mapu manuálně neovládá
     const routeSignature = `${validCoords[0].join(',')}-${validCoords[validCoords.length - 1].join(',')}`;
     if (lastFittedRouteIdRef.current !== routeSignature) {
       lastFittedRouteIdRef.current = routeSignature;
-      const bounds = validCoords.reduce(
-        (b, c) => b.extend(c),
-        new maplibregl.LngLatBounds(validCoords[0], validCoords[0])
-      );
-      map.fitBounds(bounds, { padding: 80, duration: 800, maxZoom: 16 });
+      if (!userInteractedRef.current) {
+        const bounds = validCoords.reduce(
+          (b, c) => b.extend(c),
+          new maplibregl.LngLatBounds(validCoords[0], validCoords[0])
+        );
+        map.fitBounds(bounds, { padding: 80, duration: 600 });
+      }
     }
 
     // Okamžitá synchronizace SVG linie při jakémkoliv pohybu, zoomu, rotaci či náklonu bez re-renderu Reactu
@@ -914,7 +939,7 @@ export function Map(props: MapEngineProps) {
       const endEl = document.createElement('div');
       endEl.className = 'safepath-end-badge cursor-pointer transition-transform hover:scale-110';
       endEl.innerHTML = `
-        <div style="background: #4f46e5; border: 2px solid #ffffff; color: #ffffff; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; padding: 4px 12px; border-radius: 9999px; box-shadow: 0 4px 12px rgba(0,0,0,0.5), 0 0 10px rgba(99,102,241,0.7); min-width: 56px; text-align: center; user-select: none;">
+        <div style="background: #2563eb; border: 2px solid #ffffff; color: #ffffff; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; padding: 4px 12px; border-radius: 9999px; box-shadow: 0 4px 12px rgba(0,0,0,0.5), 0 0 10px rgba(37,99,235,0.7); min-width: 56px; text-align: center; user-select: none;">
           CÍL
         </div>
       `;
@@ -935,7 +960,7 @@ export function Map(props: MapEngineProps) {
     };
   }, [props.startPoint, props.endPoint]);
 
-  // 7. Zásada čisté mapy -> Bezpečnostní koridor na vyžádání (max 40 m od linie trasy)
+  // 7. Zásada čisté mapy -> Bezpečnostní koridor na vyžádání (tolerance 60 m od linie trasy)
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -955,171 +980,91 @@ export function Map(props: MapEngineProps) {
       return;
     }
 
-    // 2. Shromáždění bezpečnostních prvků ze všech dostupných zdrojů
+    // 2. Shromáždění bezpečnostních prvků (kamery a semafory/přechody)
     const allCollectionPoints = buildSafetyPointsCollection({
       snappedCrossings: activeRoute?.snappedCrossings,
       staticCrossings: staticSafetyData?.crossings as any[],
       osmCameras: props.osmCameras,
       safetyNodes: props.safetyNodes,
-      staticCameras: staticSafetyData?.cameras as any[],
-      safeHavens: props.safeHavens,
-      incidents: incidentsData as any[]
+      staticCameras: staticSafetyData?.cameras as any[]
     });
 
-    // 3. PŘÍSNÝ KORIDOROVÝ FILTR: vybrat POUZE prvky ležící do max 40 m kolmé vzdálenosti od zelené čáry
-    const corridorPoints = getSafetyPointsAlongRoute(validCoords, allCollectionPoints, 40);
+    // 3. POUZE POVOLENÉ BODY: Kamery MKS a Semafory/Přechody s tolerancí 60 m
+    const corridorPoints = getSafetyPointsAlongRoute(validCoords, allCollectionPoints, 60);
+    const filteredPoints = corridorPoints.filter(
+      (p) => p.type === 'camera' || p.type === 'traffic_signal' || p.type === 'crossing'
+    );
 
     // 4. Synchronizace přesných statistik se Sidebarem
-    const camerasCount = corridorPoints.filter((p) => p.type === 'camera').length;
-    const crossingsCount = corridorPoints.filter((p) => p.type === 'traffic_signal' || p.type === 'crossing').length;
-    const hazardsCount = corridorPoints.filter((p) => p.type === 'hazard').length;
-    const havensCount = corridorPoints.filter((p) => p.type === 'safe_haven').length;
+    const camerasCount = filteredPoints.filter((p) => p.type === 'camera').length;
+    const crossingsCount = filteredPoints.filter((p) => p.type === 'traffic_signal' || p.type === 'crossing').length;
 
     setActiveSafetyStats({
       camerasCount,
       crossingsCount,
-      hazardsCount,
-      havensCount
+      hazardsCount: 0,
+      havensCount: 0
     });
 
-    // 5. Vykreslení HTML MapLibre markerů POUZE pro prvky v aktivním koridoru s plnou typologií
-    corridorPoints.forEach((point) => {
+    // 5. Vykreslení jednoduchých a spolehlivých SVG markerů přímo v DOMu
+    filteredPoints.forEach((point) => {
       const el = document.createElement('div');
-      el.className = 'safepath-corridor-marker-container';
+      el.className = 'safepath-corridor-marker-wrap';
+      el.style.width = '28px';
+      el.style.height = '28px';
+      el.style.display = 'flex';
+      el.style.alignItems = 'center';
+      el.style.justifyContent = 'center';
 
       let popupContent = '';
 
-      if (point.type === 'safe_haven') {
-        // Safe Havens (Nouzové úkryty): Výrazný červeno-zlatý štít (bg-rose-600 ring-2 ring-amber-300 text-white shadow-lg animate-pulse)
+      if (point.type === 'camera') {
+        // Kamera: Kruh 28x28 px, tmavě modré pozadí, modrý rámeček, bílá ikona kamery
         el.innerHTML = `
-          <div class="safepath-haven-marker cursor-pointer transition-transform duration-200 hover:scale-125 flex items-center justify-center relative" title="${point.title}">
-            <div class="bg-rose-600 ring-2 ring-amber-300 text-white shadow-lg animate-pulse p-2 rounded-full flex items-center justify-center">
-              <svg class="w-4 h-4 text-amber-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-              </svg>
-            </div>
-          </div>
-        `;
-
-        const havenName = point.title.replace(/^Safe Haven:\s*/i, '');
-        popupContent = `
-          <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 6px 8px; min-width: 180px; max-width: 250px; color: #0f172a;">
-            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-weight: 700; font-size: 13px; color: #e11d48;">
-              <span>🛡️</span>
-              <span style="line-height: 1.2;">Safe Haven: ${havenName}</span>
-            </div>
-            ${point.description ? `<div style="font-size: 11px; color: #475569; margin-bottom: 4px; line-height: 1.3;">${point.description}</div>` : ''}
-            <div style="font-size: 10px; font-weight: 600; color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 3px 6px; display: flex; align-items: center; gap: 4px;">
-              <span>⚡ 24/7 Asistence</span>
-              <span>•</span>
-              <span>Ověřený úkryt a pomoc</span>
-            </div>
-            ${point.phone ? `<div style="margin-top: 4px; font-size: 11px; font-weight: 600; color: #0284c7;">Tel: ${point.phone}</div>` : ''}
-          </div>
-        `;
-      } else if (point.type === 'camera') {
-        // MKS Kamery s kuželem zorného pole (FOV): Tmavě modrá pilulka (bg-slate-900 border border-cyan-400 text-cyan-300)
-        // Přímo pod kamerou vykreslen poloprůhledný polygon/kužel (výseč úhlu 60°, dosah 35 m)
-        const camDir = getCameraAzimuth(point, validCoords);
-        const camId = point.id ?? Math.floor(Math.random() * 1000);
-
-        el.innerHTML = `
-          <div class="safepath-camera-wrap cursor-pointer transition-transform duration-200 hover:scale-125 relative flex items-center justify-center" title="${point.title}">
-            <div style="position: absolute; width: 80px; height: 80px; transform: rotate(${camDir}deg); transform-origin: center center; pointer-events: none; z-index: 1;">
-              <svg viewBox="0 0 100 100" width="80" height="80" style="overflow: visible; display: block;">
-                <defs>
-                  <radialGradient id="cam-fov-${camId}" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
-                    <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.65"/>
-                    <stop offset="60%" stop-color="#0284c7" stop-opacity="0.3"/>
-                    <stop offset="100%" stop-color="#0369a1" stop-opacity="0"/>
-                  </radialGradient>
-                </defs>
-                <path d="M 50 50 L 25 6.7 A 50 50 0 0 1 75 6.7 Z" fill="url(#cam-fov-${camId})" />
-              </svg>
-            </div>
-            <div class="relative z-10 bg-slate-900 border border-cyan-400 text-cyan-300 shadow-md px-2 py-1 rounded-full flex items-center gap-1 ring-1 ring-cyan-500/30">
-              <svg class="w-3.5 h-3.5 text-cyan-300 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M23 7l-7 5 7 5V7z"></path>
-                <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
-              </svg>
-              <span class="text-[10px] font-bold text-cyan-300 tracking-wide">MKS</span>
-            </div>
+          <div class="cursor-pointer transition-transform duration-150 hover:scale-125" style="width: 28px; height: 28px; border-radius: 50%; background-color: #0f172a; border: 2px solid #38bdf8; box-shadow: 0 0 10px rgba(56,189,248,0.6); display: flex; align-items: center; justify-content: center;" title="MKS Kamera #${point.id}">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 7l-7 5 7 5V7z"></path>
+              <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+            </svg>
           </div>
         `;
 
         popupContent = `
-          <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 6px 8px; min-width: 180px; max-width: 250px; color: #0f172a;">
-            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-weight: 700; font-size: 13px; color: #0891b2;">
+          <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 6px 8px; min-width: 170px; max-width: 240px; color: #0f172a;">
+            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-weight: 700; font-size: 13px; color: #0284c7;">
               <span>📹</span>
-              <span style="line-height: 1.2;">MKS Kamera #${point.id} – Stálý záznam</span>
+              <span style="line-height: 1.2;">MKS Kamera #${point.id}</span>
             </div>
             <div style="font-size: 11px; color: #475569; margin-bottom: 4px; line-height: 1.3;">
-              ${point.description || 'Městský kamerový systém hl. m. Prahy'} • Zorné pole 60° (dosah 35 m)
+              ${point.description || 'Městský kamerový systém hl. m. Prahy'}
             </div>
             <div style="font-size: 10px; font-weight: 600; color: #15803d; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 3px 6px; display: flex; align-items: center; gap: 4px;">
               <span>✓ V koridoru trasy</span>
               <span>•</span>
-              <span>Stálý dohled PČR</span>
-            </div>
-          </div>
-        `;
-      } else if (point.type === 'hazard') {
-        // Rizikové / Kolizní body: Oranžovo-žlutý trojúhelník (bg-amber-500 text-slate-950)
-        el.innerHTML = `
-          <div class="safepath-hazard-marker cursor-pointer transition-transform duration-200 hover:scale-125 flex items-center justify-center relative" title="${point.title}">
-            <div class="bg-amber-500 text-slate-950 shadow-md p-1.5 rounded-full ring-2 ring-amber-400 flex items-center justify-center">
-              <svg class="w-4 h-4 fill-slate-950" viewBox="0 0 24 24">
-                <path d="M12 2L1 21h22L12 2zm0 3.5L19.8 19H4.2L12 5.5z"/>
-                <path d="M11 10h2v4h-2zm0 5.5h2v2h-2z"/>
-              </svg>
-            </div>
-          </div>
-        `;
-
-        popupContent = `
-          <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 6px 8px; min-width: 180px; max-width: 250px; color: #0f172a;">
-            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-weight: 700; font-size: 13px; color: #d97706;">
-              <span>⚠️</span>
-              <span style="line-height: 1.2;">${point.title || 'Rizikové místo – Kolizní bod'}</span>
-            </div>
-            <div style="font-size: 11px; color: #475569; margin-bottom: 4px; line-height: 1.3;">
-              ${point.description || 'Hlášené nehodové či nepřehledné místo na trase'}
-            </div>
-            <div style="font-size: 10px; font-weight: 600; color: #9a3412; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 6px; padding: 3px 6px; display: flex; align-items: center; gap: 4px;">
-              <span>⚠️ Zvýšená opatrnost</span>
-              <span>•</span>
-              <span>${point.safetyInfo || 'Sleduj provoz na křižovatce'}</span>
+              <span>Stálý záznam PČR</span>
             </div>
           </div>
         `;
       } else {
-        // Semafory a přechody: Zelený kompaktní kruh (bg-emerald-600 ring-2 ring-white) s bílou vektorovou ikonou
+        // Semafor / Přechod: Kruh 28x28 px, zelené pozadí, bílá ikona semaforu
         const isSignal = point.type === 'traffic_signal';
 
         el.innerHTML = `
-          <div class="safepath-crossing-marker cursor-pointer transition-transform duration-200 hover:scale-125 flex items-center justify-center" title="${point.title}">
-            <div class="bg-emerald-600 ring-2 ring-white text-white shadow-md p-1.5 rounded-full flex items-center justify-center">
-              ${isSignal ? `
-                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="7" y="2" width="10" height="20" rx="3"></rect>
-                  <circle cx="12" cy="7" r="1.5" fill="currentColor"></circle>
-                  <circle cx="12" cy="12" r="1.5" fill="currentColor"></circle>
-                  <circle cx="12" cy="17" r="1.5" fill="currentColor"></circle>
-                </svg>
-              ` : `
-                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7z"/>
-                </svg>
-              `}
-            </div>
+          <div class="cursor-pointer transition-transform duration-150 hover:scale-125" style="width: 28px; height: 28px; border-radius: 50%; background-color: #059669; border: 2px solid #ffffff; box-shadow: 0 0 10px rgba(16,185,129,0.7); display: flex; align-items: center; justify-content: center;" title="${isSignal ? 'Řízený semafor' : 'Chráněný přechod'}">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="7" y="2" width="10" height="20" rx="3"></rect>
+              <circle cx="12" cy="7" r="1.5" fill="#ffffff"></circle>
+              <circle cx="12" cy="12" r="1.5" fill="#ffffff"></circle>
+              <circle cx="12" cy="17" r="1.5" fill="#ffffff"></circle>
+            </svg>
           </div>
         `;
 
         popupContent = `
-          <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 6px 8px; min-width: 180px; max-width: 250px; color: #0f172a;">
+          <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 6px 8px; min-width: 170px; max-width: 240px; color: #0f172a;">
             <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-weight: 700; font-size: 13px; color: #059669;">
-              <span>${isSignal ? '🚦' : '🚸'}</span>
-              <span style="line-height: 1.2;">${isSignal ? 'Světelně řízený semafor' : 'Chráněný přechod pro chodce'}</span>
+              <span>🚦</span>
+              <span style="line-height: 1.2;">${isSignal ? 'Řízený semafor' : 'Chráněný přechod'}</span>
             </div>
             <div style="font-size: 11px; color: #475569; margin-bottom: 4px; line-height: 1.3;">
               ${point.description || point.title || 'Místo pro bezpečné přecházení ulice'}
@@ -1127,7 +1072,7 @@ export function Map(props: MapEngineProps) {
             <div style="font-size: 10px; font-weight: 600; color: #15803d; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 3px 6px; display: flex; align-items: center; gap: 4px;">
               <span>✓ V koridoru trasy</span>
               <span>•</span>
-              <span>${isSignal ? 'Světelná signalizace pro chodce' : 'Značený přechod'}</span>
+              <span>Bezpečný přechod</span>
             </div>
           </div>
         `;
@@ -1155,7 +1100,6 @@ export function Map(props: MapEngineProps) {
     activeRoute, 
     props.osmCameras, 
     props.safetyNodes, 
-    props.safeHavens, 
     setActiveSafetyStats
   ]);
 
