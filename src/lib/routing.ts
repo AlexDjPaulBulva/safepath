@@ -1479,7 +1479,7 @@ export async function fetchOSRMRoute(
       'Doporučená bezpečná trasa',
       'Maximálně chráněná trasa s prioritou kamer MKS a řízených přechodů.',
       'Klidná bezpečná cesta vedená po chodnících a přechodech se semafory pod stálým dohledem kamer.',
-      ['[Zvýšená ochrana a dohled]', '[Priorita řízených přechodů]', '[Dohled MKS kamer]', '[Chodníky]'],
+      ['[Zvýšená ochrana a dohled]', '[Priorita řízených přechodů]', '[Dohled MKS kamer]'],
       infoPointsAlongRoute
     );
     routeA.isWarningRoute = false;

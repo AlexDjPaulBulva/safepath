@@ -74,24 +74,24 @@ export function getDistanceToPolylineMeters(
 }
 
 /**
- * Ověří, zda bod leží v definovaném koridoru (výchozí 35 metrů od zelené linie).
+ * Ověří, zda bod leží v definovaném koridoru (výchozí 40 metrů od zelené linie).
  */
 export function isPointNearRoute(
   point: { lat: number; lng: number },
   routeCoords: [number, number][],
-  maxDistanceMeters = 35
+  maxDistanceMeters = 40
 ): boolean {
   if (!routeCoords || routeCoords.length < 2) return false;
   return getDistanceToPolylineMeters(point, routeCoords) <= maxDistanceMeters;
 }
 
 /**
- * Vybere POUZE body, jejichž kolmá vzdálenost od zelené čáry je menší než maxDistanceMeters (výchozí 35m).
+ * Vybere POUZE body, jejichž kolmá vzdálenost od zelené čáry je menší než maxDistanceMeters (výchozí 40m).
  */
 export function getSafetyPointsAlongRoute(
   routeCoords: [number, number][],
   allPoints: SafetyPoint[],
-  maxDistanceMeters = 35
+  maxDistanceMeters = 40
 ): SafetyPoint[] {
   if (!routeCoords || routeCoords.length < 2) return [];
   return allPoints.filter(point => isPointNearRoute(point, routeCoords, maxDistanceMeters));
