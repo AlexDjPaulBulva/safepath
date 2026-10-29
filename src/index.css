@@ -93,16 +93,11 @@ select,
   pointer-events: auto !important;
 }
 
-/* MapLibre markery vždy navrchu nad podkladovým plátnem */
+/* MapLibre markery vždy navrchu nad podkladovým plátnem s kompaktní přirozenou šířkou */
 .maplibregl-marker {
   z-index: 50 !important;
-}
-
-.safepath-start-badge,
-.safepath-end-badge,
-.safepath-corridor-marker-wrap {
-  position: relative;
-  z-index: 50 !important;
+  width: max-content !important;
+  height: max-content !important;
 }
 
 .safety-fade-layer {
