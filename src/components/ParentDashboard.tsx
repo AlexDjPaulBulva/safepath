@@ -908,7 +908,7 @@ export function ParentDashboard({
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -10, scale: 0.95 }}
                 transition={{ duration: 0.2 }}
-                className="w-auto flex justify-center pointer-events-auto"
+                className="w-auto flex justify-center pointer-events-auto hidden md:hidden"
               >
                 <div 
                   onClick={() => setShowPermissionModal(true)}

@@ -903,7 +903,7 @@ export function Map(props: MapEngineProps) {
     }
   }, [currentNavPosition, props.userLocation, effectiveHeading, isCourseUp]);
 
-  // 6. Start a Cíl Markery (Definitivní oprava oříznutí textu START)
+  // 6. Start a Cíl Markery (Striktní styl proti smrštění flexboxu - Zákaz ořezávání na písmeno "L")
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -915,8 +915,8 @@ export function Map(props: MapEngineProps) {
     }
     if (props.startPoint) {
       const startEl = document.createElement('div');
-      startEl.className = 'inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-600 text-white text-[11px] font-bold rounded-full shadow-lg border border-white whitespace-nowrap min-w-max select-none';
-      startEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-white"></span><span>START</span>`;
+      startEl.style.cssText = 'display: inline-flex !important; align-items: center !important; gap: 4px !important; padding: 4px 10px !important; background: #059669 !important; color: #ffffff !important; font-size: 11px !important; font-weight: 800 !important; border-radius: 9999px !important; border: 2px solid #ffffff !important; box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important; white-space: nowrap !important; width: auto !important; min-width: max-content !important; flex-shrink: 0 !important; z-index: 40 !important;';
+      startEl.innerHTML = `<span style="width: 6px; height: 6px; border-radius: 50%; background: #ffffff;"></span><span>START</span>`;
 
       startMarkerRef.current = new maplibregl.Marker({ element: startEl, anchor: 'center' })
         .setLngLat([props.startPoint.lng, props.startPoint.lat])
@@ -930,8 +930,8 @@ export function Map(props: MapEngineProps) {
     }
     if (props.endPoint) {
       const destEl = document.createElement('div');
-      destEl.className = 'inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-600 text-white text-[11px] font-bold rounded-full shadow-lg border border-white whitespace-nowrap min-w-max select-none';
-      destEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-white"></span><span>CÍL</span>`;
+      destEl.style.cssText = 'display: inline-flex !important; align-items: center !important; gap: 4px !important; padding: 4px 10px !important; background: #4f46e5 !important; color: #ffffff !important; font-size: 11px !important; font-weight: 800 !important; border-radius: 9999px !important; border: 2px solid #ffffff !important; box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important; white-space: nowrap !important; width: auto !important; min-width: max-content !important; flex-shrink: 0 !important; z-index: 40 !important;';
+      destEl.innerHTML = `<span style="width: 6px; height: 6px; border-radius: 50%; background: #ffffff;"></span><span>CÍL</span>`;
 
       endMarkerRef.current = new maplibregl.Marker({ element: destEl, anchor: 'center' })
         .setLngLat([props.endPoint.lng, props.endPoint.lat])
@@ -950,7 +950,7 @@ export function Map(props: MapEngineProps) {
     };
   }, [props.startPoint, props.endPoint]);
 
-  // 7. Vykreslení bezpečnostních odznaků podél trasy (Corridor Safety Markers do 45 m)
+  // 7. Vykreslení bezpečnostních odznaků podél trasy (Corridor Safety Markers do 60 m)
   useEffect(() => {
     // 1. Vyčištění
     corridorMarkersRef.current.forEach(m => m.remove());
@@ -976,19 +976,31 @@ export function Map(props: MapEngineProps) {
       safeHavens: props.safeHavens
     });
 
-    // 2. Filtrování bodů do 45 m od trasy
-    const pointsOnRoute = allSafetyPoints.filter(pt => {
-      return validCoords.some(coord => {
-        const dLng = (pt.lng - coord[0]) * Math.cos((coord[1] * Math.PI) / 180) * 111320;
-        const dLat = (pt.lat - coord[1]) * 110540;
-        return Math.sqrt(dLng * dLng + dLat * dLat) <= 45;
+    // 2. Oprava prostorového filtru (ošetření prohozených [lng, lat])
+    const corridorPoints = (allSafetyPoints || []).filter((pt: any) => {
+      const pLng = Number(pt.lng ?? pt.longitude ?? pt.lon ?? (Array.isArray(pt) ? pt[0] : 0));
+      const pLat = Number(pt.lat ?? pt.latitude ?? (Array.isArray(pt) ? pt[1] : 0));
+      if (!pLng || !pLat) return false;
+
+      return validCoords.some((coord: [number, number]) => {
+        // coord je v MapLibre standardu [lng, lat]
+        const cLng = coord[0];
+        const cLat = coord[1];
+        const dX = (pLng - cLng) * 71500; // metry na délku v Praze
+        const dY = (pLat - cLat) * 111300; // metry na šířku
+        return (dX * dX + dY * dY) <= 3600; // 60 metrů na druhou
       });
     });
 
     // Synchronizace statistik se Sidebarem
-    const camerasCount = pointsOnRoute.filter((p) => (p.type as string) === 'camera' || (p.type as string) === 'mks').length;
-    const crossingsCount = pointsOnRoute.filter((p) => (p.type as string) === 'semaphore' || (p.type as string) === 'crossing' || (p.type as string) === 'traffic_signal').length;
-    const havensCount = pointsOnRoute.filter((p) => p.type === 'safe_haven').length;
+    const camerasCount = corridorPoints.filter((p: any) => {
+      return p.type === 'camera' || p.type === 'mks' || String(p.name || p.title || '').toLowerCase().includes('kamera');
+    }).length;
+    const crossingsCount = corridorPoints.filter((p: any) => {
+      const isCam = p.type === 'camera' || p.type === 'mks' || String(p.name || p.title || '').toLowerCase().includes('kamera');
+      return !isCam && p.type !== 'safe_haven';
+    }).length;
+    const havensCount = corridorPoints.filter((p: any) => p.type === 'safe_haven').length;
 
     setActiveSafetyStats({
       camerasCount,
@@ -997,51 +1009,30 @@ export function Map(props: MapEngineProps) {
       havensCount
     });
 
-    // 3. Vykreslení čistých SVG markerů
-    pointsOnRoute.forEach(pt => {
+    // 3. Vykreslení skutečných SVG ikon namísto písmen
+    corridorPoints.forEach((pt: any) => {
+      const isCam = pt.type === 'camera' || pt.type === 'mks' || String(pt.name || pt.title || '').toLowerCase().includes('kamera');
+      
       const el = document.createElement('div');
-      el.className = 'w-7 h-7 rounded-full flex items-center justify-center shadow-md cursor-pointer transition-transform hover:scale-125';
-      const ptType = pt.type as string;
+      el.style.cssText = 'width: 28px !important; height: 28px !important; border-radius: 50% !important; display: flex !important; align-items: center !important; justify-content: center !important; box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important; cursor: pointer !important; z-index: 30 !important;';
 
-      if (ptType === 'camera' || ptType === 'mks') {
-        // MODRÁ IKONA PRO MKS KAMERU
-        el.className += ' bg-slate-900 border-2 border-cyan-400 text-cyan-300';
-        el.innerHTML = `
-          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/>
-            <circle cx="12" cy="13" r="3"/>
-          </svg>`;
-      } else if (ptType === 'semaphore' || ptType === 'crossing' || ptType === 'traffic_signal') {
-        // ZELENÁ IKONA PRO SEMAFOR / PŘECHOD
-        el.className += ' bg-emerald-600 border-2 border-white text-white';
-        el.innerHTML = `
-          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="7" r="1.5" fill="currentColor"/>
-            <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
-            <circle cx="12" cy="17" r="1.5" fill="currentColor"/>
-          </svg>`;
-      } else if (ptType === 'safe_haven') {
-        // ČERVENÝ ŠTÍT PRO SAFE HAVEN
-        el.className += ' bg-rose-600 border-2 border-amber-300 text-white animate-pulse';
-        el.innerHTML = `
-          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3z"/>
-          </svg>`;
+      if (isCam) {
+        // IKONA KAMERY (Tmavě modrá s modrým rámečkem)
+        el.style.background = '#0f172a';
+        el.style.border = '2px solid #38bdf8';
+        el.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>`;
       } else {
-        return;
+        // IKONA SEMAFORU (Smaragdově zelená)
+        el.style.background = '#059669';
+        el.style.border = '2px solid #ffffff';
+        el.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="3"/><circle cx="12" cy="7" r="1.5" fill="#ef4444"/><circle cx="12" cy="12" r="1.5" fill="#f59e0b"/><circle cx="12" cy="17" r="1.5" fill="#10b981"/></svg>`;
       }
 
-      // Popup s detailem po kliknutí
-      const popup = new maplibregl.Popup({ offset: 12, closeButton: false }).setHTML(
-        `<div class="p-1.5 text-xs font-sans">
-          <div class="font-bold text-slate-900">${(pt as any).name || pt.title || 'Bezpečnostní bod'}</div>
-          <div class="text-slate-500 text-[10px]">${pt.description || 'Aktivní prvek bezpečné cesty'}</div>
-        </div>`
-      );
+      const pLng = Number(pt.lng ?? pt.longitude ?? pt.lon);
+      const pLat = Number(pt.lat ?? pt.latitude);
 
       const marker = new maplibregl.Marker({ element: el })
-        .setLngLat([pt.lng, pt.lat])
-        .setPopup(popup)
+        .setLngLat([pLng, pLat])
         .addTo(mapRef.current!);
 
       corridorMarkersRef.current.push(marker);
