@@ -223,8 +223,6 @@ export function Map(props: MapEngineProps) {
   const [isCourseUp, setIsCourseUp] = useState(false);
   const lastFittedRouteIdRef = useRef<string | null>(null);
   const userInteractedRef = useRef<boolean>(false);
-  const pathAuraRef = useRef<SVGPathElement | null>(null);
-  const pathCoreRef = useRef<SVGPathElement | null>(null);
   const pendingRouteRef = useRef<[number, number][] | null>(null);
 
   // Zásada čisté mapy: správa aktivních koridorových markerů bez memory leaků
@@ -716,12 +714,10 @@ export function Map(props: MapEngineProps) {
     (props.startPoint && !props.endPoint) || (!props.startPoint && props.endPoint)
   );
 
-  // 2. Garantované vykreslení zelené linie trasy (SVG projekce + GPU WebGL synchronizace)
+  // 2. Garantované nativní WebGL GPU vykreslení zelené linie trasy (podpora 3D rotace, náklonu i 60 FPS)
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !isMapLoaded || !validCoords || validCoords.length < 2) {
-      if (pathAuraRef.current) pathAuraRef.current.setAttribute('d', '');
-      if (pathCoreRef.current) pathCoreRef.current.setAttribute('d', '');
       lastFittedRouteIdRef.current = null;
       if (map && map.getSource('safe-route-source')) {
         try {
@@ -737,25 +733,6 @@ export function Map(props: MapEngineProps) {
     }
 
     initSafeRouteLayers(map);
-
-    // Přepočet GPS bodů trasy na pixely obrazovky pro SVG Overlay přímo přes DOM (bez React setState)
-    const syncPath = () => {
-      try {
-        const d = validCoords
-          .map((coord, idx) => {
-            const pixel = map.project(coord);
-            return `${idx === 0 ? 'M' : 'L'} ${pixel.x.toFixed(1)} ${pixel.y.toFixed(1)}`;
-          })
-          .join(' ');
-        if (pathAuraRef.current) pathAuraRef.current.setAttribute('d', d);
-        if (pathCoreRef.current) pathCoreRef.current.setAttribute('d', d);
-      } catch (err) {
-        console.error('Chyba přepočtu trasy:', err);
-      }
-    };
-
-    // Prvotní vykreslení
-    syncPath();
 
     // Nativní GeoJSON pro GPU
     const geojson: GeoJSON.FeatureCollection<GeoJSON.LineString> = {
@@ -796,19 +773,6 @@ export function Map(props: MapEngineProps) {
         map.fitBounds(bounds, { padding: 80, duration: 600 });
       }
     }
-
-    // Okamžitá synchronizace SVG linie při jakémkoliv pohybu, zoomu, rotaci či náklonu bez re-renderu Reactu
-    map.on('move', syncPath);
-    map.on('zoom', syncPath);
-    map.on('rotate', syncPath);
-    map.on('pitch', syncPath);
-
-    return () => {
-      map.off('move', syncPath);
-      map.off('zoom', syncPath);
-      map.off('rotate', syncPath);
-      map.off('pitch', syncPath);
-    };
   }, [validCoords, isMapLoaded]);
 
   // Podpora pro volitelnou linku nejrychlejší alternativní trasy
@@ -920,6 +884,8 @@ export function Map(props: MapEngineProps) {
     if (props.startPoint) {
       const startEl = document.createElement('div');
       startEl.className = 'safepath-start-badge cursor-pointer transition-transform hover:scale-110';
+      startEl.style.position = 'relative';
+      startEl.style.zIndex = '50';
       startEl.innerHTML = `
         <div style="background: #059669; border: 2px solid #ffffff; color: #ffffff; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; padding: 4px 12px; border-radius: 9999px; box-shadow: 0 4px 12px rgba(0,0,0,0.5), 0 0 10px rgba(16,185,129,0.7); min-width: 56px; text-align: center; user-select: none;">
           START
@@ -938,6 +904,8 @@ export function Map(props: MapEngineProps) {
     if (props.endPoint) {
       const endEl = document.createElement('div');
       endEl.className = 'safepath-end-badge cursor-pointer transition-transform hover:scale-110';
+      endEl.style.position = 'relative';
+      endEl.style.zIndex = '50';
       endEl.innerHTML = `
         <div style="background: #2563eb; border: 2px solid #ffffff; color: #ffffff; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; padding: 4px 12px; border-radius: 9999px; box-shadow: 0 4px 12px rgba(0,0,0,0.5), 0 0 10px rgba(37,99,235,0.7); min-width: 56px; text-align: center; user-select: none;">
           CÍL
@@ -1015,16 +983,19 @@ export function Map(props: MapEngineProps) {
       el.style.display = 'flex';
       el.style.alignItems = 'center';
       el.style.justifyContent = 'center';
+      el.style.position = 'relative';
+      el.style.zIndex = '50';
 
       let popupContent = '';
 
       if (point.type === 'camera') {
-        // Kamera: Kruh 28x28 px, tmavě modré pozadí, modrý rámeček, bílá ikona kamery
+        // MKS Kamera: Kruh 28x28 px, plná silueta bezpečnostní kamery s optickou čočkou
         el.innerHTML = `
-          <div class="cursor-pointer transition-transform duration-150 hover:scale-125" style="width: 28px; height: 28px; border-radius: 50%; background-color: #0f172a; border: 2px solid #38bdf8; box-shadow: 0 0 10px rgba(56,189,248,0.6); display: flex; align-items: center; justify-content: center;" title="MKS Kamera #${point.id}">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M23 7l-7 5 7 5V7z"></path>
-              <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+          <div class="cursor-pointer transition-transform duration-150 hover:scale-125" style="width: 28px; height: 28px; border-radius: 50%; background-color: #0f172a; border: 2px solid #38bdf8; box-shadow: 0 0 10px rgba(56,189,248,0.6); display: flex; align-items: center; justify-content: center; position: relative; z-index: 50;" title="MKS Kamera #${point.id}">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none">
+              <path d="M18 10.5V6.5a1.5 1.5 0 0 0-1.5-1.5h-11A1.5 1.5 0 0 0 4 6.5v11A1.5 1.5 0 0 0 5.5 19h11a1.5 1.5 0 0 0 1.5-1.5v-4l4 3.5V7l-4 3.5z" fill="#38bdf8"/>
+              <circle cx="11" cy="12" r="2.5" fill="#0f172a"/>
+              <circle cx="11" cy="12" r="1" fill="#38bdf8"/>
             </svg>
           </div>
         `;
@@ -1046,16 +1017,22 @@ export function Map(props: MapEngineProps) {
           </div>
         `;
       } else {
-        // Semafor / Přechod: Kruh 28x28 px, zelené pozadí, bílá ikona semaforu
+        // Semafor / Přechod: Kruh 28x28 px
         const isSignal = point.type === 'traffic_signal';
 
-        el.innerHTML = `
-          <div class="cursor-pointer transition-transform duration-150 hover:scale-125" style="width: 28px; height: 28px; border-radius: 50%; background-color: #059669; border: 2px solid #ffffff; box-shadow: 0 0 10px rgba(16,185,129,0.7); display: flex; align-items: center; justify-content: center;" title="${isSignal ? 'Řízený semafor' : 'Chráněný přechod'}">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="7" y="2" width="10" height="20" rx="3"></rect>
-              <circle cx="12" cy="7" r="1.5" fill="#ffffff"></circle>
-              <circle cx="12" cy="12" r="1.5" fill="#ffffff"></circle>
-              <circle cx="12" cy="17" r="1.5" fill="#ffffff"></circle>
+        el.innerHTML = isSignal ? `
+          <div class="cursor-pointer transition-transform duration-150 hover:scale-125" style="width: 28px; height: 28px; border-radius: 50%; background-color: #064e3b; border: 2px solid #ffffff; box-shadow: 0 0 10px rgba(16,185,129,0.7); display: flex; align-items: center; justify-content: center; position: relative; z-index: 50;" title="Světelný semafor">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none">
+              <rect x="7" y="2" width="10" height="20" rx="3" fill="#0f172a" stroke="#ffffff" stroke-width="1.2"></rect>
+              <circle cx="12" cy="6.5" r="2" fill="#ef4444"></circle>
+              <circle cx="12" cy="12" r="2" fill="#eab308"></circle>
+              <circle cx="12" cy="17.5" r="2" fill="#10b981"></circle>
+            </svg>
+          </div>
+        ` : `
+          <div class="cursor-pointer transition-transform duration-150 hover:scale-125" style="width: 28px; height: 28px; border-radius: 50%; background-color: #059669; border: 2px solid #ffffff; box-shadow: 0 0 10px rgba(16,185,129,0.7); display: flex; align-items: center; justify-content: center; position: relative; z-index: 50;" title="Chráněný přechod pro chodce">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="#ffffff">
+              <path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7z"/>
             </svg>
           </div>
         `;
@@ -1199,35 +1176,8 @@ export function Map(props: MapEngineProps) {
 
   return (
     <div className="relative w-full h-full overflow-hidden select-none bg-slate-950">
-      {/* Plátno MapLibre GL WebGL mapy pevně roztažené přes celou plochu */}
+      {/* Plátno MapLibre GL WebGL mapy pevně roztažené přes celou plochu (nativní GPU trasa a markery) */}
       <div id="map" ref={mapContainerRef} className="w-full h-full absolute inset-0" />
-
-      {/* SVG Route Overlay pro 100% spolehlivé a okamžité vykreslení zelené linie trasy přímo v DOMu */}
-      <svg
-        className="absolute inset-0 w-full h-full pointer-events-none z-[10]"
-        style={{ overflow: 'visible', display: validCoords && validCoords.length >= 2 ? 'block' : 'none' }}
-      >
-        {/* Spodní neonová aura */}
-        <path
-          ref={pathAuraRef}
-          fill="none"
-          stroke="#10b981"
-          strokeWidth={14}
-          strokeOpacity={0.45}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        {/* Hlavní zelená linie */}
-        <path
-          ref={pathCoreRef}
-          fill="none"
-          stroke="#059669"
-          strokeWidth={6}
-          strokeOpacity={1.0}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
 
       {/* Tlačítko Course-Up: "Sledovat směr chůze" (3D rotace mapy s pohledem chodce) */}
       <button

@@ -93,6 +93,18 @@ select,
   pointer-events: auto !important;
 }
 
+/* MapLibre markery vždy navrchu nad podkladovým plátnem */
+.maplibregl-marker {
+  z-index: 50 !important;
+}
+
+.safepath-start-badge,
+.safepath-end-badge,
+.safepath-corridor-marker-wrap {
+  position: relative;
+  z-index: 50 !important;
+}
+
 .safety-fade-layer {
   transition: opacity 220ms ease, fill-opacity 220ms ease;
 }
