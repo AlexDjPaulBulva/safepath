@@ -221,7 +221,6 @@ export function Map(props: MapEngineProps) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [isCourseUp, setIsCourseUp] = useState(false);
-  const [svgPath, setSvgPath] = useState<string>('');
   const lastFittedRouteIdRef = useRef<string | null>(null);
   const userInteractedRef = useRef<boolean>(false);
   const pendingRouteRef = useRef<[number, number][] | null>(null);
@@ -715,11 +714,10 @@ export function Map(props: MapEngineProps) {
     (props.startPoint && !props.endPoint) || (!props.startPoint && props.endPoint)
   );
 
-  // 2. Garantované vykreslení zelené linie trasy (SVG projekce + GPU WebGL synchronizace)
+  // 2. Garantované vykreslení zelené linie trasy (nativní WebGL vrstvy na GPU)
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !isMapLoaded || !validCoords || validCoords.length < 2) {
-      setSvgPath('');
       lastFittedRouteIdRef.current = null;
       if (map && map.getSource('safe-route-source')) {
         try {
@@ -735,24 +733,6 @@ export function Map(props: MapEngineProps) {
     }
 
     initSafeRouteLayers(map);
-
-    // Přepočet GPS bodů trasy na pixely obrazovky pro SVG Overlay
-    const syncPath = () => {
-      try {
-        const d = validCoords
-          .map((coord, idx) => {
-            const pixel = map.project(coord);
-            return `${idx === 0 ? 'M' : 'L'} ${pixel.x.toFixed(1)} ${pixel.y.toFixed(1)}`;
-          })
-          .join(' ');
-        setSvgPath(d);
-      } catch (err) {
-        console.error('Chyba přepočtu trasy:', err);
-      }
-    };
-
-    // Prvotní vykreslení
-    syncPath();
 
     // Nativní GeoJSON pro GPU
     const geojson: GeoJSON.FeatureCollection<GeoJSON.LineString> = {
@@ -785,26 +765,22 @@ export function Map(props: MapEngineProps) {
     const routeSignature = `${validCoords[0].join(',')}-${validCoords[validCoords.length - 1].join(',')}`;
     if (lastFittedRouteIdRef.current !== routeSignature) {
       lastFittedRouteIdRef.current = routeSignature;
-      if (!userInteractedRef.current) {
+
+      const isSamePoint = validCoords.length < 2 || (
+        Math.abs(validCoords[0][0] - validCoords[validCoords.length - 1][0]) < 0.0001 &&
+        Math.abs(validCoords[0][1] - validCoords[validCoords.length - 1][1]) < 0.0001
+      );
+
+      if (!isSamePoint && !userInteractedRef.current) {
         const bounds = validCoords.reduce(
           (b, c) => b.extend(c),
           new maplibregl.LngLatBounds(validCoords[0], validCoords[0])
         );
-        map.fitBounds(bounds, { padding: 80, duration: 600 });
+        map.fitBounds(bounds, { padding: 80, duration: 600, maxZoom: 16 });
+      } else if (isSamePoint && validCoords.length > 0) {
+        map.easeTo({ center: validCoords[0], zoom: 15, duration: 500 });
       }
     }
-
-    map.on('move', syncPath);
-    map.on('zoom', syncPath);
-    map.on('rotate', syncPath);
-    map.on('pitch', syncPath);
-
-    return () => {
-      map.off('move', syncPath);
-      map.off('zoom', syncPath);
-      map.off('rotate', syncPath);
-      map.off('pitch', syncPath);
-    };
   }, [validCoords, isMapLoaded]);
 
   // Podpora pro volitelnou linku nejrychlejší alternativní trasy
@@ -915,8 +891,8 @@ export function Map(props: MapEngineProps) {
     }
     if (props.startPoint) {
       const startEl = document.createElement('div');
-      startEl.style.cssText = 'display: inline-flex !important; align-items: center !important; gap: 4px !important; padding: 4px 10px !important; background: #059669 !important; color: #ffffff !important; font-size: 11px !important; font-weight: 800 !important; border-radius: 9999px !important; border: 2px solid #ffffff !important; box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important; white-space: nowrap !important; width: auto !important; min-width: max-content !important; flex-shrink: 0 !important; z-index: 40 !important;';
-      startEl.innerHTML = `<span style="width: 6px; height: 6px; border-radius: 50%; background: #ffffff;"></span><span>START</span>`;
+      startEl.style.cssText = 'display: flex !important; align-items: center !important; gap: 5px !important; padding: 4px 12px !important; background: #059669 !important; color: #ffffff !important; font-size: 11px !important; font-weight: 800 !important; border-radius: 9999px !important; border: 2px solid #ffffff !important; box-shadow: 0 4px 14px rgba(0,0,0,0.4) !important; white-space: nowrap !important; width: max-content !important; min-width: max-content !important; overflow: visible !important; pointer-events: none;';
+      startEl.innerHTML = `<span style="width: 7px; height: 7px; border-radius: 50%; background: #ffffff; flex-shrink: 0;"></span><span style="letter-spacing: 0.5px;">START</span>`;
 
       startMarkerRef.current = new maplibregl.Marker({ element: startEl, anchor: 'center' })
         .setLngLat([props.startPoint.lng, props.startPoint.lat])
@@ -930,8 +906,8 @@ export function Map(props: MapEngineProps) {
     }
     if (props.endPoint) {
       const destEl = document.createElement('div');
-      destEl.style.cssText = 'display: inline-flex !important; align-items: center !important; gap: 4px !important; padding: 4px 10px !important; background: #4f46e5 !important; color: #ffffff !important; font-size: 11px !important; font-weight: 800 !important; border-radius: 9999px !important; border: 2px solid #ffffff !important; box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important; white-space: nowrap !important; width: auto !important; min-width: max-content !important; flex-shrink: 0 !important; z-index: 40 !important;';
-      destEl.innerHTML = `<span style="width: 6px; height: 6px; border-radius: 50%; background: #ffffff;"></span><span>CÍL</span>`;
+      destEl.style.cssText = 'display: flex !important; align-items: center !important; gap: 5px !important; padding: 4px 12px !important; background: #4f46e5 !important; color: #ffffff !important; font-size: 11px !important; font-weight: 800 !important; border-radius: 9999px !important; border: 2px solid #ffffff !important; box-shadow: 0 4px 14px rgba(0,0,0,0.4) !important; white-space: nowrap !important; width: max-content !important; min-width: max-content !important; overflow: visible !important; pointer-events: none;';
+      destEl.innerHTML = `<span style="width: 7px; height: 7px; border-radius: 50%; background: #ffffff; flex-shrink: 0;"></span><span style="letter-spacing: 0.5px;">CÍL</span>`;
 
       endMarkerRef.current = new maplibregl.Marker({ element: destEl, anchor: 'center' })
         .setLngLat([props.endPoint.lng, props.endPoint.lat])
@@ -1220,16 +1196,6 @@ export function Map(props: MapEngineProps) {
     <div className="relative w-full h-full overflow-hidden select-none bg-slate-950">
       {/* Plátno MapLibre GL WebGL mapy pevně roztažené přes celou plochu */}
       <div id="map" ref={mapContainerRef} className="w-full h-full absolute inset-0" />
-
-      {/* Obnovená SVG vrstva spojující souřadnice */}
-      <svg className="absolute inset-0 w-full h-full pointer-events-none z-10" style={{ overflow: 'visible' }}>
-        {svgPath && (
-          <>
-            <path d={svgPath} fill="none" stroke="#10b981" strokeWidth={14} strokeOpacity={0.4} strokeLinecap="round" strokeLinejoin="round" />
-            <path d={svgPath} fill="none" stroke="#059669" strokeWidth={6} strokeOpacity={0.95} strokeLinecap="round" strokeLinejoin="round" />
-          </>
-        )}
-      </svg>
 
       {/* Tlačítko Course-Up: "Sledovat směr chůze" (3D rotace mapy s pohledem chodce) */}
       <button
