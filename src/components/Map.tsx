@@ -216,66 +216,67 @@ const syncWebGLRoute = (map: maplibregl.Map, coords: [number, number][]) => {
     return;
   }
 
-  const geojson: GeoJSON.Feature<GeoJSON.LineString> = {
-    type: 'Feature',
-    properties: {},
-    geometry: { type: 'LineString', coordinates: coords }
+  const geojson: GeoJSON.FeatureCollection<GeoJSON.LineString> = {
+    type: 'FeatureCollection',
+    features: [{
+      type: 'Feature',
+      properties: {},
+      geometry: { type: 'LineString', coordinates: coords }
+    }]
   };
 
   const src = map.getSource('safe-route-source') as maplibregl.GeoJSONSource | undefined;
   if (src) {
     src.setData(geojson);
-    return;
-  }
+  } else if (map.isStyleLoaded()) {
+    map.addSource('safe-route-source', { type: 'geojson', data: geojson });
 
-  if (!map.isStyleLoaded()) {
+    // Neonová záře - tloušťka plynule škáluje od 5px (zoom 10) do 16px (zoom 16)
+    if (!map.getLayer('safe-route-glow')) {
+      map.addLayer({
+        id: 'safe-route-glow',
+        type: 'line',
+        source: 'safe-route-source',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: {
+          'line-color': '#10b981',
+          'line-opacity': 0.45,
+          'line-blur': 2,
+          'line-width': [
+            'interpolate', ['linear'], ['zoom'],
+            10, 5,
+            13, 8,
+            16, 16
+          ]
+        }
+      });
+    }
+
+    // Syté jádro koridoru - škáluje od 2px (zoom 10) do 7px (zoom 16)
+    if (!map.getLayer('safe-route-core')) {
+      map.addLayer({
+        id: 'safe-route-core',
+        type: 'line',
+        source: 'safe-route-source',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: {
+          'line-color': '#059669',
+          'line-opacity': 1.0,
+          'line-width': [
+            'interpolate', ['linear'], ['zoom'],
+            10, 2,
+            13, 4,
+            16, 7
+          ]
+        }
+      });
+    }
+  } else {
     map.once('styledata', () => syncWebGLRoute(map, coords));
     return;
   }
 
-  map.addSource('safe-route-source', { type: 'geojson', data: geojson });
-
-  // Neonová záře - tloušťka plynule škáluje od 5px (zoom 10) do 16px (zoom 16)
-  if (!map.getLayer('safe-route-glow')) {
-    map.addLayer({
-      id: 'safe-route-glow',
-      type: 'line',
-      source: 'safe-route-source',
-      layout: { 'line-join': 'round', 'line-cap': 'round' },
-      paint: {
-        'line-color': '#10b981',
-        'line-opacity': 0.45,
-        'line-blur': 2,
-        'line-width': [
-          'interpolate', ['linear'], ['zoom'],
-          10, 5,
-          13, 8,
-          16, 16
-        ]
-      }
-    });
-  }
-
-  // Syté jádro koridoru - škáluje od 2px (zoom 10) do 7px (zoom 16)
-  if (!map.getLayer('safe-route-core')) {
-    map.addLayer({
-      id: 'safe-route-core',
-      type: 'line',
-      source: 'safe-route-source',
-      layout: { 'line-join': 'round', 'line-cap': 'round' },
-      paint: {
-        'line-color': '#059669',
-        'line-opacity': 1.0,
-        'line-width': [
-          'interpolate', ['linear'], ['zoom'],
-          10, 2,
-          13, 4,
-          16, 7
-        ]
-      }
-    });
-  }
-
+  // KLÍČOVÝ KROK: Pokaždé přesunout linku trasy NA SAMÝ VRCHOL
   try {
     if (map.getLayer('safe-route-glow')) map.moveLayer('safe-route-glow');
     if (map.getLayer('safe-route-core')) map.moveLayer('safe-route-core');
@@ -333,6 +334,7 @@ export function Map(props: MapEngineProps) {
   const setStartPointRef = useRef(props.setStartPoint);
   const setEndPointRef = useRef(props.setEndPoint);
   const onToastRef = useRef(props.onToast);
+  const hasCalculatedRouteRef = useRef<boolean>(false);
 
   const prevStartKeyRef = useRef<string | null>(null);
   const prevEndKeyRef = useRef<string | null>(null);
@@ -650,6 +652,13 @@ export function Map(props: MapEngineProps) {
         }
       });
     }
+
+    try {
+      if (map.getLayer('safe-route-glow')) map.moveLayer('safe-route-glow');
+      if (map.getLayer('safe-route-core')) map.moveLayer('safe-route-core');
+    } catch {
+      // safe route might not exist yet
+    }
   };
 
   // 1. Inicializace MapLibre GL mapy se spolehlivým životním cyklem Reactu
@@ -703,11 +712,19 @@ export function Map(props: MapEngineProps) {
     });
 
     // Uživatelský zámek kamery pro zamezení gumového zoomu (Rubberbanding)
-    map.on('dragstart', () => { userInteractedRef.current = true; });
-    map.on('zoomstart', (e: any) => { if (e.originalEvent) userInteractedRef.current = true; });
-    map.on('rotatestart', () => { userInteractedRef.current = true; });
+    let isDragging = false;
+    map.on('dragstart', () => { isDragging = true; userInteractedRef.current = true; });
+    map.on('dragend', () => { setTimeout(() => { isDragging = false; }, 100); });
+    map.on('zoomstart', (e: any) => { isDragging = true; if (e.originalEvent) userInteractedRef.current = true; });
+    map.on('zoomend', () => { setTimeout(() => { isDragging = false; }, 100); });
+    map.on('rotatestart', () => { isDragging = true; userInteractedRef.current = true; });
+    map.on('rotateend', () => { setTimeout(() => { isDragging = false; }, 100); });
 
     map.on('click', (e: maplibregl.MapMouseEvent) => {
+      if (isDragging) return;
+      // Pokud už je trasa hotová a uživatel si jen prohlíží mapu, nepřepisovat cíl náhodným klikem
+      if (hasCalculatedRouteRef.current && !onMapClickRef.current) return;
+
       const lat = e.lngLat.lat;
       const lng = e.lngLat.lng;
 
@@ -868,6 +885,7 @@ export function Map(props: MapEngineProps) {
       (activeRoute && ((activeRoute.geometry && activeRoute.geometry.length >= 2) || (activeRoute.segments && activeRoute.segments.length > 0)))
     )
   );
+  hasCalculatedRouteRef.current = hasCalculatedRoute;
 
   const showSelectionBanner = !hasBothPoints && !hasCalculatedRoute && Boolean(
     (props.startPoint && !props.endPoint) || (!props.startPoint && props.endPoint)
@@ -1245,7 +1263,7 @@ export function Map(props: MapEngineProps) {
     // 7. Úroveň detailů podle přiblížení (LOD)
     const handleZoomLOD = () => {
       const zoom = mapRef.current?.getZoom() ?? 14;
-      const showDetails = zoom >= 13.2;
+      const showDetails = zoom >= 11.5;
       corridorMarkersRef.current.forEach(m => {
         const dom = m.getElement();
         if (dom) dom.style.display = showDetails ? 'flex' : 'none';
