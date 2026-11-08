@@ -127,16 +127,19 @@ export function useMotionAnomaly(options: UseMotionAnomalyOptions = {}): MotionA
           currentLocation.lat,
           currentLocation.lng
         );
-        speedKmh = (distMeters / dtSeconds) * 3.6;
+        const rawSpeed = (distMeters / dtSeconds) * 3.6;
+        // Pokud rychlost přesáhne 35 km/h (nerealistické pro chůzi/běh dítěte), ignoruj ji nebo omez na 5 km/h
+        const safeSpeed = (rawSpeed > 35 || isNaN(rawSpeed)) ? 0 : rawSpeed;
+        speedKmh = safeSpeed;
         setCurrentSpeedKmh(Math.round(speedKmh * 10) / 10);
       }
     }
 
     lastLocationRef.current = { lat: currentLocation.lat, lng: currentLocation.lng, time: now };
 
-    // A. Běh / Úprk: rychlost > 12 km/h v nočním režimu nebo dětském profilu
+    // A. Běh / Úprk: rychlost > 12 km/h v nočním režimu nebo dětském profilu (a <= 35 km/h)
     const isVulnerableMode = activeMode === 'night_girl' || activeMode === 'child' || isNight;
-    if (speedKmh > RUN_SPEED_THRESHOLD_KMH && isVulnerableMode) {
+    if (speedKmh > RUN_SPEED_THRESHOLD_KMH && speedKmh <= 35 && isVulnerableMode) {
       setHeightenedVigilance(true);
     } else if (speedKmh <= 6.0) {
       // Návrat k normální chůzi resetuje zvýšenou bdělost po chvíli

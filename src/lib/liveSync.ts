@@ -451,12 +451,14 @@ export function startGpsStreaming(
         currentLat = pos.coords.latitude;
         currentLng = pos.coords.longitude;
         currentAccuracy = pos.coords.accuracy;
+        const rawGpsSpeed = pos.coords.speed;
+        const safeGpsSpeed = (typeof rawGpsSpeed === 'number' && !isNaN(rawGpsSpeed) && rawGpsSpeed * 3.6 <= 35 && rawGpsSpeed >= 0) ? rawGpsSpeed : 0;
         onPositionChange?.({
           lat: currentLat,
           lng: currentLng,
           accuracy: currentAccuracy,
           heading: pos.coords.heading,
-          speed: pos.coords.speed
+          speed: safeGpsSpeed
         });
         pushUpdate();
       },

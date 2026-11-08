@@ -69,7 +69,7 @@ export function ChildView({ onBack }: ChildViewProps) {
           lng: coords.lng,
           accuracy: coords.accuracy ?? prev.accuracy,
           heading: coords.heading !== undefined ? coords.heading : prev.heading,
-          speed: coords.speed !== undefined ? coords.speed : prev.speed
+          speed: (coords.speed !== undefined && coords.speed !== null && typeof coords.speed === 'number' && !isNaN(coords.speed) && coords.speed * 3.6 <= 35) ? coords.speed : 0
         }));
       },
       {

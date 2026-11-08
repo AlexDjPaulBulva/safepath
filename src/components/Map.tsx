@@ -193,32 +193,66 @@ const initSafeRouteLayers = (map: maplibregl.Map) => {
   }
 };
 
-const updateRouteOnMap = (map: maplibregl.Map, coords: [number, number][]) => {
+const drawNativeRoute = (map: maplibregl.Map, coords: [number, number][]) => {
   if (!map) return;
   if (!map.isStyleLoaded()) {
-    map.once('styledata', () => updateRouteOnMap(map, coords));
+    map.once('styledata', () => drawNativeRoute(map, coords));
     return;
   }
 
-  initSafeRouteLayers(map);
+  const src = map.getSource('safe-route-source') as maplibregl.GeoJSONSource | undefined;
 
-  const geojson: GeoJSON.FeatureCollection<GeoJSON.LineString> = {
-    type: 'FeatureCollection',
-    features: (coords && coords.length >= 2) ? [
-      {
-        type: 'Feature',
-        properties: {},
-        geometry: {
-          type: 'LineString',
-          coordinates: coords
-        }
-      }
-    ] : []
+  if (!coords || coords.length < 2) {
+    if (src) {
+      src.setData({
+        type: 'FeatureCollection',
+        features: []
+      });
+    }
+    return;
+  }
+
+  const geojson: GeoJSON.Feature<GeoJSON.LineString> = {
+    type: 'Feature',
+    properties: {},
+    geometry: { type: 'LineString', coordinates: coords }
   };
 
-  const src = map.getSource('safe-route-source') as maplibregl.GeoJSONSource | undefined;
   if (src) {
     src.setData(geojson);
+  } else if (map.isStyleLoaded()) {
+    map.addSource('safe-route-source', { type: 'geojson', data: geojson });
+
+    // Zářivý neonový podklad
+    if (!map.getLayer('safe-route-glow')) {
+      map.addLayer({
+        id: 'safe-route-glow',
+        type: 'line',
+        source: 'safe-route-source',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: {
+          'line-color': '#10b981',
+          'line-width': 14,
+          'line-opacity': 0.4,
+          'line-blur': 2
+        }
+      });
+    }
+
+    // Ostré jádro koridoru
+    if (!map.getLayer('safe-route-core')) {
+      map.addLayer({
+        id: 'safe-route-core',
+        type: 'line',
+        source: 'safe-route-source',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: {
+          'line-color': '#059669',
+          'line-width': 6,
+          'line-opacity': 1.0
+        }
+      });
+    }
   }
 
   try {
@@ -228,6 +262,8 @@ const updateRouteOnMap = (map: maplibregl.Map, coords: [number, number][]) => {
     console.warn('moveLayer safe-route error:', e);
   }
 };
+
+const updateRouteOnMap = drawNativeRoute;
 
 function getCameraAzimuth(cam: { lat: number; lng: number; direction?: number }, routeCoords: [number, number][]): number {
   if (typeof cam.direction === 'number' && !isNaN(cam.direction)) {
@@ -257,7 +293,6 @@ export function Map(props: MapEngineProps) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [isCourseUp, setIsCourseUp] = useState(false);
-  const [svgPath, setSvgPath] = useState<string>('');
   const lastFittedRouteIdRef = useRef<string | null>(null);
   const userInteractedRef = useRef<boolean>(false);
   const pendingRouteRef = useRef<[number, number][] | null>(null);
@@ -540,14 +575,20 @@ export function Map(props: MapEngineProps) {
     if (normalizedFastestCoords.length >= 2) {
       if (props.startPoint) {
         const startCoord: [number, number] = [props.startPoint.lng, props.startPoint.lat];
-        const dStart = Math.hypot(normalizedFastestCoords[0][0] - startCoord[0], normalizedFastestCoords[0][1] - startCoord[1]);
-        if (dStart > 0.00005) normalizedFastestCoords.unshift(startCoord);
+        const dStartMeters = Math.hypot(
+          (normalizedFastestCoords[0][0] - startCoord[0]) * 71400,
+          (normalizedFastestCoords[0][1] - startCoord[1]) * 111200
+        );
+        if (dStartMeters > 5) normalizedFastestCoords.unshift(startCoord);
       }
       if (props.endPoint) {
         const endCoord: [number, number] = [props.endPoint.lng, props.endPoint.lat];
         const lastIdx = normalizedFastestCoords.length - 1;
-        const dEnd = Math.hypot(normalizedFastestCoords[lastIdx][0] - endCoord[0], normalizedFastestCoords[lastIdx][1] - endCoord[1]);
-        if (dEnd > 0.00005) normalizedFastestCoords.push(endCoord);
+        const dEndMeters = Math.hypot(
+          (normalizedFastestCoords[lastIdx][0] - endCoord[0]) * 71400,
+          (normalizedFastestCoords[lastIdx][1] - endCoord[1]) * 111200
+        );
+        if (dEndMeters > 5) normalizedFastestCoords.push(endCoord);
       }
     }
 
@@ -762,16 +803,22 @@ export function Map(props: MapEngineProps) {
     if (rawCoords.length === 0) return [];
 
     const completeRouteCoords: [number, number][] = [...rawCoords];
-    if (props.startPoint) {
+    if (props.startPoint && completeRouteCoords.length > 0) {
       const startCoord: [number, number] = [props.startPoint.lng, props.startPoint.lat];
-      const dStart = Math.hypot(completeRouteCoords[0][0] - startCoord[0], completeRouteCoords[0][1] - startCoord[1]);
-      if (dStart > 0.00005) completeRouteCoords.unshift(startCoord);
+      const dStartMeters = Math.hypot(
+        (completeRouteCoords[0][0] - startCoord[0]) * 71400,
+        (completeRouteCoords[0][1] - startCoord[1]) * 111200
+      );
+      if (dStartMeters > 5) completeRouteCoords.unshift(startCoord);
     }
-    if (props.endPoint) {
+    if (props.endPoint && completeRouteCoords.length > 0) {
       const endCoord: [number, number] = [props.endPoint.lng, props.endPoint.lat];
       const lastIdx = completeRouteCoords.length - 1;
-      const dEnd = Math.hypot(completeRouteCoords[lastIdx][0] - endCoord[0], completeRouteCoords[lastIdx][1] - endCoord[1]);
-      if (dEnd > 0.00005) completeRouteCoords.push(endCoord);
+      const dEndMeters = Math.hypot(
+        (completeRouteCoords[lastIdx][0] - endCoord[0]) * 71400,
+        (completeRouteCoords[lastIdx][1] - endCoord[1]) * 111200
+      );
+      if (dEndMeters > 5) completeRouteCoords.push(endCoord);
     }
 
     return completeRouteCoords;
@@ -791,39 +838,20 @@ export function Map(props: MapEngineProps) {
     (props.startPoint && !props.endPoint) || (!props.startPoint && props.endPoint)
   );
 
-  // 2. Garantované vykreslení zelené linie trasy (SVG projekce + GPU WebGL synchronizace)
+  // 2. Garantované vykreslení zelené linie trasy v GPU WebGL (nativní MapLibre GL bez lagujícího SVG)
   useEffect(() => {
     pendingRouteRef.current = (validCoords && validCoords.length >= 2) ? validCoords : null;
     const map = mapRef.current;
     if (!map || !validCoords || validCoords.length < 2) {
-      setSvgPath('');
       lastFittedRouteIdRef.current = null;
       if (map) {
-        updateRouteOnMap(map, []);
+        drawNativeRoute(map, []);
       }
       return;
     }
 
-    // Zápis trasy do MapLibre s pojistkou proti race-condition
-    updateRouteOnMap(map, validCoords);
-
-    // Přepočet GPS bodů trasy na pixely obrazovky pro SVG Overlay
-    const syncPath = () => {
-      try {
-        const d = validCoords
-          .map((coord, idx) => {
-            const pixel = map.project(coord);
-            return `${idx === 0 ? 'M' : 'L'} ${pixel.x.toFixed(1)} ${pixel.y.toFixed(1)}`;
-          })
-          .join(' ');
-        setSvgPath(d);
-      } catch (err) {
-        console.error('Chyba přepočtu trasy:', err);
-      }
-    };
-
-    // Prvotní vykreslení
-    syncPath();
+    // Zápis trasy do MapLibre s GPU akcelerací a pojistkou proti race-condition
+    drawNativeRoute(map, validCoords);
 
     // Automatické přizpůsobení pohledu na novou trasu POUZE JEDNOU, pokud uživatel mapu manuálně neovládá
     const routeSignature = `${validCoords[0].join(',')}-${validCoords[validCoords.length - 1].join(',')}`;
@@ -837,18 +865,6 @@ export function Map(props: MapEngineProps) {
         map.fitBounds(bounds, { padding: 80, duration: 600 });
       }
     }
-
-    map.on('move', syncPath);
-    map.on('zoom', syncPath);
-    map.on('rotate', syncPath);
-    map.on('pitch', syncPath);
-
-    return () => {
-      map.off('move', syncPath);
-      map.off('zoom', syncPath);
-      map.off('rotate', syncPath);
-      map.off('pitch', syncPath);
-    };
   }, [validCoords, isMapLoaded]);
 
   // Podpora pro volitelnou linku nejrychlejší alternativní trasy
@@ -1046,8 +1062,8 @@ export function Map(props: MapEngineProps) {
       if (lat < minLat) minLat = lat;
       if (lat > maxLat) maxLat = lat;
     }
-    const padLng = 0.0012; // cca 85 metrů v Praze
-    const padLat = 0.0008;
+    const padLng = 0.0025; // cca 180 metrů rezerva
+    const padLat = 0.0018;
     const bMinLng = minLng - padLng;
     const bMaxLng = maxLng + padLng;
     const bMinLat = minLat - padLat;
@@ -1284,16 +1300,6 @@ export function Map(props: MapEngineProps) {
     <div className="relative w-full h-full overflow-hidden select-none bg-slate-950">
       {/* Plátno MapLibre GL WebGL mapy pevně roztažené přes celou plochu */}
       <div id="map" ref={mapContainerRef} className="w-full h-full absolute inset-0" />
-
-      {/* Obnovená SVG vrstva spojující souřadnice */}
-      <svg className="absolute inset-0 w-full h-full pointer-events-none z-10" style={{ overflow: 'visible' }}>
-        {svgPath && (
-          <>
-            <path d={svgPath} fill="none" stroke="#10b981" strokeWidth={14} strokeOpacity={0.4} strokeLinecap="round" strokeLinejoin="round" />
-            <path d={svgPath} fill="none" stroke="#059669" strokeWidth={6} strokeOpacity={0.95} strokeLinecap="round" strokeLinejoin="round" />
-          </>
-        )}
-      </svg>
 
       {/* Tlačítko Course-Up: "Sledovat směr chůze" (3D rotace mapy s pohledem chodce) */}
       <button

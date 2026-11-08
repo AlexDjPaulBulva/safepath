@@ -158,12 +158,13 @@ export function ParentDashboard({
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
         const { latitude: lat, longitude: lng, accuracy, heading, speed } = position.coords;
+        const safeSpeed = (typeof speed === 'number' && !isNaN(speed) && speed * 3.6 <= 35 && speed >= 0) ? speed : null;
         const newLoc = { 
           lat, 
           lng, 
           accuracy: accuracy || 20,
           heading: typeof heading === 'number' && !isNaN(heading) ? heading : null,
-          speed: typeof speed === 'number' && !isNaN(speed) ? speed : null
+          speed: safeSpeed
         };
         setUserLocation(newLoc);
         setIsTrackingLocation(true);
@@ -220,12 +221,13 @@ export function ParentDashboard({
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           const { latitude: lat, longitude: lng, accuracy, heading, speed } = pos.coords;
+          const safeSpeed = (typeof speed === 'number' && !isNaN(speed) && speed * 3.6 <= 35 && speed >= 0) ? speed : null;
           const loc = { 
             lat, 
             lng, 
             accuracy: accuracy || 20,
             heading: typeof heading === 'number' && !isNaN(heading) ? heading : null,
-            speed: typeof speed === 'number' && !isNaN(speed) ? speed : null
+            speed: safeSpeed
           };
           setUserLocation(loc);
           setIsTrackingLocation(true);
@@ -259,12 +261,13 @@ export function ParentDashboard({
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const { latitude: lat, longitude: lng, accuracy, heading, speed } = pos.coords;
+        const safeSpeed = (typeof speed === 'number' && !isNaN(speed) && speed * 3.6 <= 35 && speed >= 0) ? speed : null;
         const loc = { 
           lat, 
           lng, 
           accuracy: accuracy || 20,
           heading: typeof heading === 'number' && !isNaN(heading) ? heading : null,
-          speed: typeof speed === 'number' && !isNaN(speed) ? speed : null
+          speed: safeSpeed
         };
         setUserLocation(loc);
         setIsTrackingLocation(true);
