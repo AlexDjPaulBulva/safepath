@@ -556,7 +556,7 @@ export function ParentDashboard({
     cameras: osmCameras
   });
 
-  const formatCoordinateLabel = (lat: number, lng: number) => `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+  const formatCoordinateLabel = (_lat?: number, _lng?: number) => 'Vybrané místo na mapě...';
 
   const applyInstantPoint = (kind: 'start' | 'end', lat: number, lng: number, fallbackName?: string) => {
     const coordinateName = fallbackName || formatCoordinateLabel(lat, lng);
@@ -607,13 +607,13 @@ export function ParentDashboard({
       }
 
       if (!effectiveStart) {
-        applyInstantPoint('start', lat, lng, name);
+        applyInstantPoint('start', lat, lng, name || 'Vybrané místo na mapě...');
         setSelectedRoute('A');
         showMapToast('Start nastaven. Nyní klepněte na cíl.', 'success');
         return;
       } else if (!endPoint) {
         // Jediné klepnutí rovnou nastaví CÍL a spustí navigaci od aktuální polohy!
-        applyInstantPoint('end', lat, lng, name);
+        applyInstantPoint('end', lat, lng, name || 'Vybrané místo na mapě...');
         setSelectedRoute('A');
         if (locationPermissionDenied || !userLocation) {
           showMapToast('Cíl nastaven. Zvolte start klepnutím do mapy', 'info');
@@ -622,22 +622,10 @@ export function ParentDashboard({
         }
         return;
       } else {
-        // Pokud navigujeme od GPS polohy, klepnutí do mapy změní cíl; v manuálním režimu resetuje trasu
-        if (effectiveStart.name === 'Moje aktuální poloha' && userLocation && !locationPermissionDenied) {
-          applyInstantPoint('end', lat, lng, name);
-          setSelectedRoute('A');
-          showMapToast('Cíl aktualizován. Přepočítávám trasu...', 'success');
-        } else {
-          // Třetí klik nastaví nový start a resetuje trasu
-          applyInstantPoint('start', lat, lng, name);
-          setEndPoint(null);
-          setRouteA(null);
-          setRouteB(null);
-          setRouteC(null);
-          setFastestRoute(null);
-          setSelectedRoute('A');
-          showMapToast('Start nastaven. Nyní klepněte na cíl.', 'success');
-        }
+        // Obě hodnoty existují -> kliknutím se přirozeně posune cíl
+        applyInstantPoint('end', lat, lng, name || 'Vybrané místo na mapě...');
+        setSelectedRoute('A');
+        showMapToast('Cíl aktualizován. Přepočítávám trasu...', 'success');
       }
     } catch (e) {
       console.error(e);
@@ -647,19 +635,14 @@ export function ParentDashboard({
   const handleMapDoubleClick = async (lat: number, lng: number) => {
     try {
       const addressName = await reverseGeocode(lat, lng);
-      const fallbackName = addressName || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+      const fallbackName = addressName || 'Vybrané místo na mapě...';
 
       if (!startPoint) {
         setStartPoint({ lat, lng, name: fallbackName });
       } else if (!endPoint) {
         setEndPoint({ lat, lng, name: fallbackName });
       } else {
-        setStartPoint({ lat, lng, name: fallbackName });
-        setEndPoint(null);
-        setRouteA(null);
-        setRouteB(null);
-        setRouteC(null);
-        setFastestRoute(null);
+        setEndPoint({ lat, lng, name: fallbackName });
       }
     } catch (e) {
       console.error(e);
@@ -1056,6 +1039,8 @@ export function ParentDashboard({
             timeOfDay={timeOfDay}
             center={mapCenter}
             onMapClick={handleMapClick}
+            onSelectStart={handleSelectStart}
+            onSelectEnd={handleSelectEnd}
             onSelectRoute={(route) => { setSelectedRoute(route); setSafetyReveal(null); setRouteProximityPoint(null); }}
             isSimulating={isSimulating}
             simulationProgress={simulationProgress}

@@ -59,6 +59,8 @@ export interface MapEngineProps {
   timeOfDay?: number;
   center?: [number, number] | null;
   onMapClick?: (lat: number, lng: number, name?: string) => void;
+  onSelectStart?: (lat: number, lng: number, name: string) => void;
+  onSelectEnd?: (lat: number, lng: number, name: string) => void;
   isSimulating?: boolean;
   simulationProgress?: number;
   activeProfiles?: string[];
@@ -144,38 +146,17 @@ const normalizeToLngLat = (coords: [number, number][]): [number, number][] => {
   });
 };
 
-const renderSafeRouteWebGL = (map: maplibregl.Map, coords: [number, number][]) => {
-  if (!map || !coords || coords.length < 2) return;
+const initSafeRouteLayers = (map: maplibregl.Map) => {
+  if (!map.isStyleLoaded()) return;
 
-  if (!map.isStyleLoaded()) {
-    map.once('style.load', () => renderSafeRouteWebGL(map, coords));
-    return;
-  }
-
-  const geojsonData: GeoJSON.FeatureCollection<GeoJSON.LineString> = {
-    type: 'FeatureCollection',
-    features: [{
-      type: 'Feature',
-      properties: {},
-      geometry: {
-        type: 'LineString',
-        coordinates: coords
-      }
-    }]
-  };
-
-  // 1. Zajištění existence zdroje dat
-  const existingSource = map.getSource('safe-route-source') as maplibregl.GeoJSONSource | undefined;
-  if (!existingSource) {
+  if (!map.getSource('safe-route-source')) {
     map.addSource('safe-route-source', {
       type: 'geojson',
-      data: geojsonData
+      data: { type: 'FeatureCollection', features: [] }
     });
-  } else {
-    existingSource.setData(geojsonData);
   }
 
-  // 2. Zajištění neonového podkladu (Glow)
+  // Spodní neonová záře
   if (!map.getLayer('safe-route-glow')) {
     map.addLayer({
       id: 'safe-route-glow',
@@ -184,19 +165,14 @@ const renderSafeRouteWebGL = (map: maplibregl.Map, coords: [number, number][]) =
       layout: { 'line-join': 'round', 'line-cap': 'round' },
       paint: {
         'line-color': '#10b981',
+        'line-width': 14,
         'line-opacity': 0.45,
-        'line-blur': 2,
-        'line-width': [
-          'interpolate', ['linear'], ['zoom'],
-          10, 5,
-          13, 9,
-          16, 16
-        ]
+        'line-blur': 3
       }
     });
   }
 
-  // 3. Zajištění sytého zeleného jádra (Core)
+  // Hlavní sytý koridor
   if (!map.getLayer('safe-route-core')) {
     map.addLayer({
       id: 'safe-route-core',
@@ -205,30 +181,55 @@ const renderSafeRouteWebGL = (map: maplibregl.Map, coords: [number, number][]) =
       layout: { 'line-join': 'round', 'line-cap': 'round' },
       paint: {
         'line-color': '#059669',
-        'line-opacity': 1.0,
-        'line-width': [
-          'interpolate', ['linear'], ['zoom'],
-          10, 2.5,
-          13, 4.5,
-          16, 8
-        ]
+        'line-width': 6,
+        'line-opacity': 1.0
       }
     });
   }
 
-  // 4. Vynést vrstvy nad podkladové dlaždice mapy
   try {
     if (map.getLayer('safe-route-glow')) map.moveLayer('safe-route-glow');
     if (map.getLayer('safe-route-core')) map.moveLayer('safe-route-core');
   } catch (e) {
-    // ignorovat případnou chybu pořadí vrstev
+    console.warn('moveLayer safe-route error:', e);
   }
 };
 
-const syncWebGLRoute = renderSafeRouteWebGL;
-const drawNativeRoute = renderSafeRouteWebGL;
-const updateRouteOnMap = renderSafeRouteWebGL;
-const initSafeRouteLayers = (map: maplibregl.Map) => {};
+const updateRouteOnMap = (map: maplibregl.Map, coords: [number, number][]) => {
+  if (!map) return;
+  if (!map.isStyleLoaded()) {
+    map.once('styledata', () => updateRouteOnMap(map, coords));
+    return;
+  }
+
+  initSafeRouteLayers(map);
+
+  const geojson: GeoJSON.FeatureCollection<GeoJSON.LineString> = {
+    type: 'FeatureCollection',
+    features: (coords && coords.length >= 2) ? [
+      {
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'LineString',
+          coordinates: coords
+        }
+      }
+    ] : []
+  };
+
+  const src = map.getSource('safe-route-source') as maplibregl.GeoJSONSource | undefined;
+  if (src) {
+    src.setData(geojson);
+  }
+
+  try {
+    if (map.getLayer('safe-route-glow')) map.moveLayer('safe-route-glow');
+    if (map.getLayer('safe-route-core')) map.moveLayer('safe-route-core');
+  } catch (e) {
+    console.warn('moveLayer safe-route error:', e);
+  }
+};
 
 function getCameraAzimuth(cam: { lat: number; lng: number; direction?: number }, routeCoords: [number, number][]): number {
   if (typeof cam.direction === 'number' && !isNaN(cam.direction)) {
@@ -258,6 +259,7 @@ export function Map(props: MapEngineProps) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [isCourseUp, setIsCourseUp] = useState(false);
+  const [svgPath, setSvgPath] = useState<string>('');
   const lastFittedRouteIdRef = useRef<string | null>(null);
   const userInteractedRef = useRef<boolean>(false);
   const pendingRouteRef = useRef<[number, number][] | null>(null);
@@ -276,8 +278,8 @@ export function Map(props: MapEngineProps) {
   const setStartPointRef = useRef(props.setStartPoint);
   const setEndPointRef = useRef(props.setEndPoint);
   const onToastRef = useRef(props.onToast);
-  const hasCalculatedRouteRef = useRef<boolean>(false);
-  const validCoordsRef = useRef<[number, number][]>([]);
+  const onSelectStartRef = useRef(props.onSelectStart);
+  const onSelectEndRef = useRef(props.onSelectEnd);
 
   const prevStartKeyRef = useRef<string | null>(null);
   const prevEndKeyRef = useRef<string | null>(null);
@@ -301,6 +303,8 @@ export function Map(props: MapEngineProps) {
   useEffect(() => { setStartPointRef.current = props.setStartPoint; }, [props.setStartPoint]);
   useEffect(() => { setEndPointRef.current = props.setEndPoint; }, [props.setEndPoint]);
   useEffect(() => { onToastRef.current = props.onToast; }, [props.onToast]);
+  useEffect(() => { onSelectStartRef.current = props.onSelectStart; }, [props.onSelectStart]);
+  useEffect(() => { onSelectEndRef.current = props.onSelectEnd; }, [props.onSelectEnd]);
 
   // Markers refs pro správu životního cyklu v MapLibre GL
   const userPuckMarkerRef = useRef<maplibregl.Marker | null>(null);
@@ -542,20 +546,14 @@ export function Map(props: MapEngineProps) {
     if (normalizedFastestCoords.length >= 2) {
       if (props.startPoint) {
         const startCoord: [number, number] = [props.startPoint.lng, props.startPoint.lat];
-        const dStartMeters = Math.hypot(
-          (normalizedFastestCoords[0][0] - startCoord[0]) * 71400,
-          (normalizedFastestCoords[0][1] - startCoord[1]) * 111200
-        );
-        if (dStartMeters > 5) normalizedFastestCoords.unshift(startCoord);
+        const dStart = Math.hypot(normalizedFastestCoords[0][0] - startCoord[0], normalizedFastestCoords[0][1] - startCoord[1]);
+        if (dStart > 0.00005) normalizedFastestCoords.unshift(startCoord);
       }
       if (props.endPoint) {
         const endCoord: [number, number] = [props.endPoint.lng, props.endPoint.lat];
         const lastIdx = normalizedFastestCoords.length - 1;
-        const dEndMeters = Math.hypot(
-          (normalizedFastestCoords[lastIdx][0] - endCoord[0]) * 71400,
-          (normalizedFastestCoords[lastIdx][1] - endCoord[1]) * 111200
-        );
-        if (dEndMeters > 5) normalizedFastestCoords.push(endCoord);
+        const dEnd = Math.hypot(normalizedFastestCoords[lastIdx][0] - endCoord[0], normalizedFastestCoords[lastIdx][1] - endCoord[1]);
+        if (dEnd > 0.00005) normalizedFastestCoords.push(endCoord);
       }
     }
 
@@ -595,13 +593,6 @@ export function Map(props: MapEngineProps) {
         }
       });
     }
-
-    try {
-      if (map.getLayer('safe-route-glow')) map.moveLayer('safe-route-glow');
-      if (map.getLayer('safe-route-core')) map.moveLayer('safe-route-core');
-    } catch {
-      // safe route might not exist yet
-    }
   };
 
   // 1. Inicializace MapLibre GL mapy se spolehlivým životním cyklem Reactu
@@ -638,52 +629,48 @@ export function Map(props: MapEngineProps) {
 
     map.on('load', () => {
       map.resize();
+      initSafeRouteLayers(map);
       drawFastestRoute(map);
-      const coords = validCoordsRef.current && validCoordsRef.current.length >= 2 ? validCoordsRef.current : pendingRouteRef.current;
-      if (coords && coords.length >= 2) {
-        renderSafeRouteWebGL(map, coords);
+      if (pendingRouteRef.current && pendingRouteRef.current.length >= 2) {
+        updateRouteOnMap(map, pendingRouteRef.current);
       }
       setIsMapLoaded(true);
     });
 
     map.on('style.load', () => {
+      initSafeRouteLayers(map);
       drawFastestRoute(map);
-      const coords = validCoordsRef.current && validCoordsRef.current.length >= 2 ? validCoordsRef.current : pendingRouteRef.current;
-      if (coords && coords.length >= 2) {
-        renderSafeRouteWebGL(map, coords);
+      if (pendingRouteRef.current && pendingRouteRef.current.length >= 2) {
+        updateRouteOnMap(map, pendingRouteRef.current);
       }
     });
 
     // Uživatelský zámek kamery pro zamezení gumového zoomu (Rubberbanding)
-    let isDragging = false;
-    map.on('dragstart', () => { isDragging = true; userInteractedRef.current = true; });
-    map.on('dragend', () => { setTimeout(() => { isDragging = false; }, 100); });
-    map.on('zoomstart', (e: any) => { isDragging = true; if (e.originalEvent) userInteractedRef.current = true; });
-    map.on('zoomend', () => { setTimeout(() => { isDragging = false; }, 100); });
-    map.on('rotatestart', () => { isDragging = true; userInteractedRef.current = true; });
-    map.on('rotateend', () => { setTimeout(() => { isDragging = false; }, 100); });
+    map.on('dragstart', () => { userInteractedRef.current = true; });
+    map.on('zoomstart', (e: any) => { if (e.originalEvent) userInteractedRef.current = true; });
+    map.on('rotatestart', () => { userInteractedRef.current = true; });
 
     map.on('click', (e: maplibregl.MapMouseEvent) => {
-      if (isDragging) return;
-
-      // POKUD UŽ TRASA EXISTUJE, KLIKNUTÍ DO MAPY JI NESMÍ SMAZAT ANI PŘEPSAT:
-      if (startPointRef.current && endPointRef.current) {
-        return;
-      }
-
       const lat = e.lngLat.lat;
       const lng = e.lngLat.lng;
 
       if (onMapClickRef.current) {
         onMapClickRef.current(lat, lng);
-      } else if (setStartPointRef.current || setEndPointRef.current) {
-        if (startPointRef.current && !endPointRef.current) {
-          setEndPointRef.current?.({ lat, lng });
-          onToastRef.current?.('Cíl nastaven. Počítám bezpečnou trasu...');
-        } else if (!startPointRef.current) {
-          setStartPointRef.current?.({ lat, lng });
-          onToastRef.current?.('Start nastaven. Nyní klepněte na cíl.');
-        }
+        return;
+      }
+
+      if (!startPointRef.current) {
+        // 1. Nastavení startu
+        setStartPointRef.current?.({ lat, lng, name: 'Vybrané místo na mapě...' });
+        onSelectStartRef.current?.(lat, lng, 'Vybrané místo na mapě...');
+      } else if (!endPointRef.current) {
+        // 2. Nastavení cíle
+        setEndPointRef.current?.({ lat, lng, name: 'Vybrané místo na mapě...' });
+        onSelectEndRef.current?.(lat, lng, 'Vybrané místo na mapě...');
+      } else {
+        // 3. Obě hodnoty existují -> kliknutím se přirozeně posune cíl
+        setEndPointRef.current?.({ lat, lng, name: 'Vybrané místo na mapě...' });
+        onSelectEndRef.current?.(lat, lng, 'Vybrané místo na mapě...');
       }
     });
 
@@ -746,16 +733,9 @@ export function Map(props: MapEngineProps) {
   }, []);
 
   const routeData = props.routeData ?? props.routeCoordinates ?? activeRoute;
-  const prevValidCoordsRef = useRef<[number, number][]>([]);
 
   const validCoords: [number, number][] = useMemo(() => {
-    if (!routeData) {
-      if (props.startPoint && props.endPoint && prevValidCoordsRef.current.length >= 2) {
-        return prevValidCoordsRef.current;
-      }
-      prevValidCoordsRef.current = [];
-      return [];
-    }
+    if (!routeData) return [];
 
     let rawPoints = 
       routeData?.coordinates || 
@@ -790,34 +770,30 @@ export function Map(props: MapEngineProps) {
       })
       .filter((p): p is [number, number] => p !== null && !isNaN(p[0]) && !isNaN(p[1]));
 
-    if (rawCoords.length === 0) {
-      if (props.startPoint && props.endPoint && prevValidCoordsRef.current.length >= 2) {
-        return prevValidCoordsRef.current;
+    if (rawCoords.length === 0) return [];
+
+    // Zajistit přesné spojení začátku a konce trasy s markery
+    const connectedCoords: [number, number][] = [...rawCoords];
+
+    if (props.startPoint && connectedCoords.length > 0) {
+      const [firstLng, firstLat] = connectedCoords[0];
+      const distStart = Math.hypot(firstLng - props.startPoint.lng, firstLat - props.startPoint.lat);
+      // Pokud je marker dál než cca 5 metrů od prvního bodu OSRM, doplň přesný start
+      if (distStart > 0.00005) {
+        connectedCoords.unshift([props.startPoint.lng, props.startPoint.lat]);
       }
-      return [];
     }
 
-    const completeRouteCoords: [number, number][] = [...rawCoords];
-    if (props.startPoint && completeRouteCoords.length > 0) {
-      const startCoord: [number, number] = [props.startPoint.lng, props.startPoint.lat];
-      const dStartMeters = Math.hypot(
-        (completeRouteCoords[0][0] - startCoord[0]) * 71400,
-        (completeRouteCoords[0][1] - startCoord[1]) * 111200
-      );
-      if (dStartMeters > 5) completeRouteCoords.unshift(startCoord);
-    }
-    if (props.endPoint && completeRouteCoords.length > 0) {
-      const endCoord: [number, number] = [props.endPoint.lng, props.endPoint.lat];
-      const lastIdx = completeRouteCoords.length - 1;
-      const dEndMeters = Math.hypot(
-        (completeRouteCoords[lastIdx][0] - endCoord[0]) * 71400,
-        (completeRouteCoords[lastIdx][1] - endCoord[1]) * 111200
-      );
-      if (dEndMeters > 5) completeRouteCoords.push(endCoord);
+    if (props.endPoint && connectedCoords.length > 0) {
+      const [lastLng, lastLat] = connectedCoords[connectedCoords.length - 1];
+      const distEnd = Math.hypot(lastLng - props.endPoint.lng, lastLat - props.endPoint.lat);
+      // Pokud je marker dál než cca 5 metrů od konce OSRM, doplň přesný cíl
+      if (distEnd > 0.00005) {
+        connectedCoords.push([props.endPoint.lng, props.endPoint.lat]);
+      }
     }
 
-    prevValidCoordsRef.current = completeRouteCoords;
-    return completeRouteCoords;
+    return connectedCoords;
   }, [routeData, props.startPoint, props.endPoint]);
 
   const hasBothPoints = Boolean(props.startPoint && props.endPoint);
@@ -829,28 +805,44 @@ export function Map(props: MapEngineProps) {
       (activeRoute && ((activeRoute.geometry && activeRoute.geometry.length >= 2) || (activeRoute.segments && activeRoute.segments.length > 0)))
     )
   );
-  hasCalculatedRouteRef.current = hasCalculatedRoute;
 
   const showSelectionBanner = !hasBothPoints && !hasCalculatedRoute && Boolean(
     (props.startPoint && !props.endPoint) || (!props.startPoint && props.endPoint)
   );
 
-  validCoordsRef.current = validCoords;
-  pendingRouteRef.current = (validCoords && validCoords.length >= 2) ? validCoords : null;
-
-  // 2. Garantované vykreslení zelené linie trasy v GPU WebGL (nativní MapLibre GL bez lagujícího SVG)
+  // 2. Garantované vykreslení zelené linie trasy (SVG projekce + GPU WebGL synchronizace)
   useEffect(() => {
+    pendingRouteRef.current = (validCoords && validCoords.length >= 2) ? validCoords : null;
     const map = mapRef.current;
-    if (!map || !isMapLoaded) return;
-
-    if (!validCoords || validCoords.length < 2) {
+    if (!map || !validCoords || validCoords.length < 2) {
+      setSvgPath('');
       lastFittedRouteIdRef.current = null;
-      const src = map.getSource('safe-route-source') as maplibregl.GeoJSONSource | undefined;
-      if (src) src.setData({ type: 'FeatureCollection', features: [] });
+      if (map) {
+        updateRouteOnMap(map, []);
+      }
       return;
     }
 
-    renderSafeRouteWebGL(map, validCoords);
+    // Zápis trasy do MapLibre s pojistkou proti race-condition
+    updateRouteOnMap(map, validCoords);
+
+    // Přepočet GPS bodů trasy na pixely obrazovky pro SVG Overlay
+    const syncPath = () => {
+      try {
+        const d = validCoords
+          .map((coord, idx) => {
+            const pixel = map.project(coord);
+            return `${idx === 0 ? 'M' : 'L'} ${pixel.x.toFixed(1)} ${pixel.y.toFixed(1)}`;
+          })
+          .join(' ');
+        setSvgPath(d);
+      } catch (err) {
+        console.error('Chyba přepočtu trasy:', err);
+      }
+    };
+
+    // Prvotní vykreslení
+    syncPath();
 
     // Automatické přizpůsobení pohledu na novou trasu POUZE JEDNOU, pokud uživatel mapu manuálně neovládá
     const routeSignature = `${validCoords[0].join(',')}-${validCoords[validCoords.length - 1].join(',')}`;
@@ -864,6 +856,18 @@ export function Map(props: MapEngineProps) {
         map.fitBounds(bounds, { padding: 80, duration: 600 });
       }
     }
+
+    map.on('move', syncPath);
+    map.on('zoom', syncPath);
+    map.on('rotate', syncPath);
+    map.on('pitch', syncPath);
+
+    return () => {
+      map.off('move', syncPath);
+      map.off('zoom', syncPath);
+      map.off('rotate', syncPath);
+      map.off('pitch', syncPath);
+    };
   }, [validCoords, isMapLoaded]);
 
   // Podpora pro volitelnou linku nejrychlejší alternativní trasy
@@ -973,14 +977,11 @@ export function Map(props: MapEngineProps) {
       startMarkerRef.current = null;
     }
     if (props.startPoint) {
-      const startContainer = document.createElement('div');
-      const startBadge = document.createElement('div');
-      startBadge.className = 'safepath-marker-badge';
-      startBadge.style.cssText = 'display: inline-flex !important; align-items: center !important; gap: 4px !important; padding: 4px 10px !important; background: #059669 !important; color: #ffffff !important; font-size: 11px !important; font-weight: 800 !important; border-radius: 9999px !important; border: 2px solid #ffffff !important; box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important; white-space: nowrap !important; width: auto !important; min-width: max-content !important; flex-shrink: 0 !important; z-index: 40 !important; transition: transform 0.15s ease; transform-origin: center;';
-      startBadge.innerHTML = `<span style="width: 6px; height: 6px; border-radius: 50%; background: #ffffff;"></span><span>START</span>`;
-      startContainer.appendChild(startBadge);
+      const startEl = document.createElement('div');
+      startEl.style.cssText = 'display: inline-flex !important; align-items: center !important; gap: 4px !important; padding: 4px 10px !important; background: #059669 !important; color: #ffffff !important; font-size: 11px !important; font-weight: 800 !important; border-radius: 9999px !important; border: 2px solid #ffffff !important; box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important; white-space: nowrap !important; width: auto !important; min-width: max-content !important; flex-shrink: 0 !important; z-index: 40 !important;';
+      startEl.innerHTML = `<span style="width: 6px; height: 6px; border-radius: 50%; background: #ffffff;"></span><span>START</span>`;
 
-      startMarkerRef.current = new maplibregl.Marker({ element: startContainer, anchor: 'center' })
+      startMarkerRef.current = new maplibregl.Marker({ element: startEl, anchor: 'center' })
         .setLngLat([props.startPoint.lng, props.startPoint.lat])
         .addTo(map);
     }
@@ -991,45 +992,16 @@ export function Map(props: MapEngineProps) {
       endMarkerRef.current = null;
     }
     if (props.endPoint) {
-      const destContainer = document.createElement('div');
-      const destBadge = document.createElement('div');
-      destBadge.className = 'safepath-marker-badge';
-      destBadge.style.cssText = 'display: inline-flex !important; align-items: center !important; gap: 4px !important; padding: 4px 10px !important; background: #4f46e5 !important; color: #ffffff !important; font-size: 11px !important; font-weight: 800 !important; border-radius: 9999px !important; border: 2px solid #ffffff !important; box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important; white-space: nowrap !important; width: auto !important; min-width: max-content !important; flex-shrink: 0 !important; z-index: 40 !important; transition: transform 0.15s ease; transform-origin: center;';
-      destBadge.innerHTML = `<span style="width: 6px; height: 6px; border-radius: 50%; background: #ffffff;"></span><span>CÍL</span>`;
-      destContainer.appendChild(destBadge);
+      const destEl = document.createElement('div');
+      destEl.style.cssText = 'display: inline-flex !important; align-items: center !important; gap: 4px !important; padding: 4px 10px !important; background: #4f46e5 !important; color: #ffffff !important; font-size: 11px !important; font-weight: 800 !important; border-radius: 9999px !important; border: 2px solid #ffffff !important; box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important; white-space: nowrap !important; width: auto !important; min-width: max-content !important; flex-shrink: 0 !important; z-index: 40 !important;';
+      destEl.innerHTML = `<span style="width: 6px; height: 6px; border-radius: 50%; background: #ffffff;"></span><span>CÍL</span>`;
 
-      endMarkerRef.current = new maplibregl.Marker({ element: destContainer, anchor: 'center' })
+      endMarkerRef.current = new maplibregl.Marker({ element: destEl, anchor: 'center' })
         .setLngLat([props.endPoint.lng, props.endPoint.lat])
         .addTo(map);
     }
 
-    // Škálování markerů START a CÍL podle zoomu (plynule zmenšuj při zoomu < 13)
-    const handleMarkerScale = () => {
-      const z = mapRef.current?.getZoom() ?? 14;
-      const scale = z < 12 ? 0.7 : z < 14 ? 0.85 : 1.0;
-      if (startMarkerRef.current?.getElement()) {
-        const badge = startMarkerRef.current.getElement().querySelector('.safepath-marker-badge') as HTMLElement | null;
-        if (badge) {
-          badge.style.transform = `scale(${scale})`;
-        } else {
-          startMarkerRef.current.getElement().style.transform += ` scale(${scale})`;
-        }
-      }
-      if (endMarkerRef.current?.getElement()) {
-        const badge = endMarkerRef.current.getElement().querySelector('.safepath-marker-badge') as HTMLElement | null;
-        if (badge) {
-          badge.style.transform = `scale(${scale})`;
-        } else {
-          endMarkerRef.current.getElement().style.transform += ` scale(${scale})`;
-        }
-      }
-    };
-
-    map.on('zoom', handleMarkerScale);
-    handleMarkerScale();
-
     return () => {
-      map.off('zoom', handleMarkerScale);
       if (startMarkerRef.current) {
         startMarkerRef.current.remove();
         startMarkerRef.current = null;
@@ -1093,8 +1065,8 @@ export function Map(props: MapEngineProps) {
       if (lat < minLat) minLat = lat;
       if (lat > maxLat) maxLat = lat;
     }
-    const padLng = 0.0025; // cca 180 metrů rezerva
-    const padLat = 0.0018;
+    const padLng = 0.0012; // cca 85 metrů v Praze
+    const padLat = 0.0008;
     const bMinLng = minLng - padLng;
     const bMaxLng = maxLng + padLng;
     const bMinLat = minLat - padLat;
@@ -1209,7 +1181,7 @@ export function Map(props: MapEngineProps) {
     // 7. Úroveň detailů podle přiblížení (LOD)
     const handleZoomLOD = () => {
       const zoom = mapRef.current?.getZoom() ?? 14;
-      const showDetails = zoom >= 11.5;
+      const showDetails = zoom >= 13.2;
       corridorMarkersRef.current.forEach(m => {
         const dom = m.getElement();
         if (dom) dom.style.display = showDetails ? 'flex' : 'none';
@@ -1331,6 +1303,16 @@ export function Map(props: MapEngineProps) {
     <div className="relative w-full h-full overflow-hidden select-none bg-slate-950">
       {/* Plátno MapLibre GL WebGL mapy pevně roztažené přes celou plochu */}
       <div id="map" ref={mapContainerRef} className="w-full h-full absolute inset-0" />
+
+      {/* Obnovená SVG vrstva spojující souřadnice */}
+      <svg className="absolute inset-0 w-full h-full pointer-events-none z-10" style={{ overflow: 'visible' }}>
+        {svgPath && (
+          <>
+            <path d={svgPath} fill="none" stroke="#10b981" strokeWidth={14} strokeOpacity={0.4} strokeLinecap="round" strokeLinejoin="round" />
+            <path d={svgPath} fill="none" stroke="#059669" strokeWidth={6} strokeOpacity={0.95} strokeLinecap="round" strokeLinejoin="round" />
+          </>
+        )}
+      </svg>
 
       {/* Tlačítko Course-Up: "Sledovat směr chůze" (3D rotace mapy s pohledem chodce) */}
       <button

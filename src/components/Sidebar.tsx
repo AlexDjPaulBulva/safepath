@@ -601,12 +601,8 @@ export function Sidebar({
                 <p className="text-xs text-red-300 leading-relaxed mb-2.5">{routingError}</p>
                 <p className="text-[11px] text-slate-400">Zvolte jiný cíl nebo posuňte bod blíže k silnici či pěší komunikaci.</p>
               </div>
-            ) : isRoutingLoading ? (
+            ) : (!routeA && isRoutingLoading) ? (
               <div className="space-y-3">
-                <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-4 animate-pulse">
-                  <div className="h-4 bg-slate-700/50 rounded w-1/3 mb-2"></div>
-                  <div className="h-3 bg-slate-700/50 rounded w-2/3"></div>
-                </div>
                 <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-4 animate-pulse">
                   <div className="h-4 bg-slate-700/50 rounded w-1/3 mb-2"></div>
                   <div className="h-3 bg-slate-700/50 rounded w-2/3"></div>
@@ -614,6 +610,12 @@ export function Sidebar({
               </div>
             ) : routeA ? (
               <>
+                {isRoutingLoading && (
+                  <div className="text-[11px] text-emerald-400 font-medium animate-pulse mb-1 flex items-center gap-1.5 px-1">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                    <span>Aktualizuji trasu...</span>
+                  </div>
+                )}
                 {/* 3. Karta trasy sjednocená do "🛡️ Doporučená bezpečná trasa" bez duplicit */}
                 <RouteCard 
                   route={routeA} 
