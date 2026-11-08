@@ -144,17 +144,38 @@ const normalizeToLngLat = (coords: [number, number][]): [number, number][] => {
   });
 };
 
-const initSafeRouteLayers = (map: maplibregl.Map) => {
-  if (!map.isStyleLoaded()) return;
+const renderSafeRouteWebGL = (map: maplibregl.Map, coords: [number, number][]) => {
+  if (!map || !coords || coords.length < 2) return;
 
-  if (!map.getSource('safe-route-source')) {
-    map.addSource('safe-route-source', {
-      type: 'geojson',
-      data: { type: 'FeatureCollection', features: [] }
-    });
+  if (!map.isStyleLoaded()) {
+    map.once('style.load', () => renderSafeRouteWebGL(map, coords));
+    return;
   }
 
-  // Neonová záře - tloušťka plynule škáluje od 5px (zoom 10) do 16px (zoom 16)
+  const geojsonData: GeoJSON.FeatureCollection<GeoJSON.LineString> = {
+    type: 'FeatureCollection',
+    features: [{
+      type: 'Feature',
+      properties: {},
+      geometry: {
+        type: 'LineString',
+        coordinates: coords
+      }
+    }]
+  };
+
+  // 1. Zajištění existence zdroje dat
+  const existingSource = map.getSource('safe-route-source') as maplibregl.GeoJSONSource | undefined;
+  if (!existingSource) {
+    map.addSource('safe-route-source', {
+      type: 'geojson',
+      data: geojsonData
+    });
+  } else {
+    existingSource.setData(geojsonData);
+  }
+
+  // 2. Zajištění neonového podkladu (Glow)
   if (!map.getLayer('safe-route-glow')) {
     map.addLayer({
       id: 'safe-route-glow',
@@ -168,14 +189,14 @@ const initSafeRouteLayers = (map: maplibregl.Map) => {
         'line-width': [
           'interpolate', ['linear'], ['zoom'],
           10, 5,
-          13, 8,
+          13, 9,
           16, 16
         ]
       }
     });
   }
 
-  // Syté jádro koridoru - škáluje od 2px (zoom 10) do 7px (zoom 16)
+  // 3. Zajištění sytého zeleného jádra (Core)
   if (!map.getLayer('safe-route-core')) {
     map.addLayer({
       id: 'safe-route-core',
@@ -187,106 +208,27 @@ const initSafeRouteLayers = (map: maplibregl.Map) => {
         'line-opacity': 1.0,
         'line-width': [
           'interpolate', ['linear'], ['zoom'],
-          10, 2,
-          13, 4,
-          16, 7
+          10, 2.5,
+          13, 4.5,
+          16, 8
         ]
       }
     });
   }
 
+  // 4. Vynést vrstvy nad podkladové dlaždice mapy
   try {
     if (map.getLayer('safe-route-glow')) map.moveLayer('safe-route-glow');
     if (map.getLayer('safe-route-core')) map.moveLayer('safe-route-core');
   } catch (e) {
-    console.warn('moveLayer safe-route error:', e);
+    // ignorovat případnou chybu pořadí vrstev
   }
 };
 
-const syncWebGLRoute = (map: maplibregl.Map, coords: [number, number][]) => {
-  if (!map) return;
-  if (!coords || coords.length < 2) {
-    const src = map.getSource('safe-route-source') as maplibregl.GeoJSONSource | undefined;
-    if (src) {
-      src.setData({
-        type: 'FeatureCollection',
-        features: []
-      });
-    }
-    return;
-  }
-
-  const geojson: GeoJSON.FeatureCollection<GeoJSON.LineString> = {
-    type: 'FeatureCollection',
-    features: [{
-      type: 'Feature',
-      properties: {},
-      geometry: { type: 'LineString', coordinates: coords }
-    }]
-  };
-
-  const src = map.getSource('safe-route-source') as maplibregl.GeoJSONSource | undefined;
-  if (src) {
-    src.setData(geojson);
-  } else if (map.isStyleLoaded()) {
-    map.addSource('safe-route-source', { type: 'geojson', data: geojson });
-
-    // Neonová záře - tloušťka plynule škáluje od 5px (zoom 10) do 16px (zoom 16)
-    if (!map.getLayer('safe-route-glow')) {
-      map.addLayer({
-        id: 'safe-route-glow',
-        type: 'line',
-        source: 'safe-route-source',
-        layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: {
-          'line-color': '#10b981',
-          'line-opacity': 0.45,
-          'line-blur': 2,
-          'line-width': [
-            'interpolate', ['linear'], ['zoom'],
-            10, 5,
-            13, 8,
-            16, 16
-          ]
-        }
-      });
-    }
-
-    // Syté jádro koridoru - škáluje od 2px (zoom 10) do 7px (zoom 16)
-    if (!map.getLayer('safe-route-core')) {
-      map.addLayer({
-        id: 'safe-route-core',
-        type: 'line',
-        source: 'safe-route-source',
-        layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: {
-          'line-color': '#059669',
-          'line-opacity': 1.0,
-          'line-width': [
-            'interpolate', ['linear'], ['zoom'],
-            10, 2,
-            13, 4,
-            16, 7
-          ]
-        }
-      });
-    }
-  } else {
-    map.once('styledata', () => syncWebGLRoute(map, coords));
-    return;
-  }
-
-  // KLÍČOVÝ KROK: Pokaždé přesunout linku trasy NA SAMÝ VRCHOL
-  try {
-    if (map.getLayer('safe-route-glow')) map.moveLayer('safe-route-glow');
-    if (map.getLayer('safe-route-core')) map.moveLayer('safe-route-core');
-  } catch (e) {
-    console.warn('moveLayer safe-route error:', e);
-  }
-};
-
-const drawNativeRoute = syncWebGLRoute;
-const updateRouteOnMap = syncWebGLRoute;
+const syncWebGLRoute = renderSafeRouteWebGL;
+const drawNativeRoute = renderSafeRouteWebGL;
+const updateRouteOnMap = renderSafeRouteWebGL;
+const initSafeRouteLayers = (map: maplibregl.Map) => {};
 
 function getCameraAzimuth(cam: { lat: number; lng: number; direction?: number }, routeCoords: [number, number][]): number {
   if (typeof cam.direction === 'number' && !isNaN(cam.direction)) {
@@ -335,6 +277,7 @@ export function Map(props: MapEngineProps) {
   const setEndPointRef = useRef(props.setEndPoint);
   const onToastRef = useRef(props.onToast);
   const hasCalculatedRouteRef = useRef<boolean>(false);
+  const validCoordsRef = useRef<[number, number][]>([]);
 
   const prevStartKeyRef = useRef<string | null>(null);
   const prevEndKeyRef = useRef<string | null>(null);
@@ -695,19 +638,19 @@ export function Map(props: MapEngineProps) {
 
     map.on('load', () => {
       map.resize();
-      initSafeRouteLayers(map);
       drawFastestRoute(map);
-      if (pendingRouteRef.current && pendingRouteRef.current.length >= 2) {
-        syncWebGLRoute(map, pendingRouteRef.current);
+      const coords = validCoordsRef.current && validCoordsRef.current.length >= 2 ? validCoordsRef.current : pendingRouteRef.current;
+      if (coords && coords.length >= 2) {
+        renderSafeRouteWebGL(map, coords);
       }
       setIsMapLoaded(true);
     });
 
     map.on('style.load', () => {
-      initSafeRouteLayers(map);
       drawFastestRoute(map);
-      if (pendingRouteRef.current && pendingRouteRef.current.length >= 2) {
-        syncWebGLRoute(map, pendingRouteRef.current);
+      const coords = validCoordsRef.current && validCoordsRef.current.length >= 2 ? validCoordsRef.current : pendingRouteRef.current;
+      if (coords && coords.length >= 2) {
+        renderSafeRouteWebGL(map, coords);
       }
     });
 
@@ -722,8 +665,11 @@ export function Map(props: MapEngineProps) {
 
     map.on('click', (e: maplibregl.MapMouseEvent) => {
       if (isDragging) return;
-      // Pokud už je trasa hotová a uživatel si jen prohlíží mapu, nepřepisovat cíl náhodným klikem
-      if (hasCalculatedRouteRef.current && !onMapClickRef.current) return;
+
+      // POKUD UŽ TRASA EXISTUJE, KLIKNUTÍ DO MAPY JI NESMÍ SMAZAT ANI PŘEPSAT:
+      if (startPointRef.current && endPointRef.current) {
+        return;
+      }
 
       const lat = e.lngLat.lat;
       const lng = e.lngLat.lng;
@@ -731,13 +677,11 @@ export function Map(props: MapEngineProps) {
       if (onMapClickRef.current) {
         onMapClickRef.current(lat, lng);
       } else if (setStartPointRef.current || setEndPointRef.current) {
-        userInteractedRef.current = false;
         if (startPointRef.current && !endPointRef.current) {
           setEndPointRef.current?.({ lat, lng });
           onToastRef.current?.('Cíl nastaven. Počítám bezpečnou trasu...');
-        } else {
+        } else if (!startPointRef.current) {
           setStartPointRef.current?.({ lat, lng });
-          setEndPointRef.current?.(null);
           onToastRef.current?.('Start nastaven. Nyní klepněte na cíl.');
         }
       }
@@ -891,20 +835,22 @@ export function Map(props: MapEngineProps) {
     (props.startPoint && !props.endPoint) || (!props.startPoint && props.endPoint)
   );
 
+  validCoordsRef.current = validCoords;
+  pendingRouteRef.current = (validCoords && validCoords.length >= 2) ? validCoords : null;
+
   // 2. Garantované vykreslení zelené linie trasy v GPU WebGL (nativní MapLibre GL bez lagujícího SVG)
   useEffect(() => {
-    pendingRouteRef.current = (validCoords && validCoords.length >= 2) ? validCoords : null;
     const map = mapRef.current;
-    if (!map || !validCoords || validCoords.length < 2) {
+    if (!map || !isMapLoaded) return;
+
+    if (!validCoords || validCoords.length < 2) {
       lastFittedRouteIdRef.current = null;
-      if (map) {
-        syncWebGLRoute(map, []);
-      }
+      const src = map.getSource('safe-route-source') as maplibregl.GeoJSONSource | undefined;
+      if (src) src.setData({ type: 'FeatureCollection', features: [] });
       return;
     }
 
-    // Zápis trasy do MapLibre s GPU akcelerací a pojistkou proti race-condition
-    syncWebGLRoute(map, validCoords);
+    renderSafeRouteWebGL(map, validCoords);
 
     // Automatické přizpůsobení pohledu na novou trasu POUZE JEDNOU, pokud uživatel mapu manuálně neovládá
     const routeSignature = `${validCoords[0].join(',')}-${validCoords[validCoords.length - 1].join(',')}`;
