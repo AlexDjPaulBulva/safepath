@@ -610,18 +610,22 @@ export function Sidebar({
               </div>
             ) : routeA ? (
               <>
-                {isRoutingLoading && (
-                  <div className="text-[11px] text-emerald-400 font-medium animate-pulse mb-1 flex items-center gap-1.5 px-1">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-                    <span>Aktualizuji trasu...</span>
-                  </div>
-                )}
                 {/* 3. Karta trasy sjednocená do "🛡️ Doporučená bezpečná trasa" bez duplicit */}
-                <RouteCard 
-                  route={routeA} 
-                  onMetricHover={onMetricHover}
-                  onRouteCalculated={onRouteCalculated}
-                />
+                <div className={`relative transition-all duration-200 ${isRoutingLoading ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
+                  {isRoutingLoading && (
+                    <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-900/20 backdrop-blur-[1px] rounded-2xl">
+                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/95 border border-emerald-500/40 text-emerald-400 text-xs font-semibold shadow-xl">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                        <span>Přepočítávám novou trasu...</span>
+                      </div>
+                    </div>
+                  )}
+                  <RouteCard 
+                    route={routeA} 
+                    onMetricHover={onMetricHover}
+                    onRouteCalculated={onRouteCalculated}
+                  />
+                </div>
 
                 {/* Výrazné tlačítko: Odeslat trasu dítěti */}
                 <div className="pt-1 space-y-2">

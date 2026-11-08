@@ -231,6 +231,8 @@ const updateRouteOnMap = (map: maplibregl.Map, coords: [number, number][]) => {
   }
 };
 
+const renderSafeRouteWebGL = updateRouteOnMap;
+
 function getCameraAzimuth(cam: { lat: number; lng: number; direction?: number }, routeCoords: [number, number][]): number {
   if (typeof cam.direction === 'number' && !isNaN(cam.direction)) {
     return cam.direction;
@@ -778,8 +780,8 @@ export function Map(props: MapEngineProps) {
     if (props.startPoint && connectedCoords.length > 0) {
       const [firstLng, firstLat] = connectedCoords[0];
       const distStart = Math.hypot(firstLng - props.startPoint.lng, firstLat - props.startPoint.lat);
-      // Pokud je marker dál než cca 5 metrů od prvního bodu OSRM, doplň přesný start
-      if (distStart > 0.00005) {
+      // Spojit pouze pokud je odchylka mezi 5m a 250m (cca 0.00005 až 0.003 stupně)
+      if (distStart > 0.00005 && distStart < 0.003) {
         connectedCoords.unshift([props.startPoint.lng, props.startPoint.lat]);
       }
     }
@@ -787,8 +789,8 @@ export function Map(props: MapEngineProps) {
     if (props.endPoint && connectedCoords.length > 0) {
       const [lastLng, lastLat] = connectedCoords[connectedCoords.length - 1];
       const distEnd = Math.hypot(lastLng - props.endPoint.lng, lastLat - props.endPoint.lat);
-      // Pokud je marker dál než cca 5 metrů od konce OSRM, doplň přesný cíl
-      if (distEnd > 0.00005) {
+      // Spojit pouze pokud je odchylka mezi 5m a 250m. Pokud je cíl dál, čeká se na výpočet z OSRM!
+      if (distEnd > 0.00005 && distEnd < 0.003) {
         connectedCoords.push([props.endPoint.lng, props.endPoint.lat]);
       }
     }
