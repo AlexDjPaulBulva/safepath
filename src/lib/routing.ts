@@ -1198,6 +1198,32 @@ async function findAlternativeBoulevardCandidate(
   return null;
 }
 
+export type RouteCalculationResult = {
+  routeA: RouteResult;
+  routeB: RouteResult | null;
+  routeC: RouteResult | null;
+  fastestRoute: RouteResult | null;
+};
+
+export const routeCache = new Map<string, RouteCalculationResult>();
+const MAX_ROUTE_CACHE_SIZE = 120;
+
+export async function calculateSafeRoute(
+  start: [number, number],
+  end: [number, number],
+  safetyNodes: SafetyFeature[] = [],
+  timeOfDay: number = 12
+): Promise<RouteResult> {
+  const key = `${start[0].toFixed(4)},${start[1].toFixed(4)}->${end[0].toFixed(4)},${end[1].toFixed(4)}`;
+  for (const [k, v] of routeCache.entries()) {
+    if (k.startsWith(key)) {
+      return v.routeA;
+    }
+  }
+  const result = await fetchOSRMRoute(start[0], start[1], end[0], end[1], safetyNodes, timeOfDay);
+  return result.routeA;
+}
+
 /**
  * Hlavní exportovaná funkce pro výpočet pěších tras s Pedestrian Micro-Geometry Engine:
  * 1. Automaticky asynchronně indexuje přechody pro aktivní oblast přes Overpass API / cache.
@@ -1216,6 +1242,11 @@ export async function fetchOSRMRoute(
   profiles: string[] = ['parent'],
   activeMode?: 'parent' | 'night_girl' | 'child'
 ): Promise<{ routeA: RouteResult; routeB: RouteResult | null; routeC: RouteResult | null; fastestRoute: RouteResult | null }> {
+  const cacheKey = `${startLat.toFixed(4)},${startLng.toFixed(4)}->${endLat.toFixed(4)},${endLng.toFixed(4)}_${activeMode || 'default'}_${profiles.join(',')}_${timeOfDay}`;
+
+  if (routeCache.has(cacheKey)) {
+    return routeCache.get(cacheKey)!;
+  }
   const { sLng, sLat, eLng, eLat } = normalizeCoordinates(startLat, startLng, endLat, endLng);
 
   if (![sLat, sLng, eLat, eLng].every(Number.isFinite)) {
@@ -1485,7 +1516,13 @@ export async function fetchOSRMRoute(
     routeA.isWarningRoute = false;
     routeA.childSafetyValid = true;
 
-    return { routeA, routeB: null, routeC: null, fastestRoute };
+    const childResult = { routeA, routeB: null, routeC: null, fastestRoute };
+    if (routeCache.size >= MAX_ROUTE_CACHE_SIZE) {
+      const firstKey = routeCache.keys().next().value;
+      if (firstKey) routeCache.delete(firstKey);
+    }
+    routeCache.set(cacheKey, childResult);
+    return childResult;
   }
 
   // STANDARDNÍ / NOČNÍ REŽIM
@@ -1504,7 +1541,13 @@ export async function fetchOSRMRoute(
     infoPointsAlongRoute
   );
 
-  return { routeA, routeB: null, routeC: null, fastestRoute };
+  const adultResult = { routeA, routeB: null, routeC: null, fastestRoute };
+  if (routeCache.size >= MAX_ROUTE_CACHE_SIZE) {
+    const firstKey = routeCache.keys().next().value;
+    if (firstKey) routeCache.delete(firstKey);
+  }
+  routeCache.set(cacheKey, adultResult);
+  return adultResult;
 }
 
 /**

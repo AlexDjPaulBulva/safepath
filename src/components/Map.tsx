@@ -154,7 +154,7 @@ const initSafeRouteLayers = (map: maplibregl.Map) => {
     });
   }
 
-  // Spodní neonová záře
+  // Neonová záře - tloušťka plynule škáluje od 5px (zoom 10) do 16px (zoom 16)
   if (!map.getLayer('safe-route-glow')) {
     map.addLayer({
       id: 'safe-route-glow',
@@ -163,14 +163,19 @@ const initSafeRouteLayers = (map: maplibregl.Map) => {
       layout: { 'line-join': 'round', 'line-cap': 'round' },
       paint: {
         'line-color': '#10b981',
-        'line-width': 14,
         'line-opacity': 0.45,
-        'line-blur': 3
+        'line-blur': 2,
+        'line-width': [
+          'interpolate', ['linear'], ['zoom'],
+          10, 5,
+          13, 8,
+          16, 16
+        ]
       }
     });
   }
 
-  // Hlavní sytý koridor
+  // Syté jádro koridoru - škáluje od 2px (zoom 10) do 7px (zoom 16)
   if (!map.getLayer('safe-route-core')) {
     map.addLayer({
       id: 'safe-route-core',
@@ -179,8 +184,13 @@ const initSafeRouteLayers = (map: maplibregl.Map) => {
       layout: { 'line-join': 'round', 'line-cap': 'round' },
       paint: {
         'line-color': '#059669',
-        'line-width': 6,
-        'line-opacity': 1.0
+        'line-opacity': 1.0,
+        'line-width': [
+          'interpolate', ['linear'], ['zoom'],
+          10, 2,
+          13, 4,
+          16, 7
+        ]
       }
     });
   }
@@ -193,16 +203,10 @@ const initSafeRouteLayers = (map: maplibregl.Map) => {
   }
 };
 
-const drawNativeRoute = (map: maplibregl.Map, coords: [number, number][]) => {
+const syncWebGLRoute = (map: maplibregl.Map, coords: [number, number][]) => {
   if (!map) return;
-  if (!map.isStyleLoaded()) {
-    map.once('styledata', () => drawNativeRoute(map, coords));
-    return;
-  }
-
-  const src = map.getSource('safe-route-source') as maplibregl.GeoJSONSource | undefined;
-
   if (!coords || coords.length < 2) {
+    const src = map.getSource('safe-route-source') as maplibregl.GeoJSONSource | undefined;
     if (src) {
       src.setData({
         type: 'FeatureCollection',
@@ -218,41 +222,58 @@ const drawNativeRoute = (map: maplibregl.Map, coords: [number, number][]) => {
     geometry: { type: 'LineString', coordinates: coords }
   };
 
+  const src = map.getSource('safe-route-source') as maplibregl.GeoJSONSource | undefined;
   if (src) {
     src.setData(geojson);
-  } else if (map.isStyleLoaded()) {
-    map.addSource('safe-route-source', { type: 'geojson', data: geojson });
+    return;
+  }
 
-    // Zářivý neonový podklad
-    if (!map.getLayer('safe-route-glow')) {
-      map.addLayer({
-        id: 'safe-route-glow',
-        type: 'line',
-        source: 'safe-route-source',
-        layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: {
-          'line-color': '#10b981',
-          'line-width': 14,
-          'line-opacity': 0.4,
-          'line-blur': 2
-        }
-      });
-    }
+  if (!map.isStyleLoaded()) {
+    map.once('styledata', () => syncWebGLRoute(map, coords));
+    return;
+  }
 
-    // Ostré jádro koridoru
-    if (!map.getLayer('safe-route-core')) {
-      map.addLayer({
-        id: 'safe-route-core',
-        type: 'line',
-        source: 'safe-route-source',
-        layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: {
-          'line-color': '#059669',
-          'line-width': 6,
-          'line-opacity': 1.0
-        }
-      });
-    }
+  map.addSource('safe-route-source', { type: 'geojson', data: geojson });
+
+  // Neonová záře - tloušťka plynule škáluje od 5px (zoom 10) do 16px (zoom 16)
+  if (!map.getLayer('safe-route-glow')) {
+    map.addLayer({
+      id: 'safe-route-glow',
+      type: 'line',
+      source: 'safe-route-source',
+      layout: { 'line-join': 'round', 'line-cap': 'round' },
+      paint: {
+        'line-color': '#10b981',
+        'line-opacity': 0.45,
+        'line-blur': 2,
+        'line-width': [
+          'interpolate', ['linear'], ['zoom'],
+          10, 5,
+          13, 8,
+          16, 16
+        ]
+      }
+    });
+  }
+
+  // Syté jádro koridoru - škáluje od 2px (zoom 10) do 7px (zoom 16)
+  if (!map.getLayer('safe-route-core')) {
+    map.addLayer({
+      id: 'safe-route-core',
+      type: 'line',
+      source: 'safe-route-source',
+      layout: { 'line-join': 'round', 'line-cap': 'round' },
+      paint: {
+        'line-color': '#059669',
+        'line-opacity': 1.0,
+        'line-width': [
+          'interpolate', ['linear'], ['zoom'],
+          10, 2,
+          13, 4,
+          16, 7
+        ]
+      }
+    });
   }
 
   try {
@@ -263,7 +284,8 @@ const drawNativeRoute = (map: maplibregl.Map, coords: [number, number][]) => {
   }
 };
 
-const updateRouteOnMap = drawNativeRoute;
+const drawNativeRoute = syncWebGLRoute;
+const updateRouteOnMap = syncWebGLRoute;
 
 function getCameraAzimuth(cam: { lat: number; lng: number; direction?: number }, routeCoords: [number, number][]): number {
   if (typeof cam.direction === 'number' && !isNaN(cam.direction)) {
@@ -667,7 +689,7 @@ export function Map(props: MapEngineProps) {
       initSafeRouteLayers(map);
       drawFastestRoute(map);
       if (pendingRouteRef.current && pendingRouteRef.current.length >= 2) {
-        updateRouteOnMap(map, pendingRouteRef.current);
+        syncWebGLRoute(map, pendingRouteRef.current);
       }
       setIsMapLoaded(true);
     });
@@ -676,7 +698,7 @@ export function Map(props: MapEngineProps) {
       initSafeRouteLayers(map);
       drawFastestRoute(map);
       if (pendingRouteRef.current && pendingRouteRef.current.length >= 2) {
-        updateRouteOnMap(map, pendingRouteRef.current);
+        syncWebGLRoute(map, pendingRouteRef.current);
       }
     });
 
@@ -763,9 +785,16 @@ export function Map(props: MapEngineProps) {
   }, []);
 
   const routeData = props.routeData ?? props.routeCoordinates ?? activeRoute;
+  const prevValidCoordsRef = useRef<[number, number][]>([]);
 
   const validCoords: [number, number][] = useMemo(() => {
-    if (!routeData) return [];
+    if (!routeData) {
+      if (props.startPoint && props.endPoint && prevValidCoordsRef.current.length >= 2) {
+        return prevValidCoordsRef.current;
+      }
+      prevValidCoordsRef.current = [];
+      return [];
+    }
 
     let rawPoints = 
       routeData?.coordinates || 
@@ -800,7 +829,12 @@ export function Map(props: MapEngineProps) {
       })
       .filter((p): p is [number, number] => p !== null && !isNaN(p[0]) && !isNaN(p[1]));
 
-    if (rawCoords.length === 0) return [];
+    if (rawCoords.length === 0) {
+      if (props.startPoint && props.endPoint && prevValidCoordsRef.current.length >= 2) {
+        return prevValidCoordsRef.current;
+      }
+      return [];
+    }
 
     const completeRouteCoords: [number, number][] = [...rawCoords];
     if (props.startPoint && completeRouteCoords.length > 0) {
@@ -821,6 +855,7 @@ export function Map(props: MapEngineProps) {
       if (dEndMeters > 5) completeRouteCoords.push(endCoord);
     }
 
+    prevValidCoordsRef.current = completeRouteCoords;
     return completeRouteCoords;
   }, [routeData, props.startPoint, props.endPoint]);
 
@@ -845,13 +880,13 @@ export function Map(props: MapEngineProps) {
     if (!map || !validCoords || validCoords.length < 2) {
       lastFittedRouteIdRef.current = null;
       if (map) {
-        drawNativeRoute(map, []);
+        syncWebGLRoute(map, []);
       }
       return;
     }
 
     // Zápis trasy do MapLibre s GPU akcelerací a pojistkou proti race-condition
-    drawNativeRoute(map, validCoords);
+    syncWebGLRoute(map, validCoords);
 
     // Automatické přizpůsobení pohledu na novou trasu POUZE JEDNOU, pokud uživatel mapu manuálně neovládá
     const routeSignature = `${validCoords[0].join(',')}-${validCoords[validCoords.length - 1].join(',')}`;
@@ -974,11 +1009,14 @@ export function Map(props: MapEngineProps) {
       startMarkerRef.current = null;
     }
     if (props.startPoint) {
-      const startEl = document.createElement('div');
-      startEl.style.cssText = 'display: inline-flex !important; align-items: center !important; gap: 4px !important; padding: 4px 10px !important; background: #059669 !important; color: #ffffff !important; font-size: 11px !important; font-weight: 800 !important; border-radius: 9999px !important; border: 2px solid #ffffff !important; box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important; white-space: nowrap !important; width: auto !important; min-width: max-content !important; flex-shrink: 0 !important; z-index: 40 !important;';
-      startEl.innerHTML = `<span style="width: 6px; height: 6px; border-radius: 50%; background: #ffffff;"></span><span>START</span>`;
+      const startContainer = document.createElement('div');
+      const startBadge = document.createElement('div');
+      startBadge.className = 'safepath-marker-badge';
+      startBadge.style.cssText = 'display: inline-flex !important; align-items: center !important; gap: 4px !important; padding: 4px 10px !important; background: #059669 !important; color: #ffffff !important; font-size: 11px !important; font-weight: 800 !important; border-radius: 9999px !important; border: 2px solid #ffffff !important; box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important; white-space: nowrap !important; width: auto !important; min-width: max-content !important; flex-shrink: 0 !important; z-index: 40 !important; transition: transform 0.15s ease; transform-origin: center;';
+      startBadge.innerHTML = `<span style="width: 6px; height: 6px; border-radius: 50%; background: #ffffff;"></span><span>START</span>`;
+      startContainer.appendChild(startBadge);
 
-      startMarkerRef.current = new maplibregl.Marker({ element: startEl, anchor: 'center' })
+      startMarkerRef.current = new maplibregl.Marker({ element: startContainer, anchor: 'center' })
         .setLngLat([props.startPoint.lng, props.startPoint.lat])
         .addTo(map);
     }
@@ -989,16 +1027,45 @@ export function Map(props: MapEngineProps) {
       endMarkerRef.current = null;
     }
     if (props.endPoint) {
-      const destEl = document.createElement('div');
-      destEl.style.cssText = 'display: inline-flex !important; align-items: center !important; gap: 4px !important; padding: 4px 10px !important; background: #4f46e5 !important; color: #ffffff !important; font-size: 11px !important; font-weight: 800 !important; border-radius: 9999px !important; border: 2px solid #ffffff !important; box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important; white-space: nowrap !important; width: auto !important; min-width: max-content !important; flex-shrink: 0 !important; z-index: 40 !important;';
-      destEl.innerHTML = `<span style="width: 6px; height: 6px; border-radius: 50%; background: #ffffff;"></span><span>CÍL</span>`;
+      const destContainer = document.createElement('div');
+      const destBadge = document.createElement('div');
+      destBadge.className = 'safepath-marker-badge';
+      destBadge.style.cssText = 'display: inline-flex !important; align-items: center !important; gap: 4px !important; padding: 4px 10px !important; background: #4f46e5 !important; color: #ffffff !important; font-size: 11px !important; font-weight: 800 !important; border-radius: 9999px !important; border: 2px solid #ffffff !important; box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important; white-space: nowrap !important; width: auto !important; min-width: max-content !important; flex-shrink: 0 !important; z-index: 40 !important; transition: transform 0.15s ease; transform-origin: center;';
+      destBadge.innerHTML = `<span style="width: 6px; height: 6px; border-radius: 50%; background: #ffffff;"></span><span>CÍL</span>`;
+      destContainer.appendChild(destBadge);
 
-      endMarkerRef.current = new maplibregl.Marker({ element: destEl, anchor: 'center' })
+      endMarkerRef.current = new maplibregl.Marker({ element: destContainer, anchor: 'center' })
         .setLngLat([props.endPoint.lng, props.endPoint.lat])
         .addTo(map);
     }
 
+    // Škálování markerů START a CÍL podle zoomu (plynule zmenšuj při zoomu < 13)
+    const handleMarkerScale = () => {
+      const z = mapRef.current?.getZoom() ?? 14;
+      const scale = z < 12 ? 0.7 : z < 14 ? 0.85 : 1.0;
+      if (startMarkerRef.current?.getElement()) {
+        const badge = startMarkerRef.current.getElement().querySelector('.safepath-marker-badge') as HTMLElement | null;
+        if (badge) {
+          badge.style.transform = `scale(${scale})`;
+        } else {
+          startMarkerRef.current.getElement().style.transform += ` scale(${scale})`;
+        }
+      }
+      if (endMarkerRef.current?.getElement()) {
+        const badge = endMarkerRef.current.getElement().querySelector('.safepath-marker-badge') as HTMLElement | null;
+        if (badge) {
+          badge.style.transform = `scale(${scale})`;
+        } else {
+          endMarkerRef.current.getElement().style.transform += ` scale(${scale})`;
+        }
+      }
+    };
+
+    map.on('zoom', handleMarkerScale);
+    handleMarkerScale();
+
     return () => {
+      map.off('zoom', handleMarkerScale);
       if (startMarkerRef.current) {
         startMarkerRef.current.remove();
         startMarkerRef.current = null;
