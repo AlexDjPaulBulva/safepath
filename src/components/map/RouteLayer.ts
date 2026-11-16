@@ -1,6 +1,7 @@
 import * as maplibregl from 'maplibre-gl';
 
 export function renderRoute(map: maplibregl.Map, coords: [number, number][]) {
+  console.log("ROUTE LAYER - PŘIJATÉ SOUŘADNICE:", coords);
   if (!map) return;
   
   // Pokud styl ještě není načtený, počkáme na událost style.load
