@@ -1,5 +1,5 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import * as turf from '@turf/turf';
 import polyline from '@mapbox/polyline';
@@ -549,6 +549,7 @@ export function Map(props: MapEngineProps) {
       bearing: 0,
       pitchWithRotate: true,
       touchZoomRotate: true,
+      boxZoom: false,
       maxPitch: 35,
       failIfMajorPerformanceCaveat: false,
       ...({ antialias: true } as any)
@@ -756,6 +757,46 @@ export function Map(props: MapEngineProps) {
       renderRoute(map, coordsToRender as [number, number][]);
     }
   }, [validCoords, props.routeA, props.routeA?.geometry, activeRoute?.geometry, isMapLoaded]);
+
+  // Synchronní aktualizace SVG linie trasy pro okamžitou a zaručenou viditelnost
+  const updateSvgOverlay = useCallback(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const coords = (validCoords && validCoords.length >= 2)
+      ? validCoords
+      : (props.routeA?.geometry && props.routeA.geometry.length >= 2)
+        ? normalizeRouteCoords(props.routeA.geometry)
+        : (activeRoute?.geometry && activeRoute.geometry.length >= 2)
+          ? normalizeRouteCoords(activeRoute.geometry)
+          : [];
+
+    if (!coords || coords.length < 2) {
+      setSvgPath('');
+      return;
+    }
+
+    try {
+      const points = coords.map((c) => map.project(c as [number, number]));
+      const pathD = points.reduce((acc, pt, i) => `${acc} ${i === 0 ? 'M' : 'L'} ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`, '');
+      setSvgPath(pathD);
+    } catch {
+      setSvgPath('');
+    }
+  }, [validCoords, props.routeA, activeRoute]);
+
+  useEffect(() => {
+    updateSvgOverlay();
+    const map = mapRef.current;
+    if (!map) return;
+    map.on('move', updateSvgOverlay);
+    map.on('zoom', updateSvgOverlay);
+    map.on('resize', updateSvgOverlay);
+    return () => {
+      map.off('move', updateSvgOverlay);
+      map.off('zoom', updateSvgOverlay);
+      map.off('resize', updateSvgOverlay);
+    };
+  }, [updateSvgOverlay, isMapLoaded]);
 
   // Automatické přizpůsobení pohledu na novou trasu POUZE JEDNOU, pokud uživatel mapu manuálně neovládá
   useEffect(() => {
