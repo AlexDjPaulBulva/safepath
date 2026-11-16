@@ -132,6 +132,10 @@ export function ParentDashboard({
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number; accuracy: number; heading?: number | null; speed?: number | null } | null>(null);
   const [isTrackingLocation, setIsTrackingLocation] = useState<boolean>(false);
   const [recenterTrigger, setRecenterTrigger] = useState<{ coords: [number, number]; timestamp: number } | null>(null);
+  const [focusFeatureTrigger, setFocusFeatureTrigger] = useState<{ featureType: 'camera' | 'traffic_light' | 'school' | 'hazard'; timestamp: number } | null>(null);
+  const handleFocusFeature = (featureType: 'camera' | 'traffic_light' | 'school' | 'hazard') => {
+    setFocusFeatureTrigger({ featureType, timestamp: Date.now() });
+  };
   const [locationPermissionDenied, setLocationPermissionDenied] = useState<boolean>(false);
   const [showPermissionModal, setShowPermissionModal] = useState<boolean>(false);
   const [isRetryingLocation, setIsRetryingLocation] = useState<boolean>(false);
@@ -838,6 +842,9 @@ export function ParentDashboard({
           endPointName={endPoint ? endPoint.name : ''}
           onSelectStart={handleSelectStart}
           onSelectEnd={handleSelectEnd}
+          onSelectStartCoords={handleSelectStart}
+          onSelectEndCoords={handleSelectEnd}
+          onFocusFeature={handleFocusFeature}
           selectedRoute={selectedRoute}
           onSelectRoute={(route) => { 
             setSelectedRoute(route); 
@@ -1029,6 +1036,7 @@ export function ParentDashboard({
             endPoint={endPoint}
             userLocation={userLocation}
             recenterTrigger={recenterTrigger}
+            focusFeatureTrigger={focusFeatureTrigger}
             setStartPoint={setStartPoint as any}
             setEndPoint={setEndPoint as any}
             onToast={showMapToast}

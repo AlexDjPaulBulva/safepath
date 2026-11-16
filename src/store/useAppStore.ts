@@ -52,6 +52,10 @@ type AppState = {
   // Statistiky bezpečnostních bodů podél aktivní trasy
   activeSafetyStats: { camerasCount: number; crossingsCount: number; hazardsCount?: number; havensCount?: number };
   setActiveSafetyStats: (stats: { camerasCount: number; crossingsCount: number; hazardsCount?: number; havensCount?: number }) => void;
+
+  // Interaktivní centrování mapy na prvky trasy
+  focusedFeatureTrigger: { featureType: 'camera' | 'traffic_light' | 'school' | 'hazard'; timestamp: number } | null;
+  setFocusedFeatureTrigger: (trigger: { featureType: 'camera' | 'traffic_light' | 'school' | 'hazard'; timestamp: number } | null) => void;
 };
 
 const getInitialPairedCode = (): string | null => {
@@ -124,4 +128,7 @@ export const useAppStore = create<AppState>((set) => ({
 
   activeSafetyStats: { camerasCount: 0, crossingsCount: 0, hazardsCount: 0, havensCount: 0 },
   setActiveSafetyStats: (stats) => set({ activeSafetyStats: stats }),
+
+  focusedFeatureTrigger: null,
+  setFocusedFeatureTrigger: (trigger) => set({ focusedFeatureTrigger: trigger }),
 }));

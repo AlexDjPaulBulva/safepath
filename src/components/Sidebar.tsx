@@ -17,6 +17,9 @@ interface SidebarProps {
   endPointName: string;
   onSelectStart: (lat: number, lng: number, name: string) => void;
   onSelectEnd: (lat: number, lng: number, name: string) => void;
+  onSelectStartCoords?: (lat: number, lng: number, name: string) => void;
+  onSelectEndCoords?: (lat: number, lng: number, name: string) => void;
+  onFocusFeature?: (featureType: 'camera' | 'traffic_light' | 'school' | 'hazard') => void;
   selectedRoute: 'A' | 'B' | 'C';
   onSelectRoute: (route: 'A' | 'B' | 'C') => void;
   routeA: RouteStats | null;
@@ -124,11 +127,13 @@ export function extractRouteCoordinates(route: any): [number, number][] {
 function RouteCard({ 
   route, 
   onMetricHover,
-  onRouteCalculated
+  onRouteCalculated,
+  onFocusFeature
 }: { 
   route: RouteStats | null; 
   onMetricHover: (reveal: SafetyReveal | null) => void;
   onRouteCalculated?: (route: any) => void;
+  onFocusFeature?: (featureType: 'camera' | 'traffic_light' | 'school' | 'hazard') => void;
   layers?: any;
   onToggleLayer?: any;
   routeId?: 'A' | 'B' | 'C';
@@ -198,13 +203,18 @@ function RouteCard({
         </div>
 
         <div 
-          className="flex items-center space-x-2 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80" 
+          onClick={() => onFocusFeature?.('camera')}
+          className="flex items-center space-x-2 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80 hover:border-sky-500/60 hover:bg-slate-800/80 cursor-pointer transition-all active:scale-95 group" 
           onMouseEnter={() => onMetricHover('camera')} 
           onMouseLeave={() => onMetricHover(null)}
+          title="Klepněte pro zobrazení první MKS kamery na trase"
         >
-          <span className="text-xl">🎥</span>
+          <span className="text-xl group-hover:scale-110 transition-transform">🎥</span>
           <div>
-            <div className="text-[10px] text-slate-500 uppercase font-bold">Kamerový dohled</div>
+            <div className="text-[10px] text-slate-500 uppercase font-bold flex items-center justify-between">
+              <span>Kamerový dohled</span>
+              <span className="text-[9px] text-sky-400 font-semibold opacity-0 group-hover:opacity-100 transition-opacity">Zobrazit ↗</span>
+            </div>
             <div className="font-bold text-emerald-400 leading-tight">
               {camerasCount} MKS kamer
             </div>
@@ -229,10 +239,17 @@ function RouteCard({
           </div>
         </div>
 
-        <div className="flex items-center space-x-2 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80">
-          <span className="text-xl">🚦</span>
+        <div 
+          onClick={() => onFocusFeature?.('traffic_light')}
+          className="flex items-center space-x-2 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80 hover:border-emerald-500/60 hover:bg-slate-800/80 cursor-pointer transition-all active:scale-95 group"
+          title="Klepněte pro zobrazení prvního semaforu / přechodu na trase"
+        >
+          <span className="text-xl group-hover:scale-110 transition-transform">🚦</span>
           <div>
-            <div className="text-[10px] text-slate-500 uppercase font-bold">Přecházení</div>
+            <div className="text-[10px] text-slate-500 uppercase font-bold flex items-center justify-between">
+              <span>Přecházení</span>
+              <span className="text-[9px] text-emerald-400 font-semibold opacity-0 group-hover:opacity-100 transition-opacity">Zobrazit ↗</span>
+            </div>
             <div className="font-bold text-emerald-400 leading-tight">
               {crossingsCount > 0 ? `${crossingsCount} semaforů / přechodů` : '0 semaforů na trase'}
             </div>
@@ -241,13 +258,18 @@ function RouteCard({
         </div>
 
         <div 
-          className="flex items-center space-x-2 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80" 
+          onClick={() => onFocusFeature?.('hazard')}
+          className="flex items-center space-x-2 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80 hover:border-amber-500/60 hover:bg-slate-800/80 cursor-pointer transition-all active:scale-95 group" 
           onMouseEnter={() => onMetricHover('hazard')} 
           onMouseLeave={() => onMetricHover(null)}
+          title="Klepněte pro zobrazení rizikového místa na trase"
         >
-          <span className="text-xl">⚠️</span>
+          <span className="text-xl group-hover:scale-110 transition-transform">⚠️</span>
           <div>
-            <div className="text-[10px] text-slate-500 uppercase font-bold">Rizika (CDV)</div>
+            <div className="text-[10px] text-slate-500 uppercase font-bold flex items-center justify-between">
+              <span>Rizika (CDV)</span>
+              <span className="text-[9px] text-amber-400 font-semibold opacity-0 group-hover:opacity-100 transition-opacity">Zobrazit ↗</span>
+            </div>
             <div className={`font-bold leading-tight ${hazardsCount === 0 ? 'text-emerald-400' : 'text-red-400'}`}>
               {hazardsCount === 0
                 ? '0 kolizních míst'
@@ -257,10 +279,17 @@ function RouteCard({
           </div>
         </div>
 
-        <div className="flex items-center space-x-2 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80">
-          <span className="text-xl">🎒</span>
+        <div 
+          onClick={() => onFocusFeature?.('school')}
+          className="flex items-center space-x-2 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80 hover:border-indigo-500/60 hover:bg-slate-800/80 cursor-pointer transition-all active:scale-95 group"
+          title="Klepněte pro zobrazení školní zóny na trase"
+        >
+          <span className="text-xl group-hover:scale-110 transition-transform">🎒</span>
           <div>
-            <div className="text-[10px] text-slate-500 uppercase font-bold">Školní zóna</div>
+            <div className="text-[10px] text-slate-500 uppercase font-bold flex items-center justify-between">
+              <span>Školní zóna</span>
+              <span className="text-[9px] text-indigo-400 font-semibold opacity-0 group-hover:opacity-100 transition-opacity">Zobrazit ↗</span>
+            </div>
             <div className={`font-bold leading-tight ${(route.metrics?.schoolZonePercent ?? 0) > 0 ? 'text-emerald-400' : 'text-slate-300'}`}>
               {(route.metrics?.schoolZonePercent ?? 0) > 0
                 ? `${route.metrics.schoolZonePercent} % v koridoru ZŠ`
@@ -276,12 +305,25 @@ function RouteCard({
 
 export function Sidebar({
   startPointName, endPointName, onSelectStart, onSelectEnd,
+  onSelectStartCoords, onSelectEndCoords, onFocusFeature,
   selectedRoute, onSelectRoute, routeA, routeB, routeC,
   fastestRoute = null, showFastestRoute = false, onToggleFastestRoute,
   isSimulating = false, onToggleSimulation, activeProfiles = ['parent'], activeMode, onMetricHover,
   isRoutingLoading = false, routingError = null,
   userLocation = null, onRecenterGps, onRouteCalculated
 }: SidebarProps) {
+  const handleSelectStartCoords = onSelectStartCoords || onSelectStart;
+  const handleSelectEndCoords = onSelectEndCoords || onSelectEnd;
+
+  const setFocusedFeatureTrigger = useAppStore((state) => state.setFocusedFeatureTrigger);
+  const handleFocusFeature = (featureType: 'camera' | 'traffic_light' | 'school' | 'hazard') => {
+    onFocusFeature?.(featureType);
+    setFocusedFeatureTrigger({ featureType, timestamp: Date.now() });
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('safepath:focus-feature', { detail: { featureType } }));
+    }
+  };
+
   const calculatedRoute = selectedRoute === 'A' ? routeA : selectedRoute === 'B' ? (routeB || routeA) : (routeC || routeA);
 
   useEffect(() => {
@@ -497,6 +539,28 @@ export function Sidebar({
 
           {/* Přímo pod ním kompaktní vstupní pole ODKUD a KAM pro okamžitou změnu bez otevírání celého panelu */}
           <div className="space-y-1.5">
+            <div className="flex items-center gap-2 px-1 mb-1">
+              <button
+                type="button"
+                onClick={() => {
+                  handleSelectStartCoords?.(50.0650, 14.4300, 'Domov (Pod Karlovem)');
+                }}
+                className="flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg bg-slate-800/90 hover:bg-slate-700 border border-slate-700 text-[11px] font-medium text-slate-200 transition-all active:scale-95 shadow-sm"
+              >
+                <span>🏠</span>
+                <span>Domov</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  handleSelectEndCoords?.(50.0820, 14.4450, 'Škola (Kubelíkova)');
+                }}
+                className="flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg bg-slate-800/90 hover:bg-slate-700 border border-slate-700 text-[11px] font-medium text-slate-200 transition-all active:scale-95 shadow-sm"
+              >
+                <span>🎒</span>
+                <span>Škola</span>
+              </button>
+            </div>
             <div 
               onClick={() => setSheetState('expanded')}
               className="flex items-center bg-slate-800/90 border border-slate-700/80 rounded-xl px-3 py-2 cursor-pointer active:bg-slate-700/80 transition-colors min-h-[40px]"
@@ -556,6 +620,30 @@ export function Sidebar({
 
           {/* Vstupy ODKUD a KAM (plné vyhledávání pro desktop & expanded) */}
           <div className="shrink-0 space-y-2 mb-3">
+            <div className="flex items-center gap-2 mb-3 px-1">
+              <button
+                type="button"
+                onClick={() => {
+                  // Nastavit výchozí domovskou adresu (např. Pod Karlovem / Nusle)
+                  handleSelectStartCoords?.(50.0650, 14.4300, 'Domov (Pod Karlovem)');
+                }}
+                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/80 text-xs font-medium text-slate-200 transition-all shadow-sm active:scale-95"
+              >
+                <span>🏠</span>
+                <span>Domov</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  // Nastavit výchozí školní adresu (např. Kubelíkova / Žižkov)
+                  handleSelectEndCoords?.(50.0820, 14.4450, 'Škola (Kubelíkova)');
+                }}
+                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/80 text-xs font-medium text-slate-200 transition-all shadow-sm active:scale-95"
+              >
+                <span>🎒</span>
+                <span>Škola</span>
+              </button>
+            </div>
             <AddressSearchInput
               label="Odkud"
               placeholder="Odkud vyrazit?"
@@ -624,6 +712,7 @@ export function Sidebar({
                     route={routeA} 
                     onMetricHover={onMetricHover}
                     onRouteCalculated={onRouteCalculated}
+                    onFocusFeature={handleFocusFeature}
                   />
                 </div>
 

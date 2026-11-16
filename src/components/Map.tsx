@@ -19,6 +19,7 @@ import { AudioNavToggle } from './AudioNavToggle';
 import { SafePassModal } from './SafePassModal';
 import { MapErrorBoundary, MapErrorFallback } from './MapErrorBoundary';
 import { updateRouteLayer } from './map/RouteLayer';
+import { getSafetyDataFusion } from '../lib/safetyDataFusion';
 
 export { MapErrorBoundary, MapErrorFallback };
 
@@ -85,6 +86,8 @@ export interface MapEngineProps {
     battery?: number;
   } | null;
   isSosActive?: boolean;
+  focusFeatureTrigger?: { featureType: 'camera' | 'traffic_light' | 'school' | 'hazard'; timestamp: number } | null;
+  onFocusFeature?: (featureType: 'camera' | 'traffic_light' | 'school' | 'hazard') => void;
 }
 
 const PRAGUE_CENTER_LNG_LAT: [number, number] = [14.4378, 50.0755];
@@ -180,10 +183,20 @@ export function Map(props: MapEngineProps) {
   const userInteractedRef = useRef<boolean>(false);
 
   // Zásada čisté mapy: správa aktivních koridorových markerů bez memory leaků
+  interface CorridorFeatureItem {
+    type: 'camera' | 'traffic_light' | 'school' | 'hazard' | 'haven';
+    lng: number;
+    lat: number;
+    marker: maplibregl.Marker;
+    popup: maplibregl.Popup;
+    distanceAlongRoute: number;
+  }
   const corridorMarkersRef = useRef<maplibregl.Marker[]>([]);
+  const corridorFeaturesRef = useRef<CorridorFeatureItem[]>([]);
   const clearCorridorElements = () => {
     corridorMarkersRef.current.forEach((marker) => marker.remove());
     corridorMarkersRef.current = [];
+    corridorFeaturesRef.current = [];
   };
 
   // References pro zamezení stale closures při kliknutí do mapy
@@ -928,7 +941,18 @@ export function Map(props: MapEngineProps) {
       description: inc.description || 'Hlášený incident v databázi'
     }));
 
-    const allSafetyPoints = [...basePoints, ...incidentPoints];
+    const fusion = getSafetyDataFusion();
+    const schoolCoverage = fusion.checkSchoolCorridorCoverage(validCoords);
+    const schoolPoints = (schoolCoverage.badgePoints || []).map((b, idx) => ({
+      id: `school_${idx}`,
+      lat: b.coords[0] > 30 ? b.coords[0] : b.coords[1],
+      lng: b.coords[0] > 30 ? b.coords[1] : b.coords[0],
+      type: 'school',
+      name: b.schoolName || 'Školní koridor ZŠ',
+      description: b.description || 'Chráněný přístupový koridor základní školy (IPR Praha)'
+    }));
+
+    const allSafetyPoints = [...basePoints, ...incidentPoints, ...schoolPoints];
 
     // Rychlý BBox trasy v stupních (~80 m tolerance)
     let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
@@ -969,7 +993,8 @@ export function Map(props: MapEngineProps) {
     const cameras = corridorPoints.filter((p: any) => p.type === 'camera' || p.type === 'mks' || String(p.name || '').toLowerCase().includes('kamera'));
     const havens = corridorPoints.filter((p: any) => p.type === 'safe_haven' || p.type === 'haven');
     const hazards = corridorPoints.filter((p: any) => p.type === 'hazard' || p.type === 'incident');
-    const crossings = corridorPoints.filter((p: any) => !cameras.includes(p) && !havens.includes(p) && !hazards.includes(p));
+    const schools = corridorPoints.filter((p: any) => p.type === 'school');
+    const crossings = corridorPoints.filter((p: any) => !cameras.includes(p) && !havens.includes(p) && !hazards.includes(p) && !schools.includes(p));
 
     // Synchronizace se Sidebarem
     setActiveSafetyStats({
@@ -986,6 +1011,7 @@ export function Map(props: MapEngineProps) {
       const isCam = cameras.includes(pt);
       const isHaven = havens.includes(pt);
       const isHazard = hazards.includes(pt);
+      const isSchool = schools.includes(pt);
 
       const el = document.createElement('div');
       el.className = 'safepath-corridor-marker';
@@ -1028,6 +1054,16 @@ export function Map(props: MapEngineProps) {
           </svg>
         `;
         popupContent = `<div class="p-1 text-xs"><b class="text-amber-600">⚠️ Rizikové místo</b><div class="text-slate-500 text-[11px] mt-0.5">${pt.name || pt.description}</div></div>`;
+      } else if (isSchool) {
+        el.style.background = '#4f46e5';
+        el.style.border = '2px solid #ffffff';
+        el.innerHTML = `
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+          </svg>
+        `;
+        popupContent = `<div class="p-1 text-xs"><b class="text-indigo-600">🎒 Školní zóna: ${pt.name || 'ZŠ'}</b><div class="text-slate-500 text-[11px] mt-0.5">${pt.description || 'Chráněný koridor pro školáky (IPR Praha)'}</div></div>`;
       } else {
         el.style.background = '#059669';
         el.style.border = '2px solid #ffffff';
@@ -1050,7 +1086,28 @@ export function Map(props: MapEngineProps) {
         .addTo(mapRef.current!);
 
       corridorMarkersRef.current.push(marker);
+
+      let distAlong = 0;
+      let minD = Infinity;
+      for (let i = 0; i < validCoords.length; i++) {
+        const d = (validCoords[i][0] - pLng) ** 2 + (validCoords[i][1] - pLat) ** 2;
+        if (d < minD) {
+          minD = d;
+          distAlong = i;
+        }
+      }
+
+      corridorFeaturesRef.current.push({
+        type: isCam ? 'camera' : isHaven ? 'haven' : isHazard ? 'hazard' : isSchool ? 'school' : 'traffic_light',
+        lng: pLng,
+        lat: pLat,
+        marker,
+        popup,
+        distanceAlongRoute: distAlong
+      });
     });
+
+    corridorFeaturesRef.current.sort((a, b) => a.distanceAlongRoute - b.distanceAlongRoute);
 
     // 7. Úroveň detailů podle přiblížení (LOD)
     const handleZoomLOD = () => {
@@ -1069,6 +1126,7 @@ export function Map(props: MapEngineProps) {
       mapRef.current?.off('zoom', handleZoomLOD);
       corridorMarkersRef.current.forEach(m => m.remove());
       corridorMarkersRef.current = [];
+      corridorFeaturesRef.current = [];
     };
   }, [
     validCoords, 
@@ -1078,6 +1136,107 @@ export function Map(props: MapEngineProps) {
     props.safeHavens,
     setActiveSafetyStats
   ]);
+
+  // Centrování mapy na první nalezený prvek daného typu na trase
+  const focusOnFeature = (featureType: 'camera' | 'traffic_light' | 'school' | 'hazard') => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    // Najít body daného typu na trase
+    const matching = corridorFeaturesRef.current.filter(item => {
+      if (featureType === 'camera') return item.type === 'camera';
+      if (featureType === 'traffic_light') return item.type === 'traffic_light';
+      if (featureType === 'hazard') return item.type === 'hazard';
+      if (featureType === 'school') return item.type === 'school';
+      return false;
+    });
+
+    if (matching.length > 0) {
+      // První prvek tohoto typu na trase od startu
+      const target = matching[0];
+      const lngLat: [number, number] = [target.lng, target.lat];
+
+      // Plynulý přesun kamery (flyTo) na prvek
+      map.flyTo({
+        center: lngLat,
+        zoom: Math.max(map.getZoom(), 16),
+        duration: 800,
+        essential: true
+      });
+
+      // Zviditelnit marker i při menším přiblížení a zvýraznit animací
+      const el = target.marker.getElement();
+      if (el) {
+        el.style.display = 'flex';
+        el.style.transform = 'scale(1.5)';
+        setTimeout(() => {
+          if (el) el.style.transform = 'scale(1)';
+        }, 400);
+      }
+
+      // Otevřít popup markeru
+      if (!target.popup.isOpen()) {
+        target.marker.togglePopup();
+      }
+      return;
+    }
+
+    // Fallback pokud specifický bod nebyl přímo v corridorFeatures (např. škola):
+    if (featureType === 'school') {
+      if (props.endPoint?.name?.toLowerCase().includes('škola') || props.endPoint?.name?.toLowerCase().includes('zš')) {
+        map.flyTo({ center: [props.endPoint.lng, props.endPoint.lat], zoom: 16, duration: 800 });
+        props.onToast?.(`Centruji na školu v cíli: ${props.endPoint.name}`);
+        return;
+      }
+      const fusion = getSafetyDataFusion();
+      const schoolCoverage = fusion.checkSchoolCorridorCoverage(validCoords);
+      if (schoolCoverage.activeCorridors.length > 0) {
+        const c = schoolCoverage.activeCorridors[0];
+        const pt = c.recommendedCrossingPoint || c.coordinates[0];
+        if (pt) {
+          const lng = pt[0] > 30 ? pt[1] : pt[0];
+          const lat = pt[0] > 30 ? pt[0] : pt[1];
+          map.flyTo({ center: [lng, lat], zoom: 16, duration: 800 });
+          props.onToast?.(`Školní koridor: ${c.schoolName}`);
+          return;
+        }
+      }
+    }
+
+    if (props.onToast) {
+      const labels: Record<string, string> = {
+        camera: 'Na této trase nebyla nalezena žádná MKS kamera v dosahu.',
+        traffic_light: 'Na této trase nebyl nalezen žádný semafor v koridoru.',
+        hazard: 'Na této trase nejsou žádná evidovaná riziková místa.',
+        school: 'Na této trase nebyl nalezen žádný specifický školní bod.'
+      };
+      props.onToast(labels[featureType] || 'Prvek nebyl na trase nalezen.');
+    }
+  };
+
+  // Reakce na triggery centrování na prvek (z props, store nebo eventu)
+  useEffect(() => {
+    if (props.focusFeatureTrigger?.featureType) {
+      focusOnFeature(props.focusFeatureTrigger.featureType);
+    }
+  }, [props.focusFeatureTrigger]);
+
+  const storeFocusTrigger = useAppStore((state) => state.focusedFeatureTrigger);
+  useEffect(() => {
+    if (storeFocusTrigger?.featureType) {
+      focusOnFeature(storeFocusTrigger.featureType);
+    }
+  }, [storeFocusTrigger]);
+
+  useEffect(() => {
+    const handleCustomFocus = (e: any) => {
+      if (e?.detail?.featureType) {
+        focusOnFeature(e.detail.featureType);
+      }
+    };
+    window.addEventListener('safepath:focus-feature', handleCustomFocus);
+    return () => window.removeEventListener('safepath:focus-feature', handleCustomFocus);
+  }, []);
 
   // 9. Živý marker dítěte pro rodičovský režim
   useEffect(() => {
