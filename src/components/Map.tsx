@@ -18,6 +18,7 @@ import { useCompassHeading } from '../hooks/useCompassHeading';
 import { AudioNavToggle } from './AudioNavToggle';
 import { SafePassModal } from './SafePassModal';
 import { MapErrorBoundary, MapErrorFallback } from './MapErrorBoundary';
+import { updateRouteLayer } from './map/RouteLayer';
 
 export { MapErrorBoundary, MapErrorFallback };
 
@@ -146,93 +147,6 @@ const normalizeToLngLat = (coords: [number, number][]): [number, number][] => {
   });
 };
 
-const initSafeRouteLayers = (map: maplibregl.Map) => {
-  if (!map.isStyleLoaded()) return;
-
-  if (!map.getSource('safe-route-source')) {
-    map.addSource('safe-route-source', {
-      type: 'geojson',
-      data: { type: 'FeatureCollection', features: [] }
-    });
-  }
-
-  // Spodní neonová záře
-  if (!map.getLayer('safe-route-glow')) {
-    map.addLayer({
-      id: 'safe-route-glow',
-      type: 'line',
-      source: 'safe-route-source',
-      layout: { 'line-join': 'round', 'line-cap': 'round' },
-      paint: {
-        'line-color': '#10b981',
-        'line-width': 14,
-        'line-opacity': 0.45,
-        'line-blur': 3
-      }
-    });
-  }
-
-  // Hlavní sytý koridor
-  if (!map.getLayer('safe-route-core')) {
-    map.addLayer({
-      id: 'safe-route-core',
-      type: 'line',
-      source: 'safe-route-source',
-      layout: { 'line-join': 'round', 'line-cap': 'round' },
-      paint: {
-        'line-color': '#059669',
-        'line-width': 6,
-        'line-opacity': 1.0
-      }
-    });
-  }
-
-  try {
-    if (map.getLayer('safe-route-glow')) map.moveLayer('safe-route-glow');
-    if (map.getLayer('safe-route-core')) map.moveLayer('safe-route-core');
-  } catch (e) {
-    console.warn('moveLayer safe-route error:', e);
-  }
-};
-
-const updateRouteOnMap = (map: maplibregl.Map, coords: [number, number][]) => {
-  if (!map) return;
-  if (!map.isStyleLoaded()) {
-    map.once('styledata', () => updateRouteOnMap(map, coords));
-    return;
-  }
-
-  initSafeRouteLayers(map);
-
-  const geojson: GeoJSON.FeatureCollection<GeoJSON.LineString> = {
-    type: 'FeatureCollection',
-    features: (coords && coords.length >= 2) ? [
-      {
-        type: 'Feature',
-        properties: {},
-        geometry: {
-          type: 'LineString',
-          coordinates: coords
-        }
-      }
-    ] : []
-  };
-
-  const src = map.getSource('safe-route-source') as maplibregl.GeoJSONSource | undefined;
-  if (src) {
-    src.setData(geojson);
-  }
-
-  try {
-    if (map.getLayer('safe-route-glow')) map.moveLayer('safe-route-glow');
-    if (map.getLayer('safe-route-core')) map.moveLayer('safe-route-core');
-  } catch (e) {
-    console.warn('moveLayer safe-route error:', e);
-  }
-};
-
-const renderSafeRouteWebGL = updateRouteOnMap;
-
 function getCameraAzimuth(cam: { lat: number; lng: number; direction?: number }, routeCoords: [number, number][]): number {
   if (typeof cam.direction === 'number' && !isNaN(cam.direction)) {
     return cam.direction;
@@ -264,7 +178,6 @@ export function Map(props: MapEngineProps) {
   const [svgPath, setSvgPath] = useState<string>('');
   const lastFittedRouteIdRef = useRef<string | null>(null);
   const userInteractedRef = useRef<boolean>(false);
-  const pendingRouteRef = useRef<[number, number][] | null>(null);
 
   // Zásada čisté mapy: správa aktivních koridorových markerů bez memory leaků
   const corridorMarkersRef = useRef<maplibregl.Marker[]>([]);
@@ -631,20 +544,12 @@ export function Map(props: MapEngineProps) {
 
     map.on('load', () => {
       map.resize();
-      initSafeRouteLayers(map);
       drawFastestRoute(map);
-      if (pendingRouteRef.current && pendingRouteRef.current.length >= 2) {
-        updateRouteOnMap(map, pendingRouteRef.current);
-      }
       setIsMapLoaded(true);
     });
 
     map.on('style.load', () => {
-      initSafeRouteLayers(map);
       drawFastestRoute(map);
-      if (pendingRouteRef.current && pendingRouteRef.current.length >= 2) {
-        updateRouteOnMap(map, pendingRouteRef.current);
-      }
     });
 
     // Uživatelský zámek kamery pro zamezení gumového zoomu (Rubberbanding)
@@ -812,41 +717,20 @@ export function Map(props: MapEngineProps) {
     (props.startPoint && !props.endPoint) || (!props.startPoint && props.endPoint)
   );
 
-  // 2. Garantované vykreslení zelené linie trasy (SVG projekce + GPU WebGL synchronizace)
+  // 2. Vykreslení trasy WebGL vrstvou
   useEffect(() => {
-    pendingRouteRef.current = (validCoords && validCoords.length >= 2) ? validCoords : null;
     const map = mapRef.current;
-    if (!map || !validCoords || validCoords.length < 2) {
-      setSvgPath('');
+    if (!map || !isMapLoaded) return;
+    updateRouteLayer(map, validCoords);
+  }, [validCoords, isMapLoaded]);
+
+  // Automatické přizpůsobení pohledu na novou trasu POUZE JEDNOU, pokud uživatel mapu manuálně neovládá
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !isMapLoaded || !validCoords || validCoords.length < 2) {
       lastFittedRouteIdRef.current = null;
-      if (map) {
-        updateRouteOnMap(map, []);
-      }
       return;
     }
-
-    // Zápis trasy do MapLibre s pojistkou proti race-condition
-    updateRouteOnMap(map, validCoords);
-
-    // Přepočet GPS bodů trasy na pixely obrazovky pro SVG Overlay
-    const syncPath = () => {
-      try {
-        const d = validCoords
-          .map((coord, idx) => {
-            const pixel = map.project(coord);
-            return `${idx === 0 ? 'M' : 'L'} ${pixel.x.toFixed(1)} ${pixel.y.toFixed(1)}`;
-          })
-          .join(' ');
-        setSvgPath(d);
-      } catch (err) {
-        console.error('Chyba přepočtu trasy:', err);
-      }
-    };
-
-    // Prvotní vykreslení
-    syncPath();
-
-    // Automatické přizpůsobení pohledu na novou trasu POUZE JEDNOU, pokud uživatel mapu manuálně neovládá
     const routeSignature = `${validCoords[0].join(',')}-${validCoords[validCoords.length - 1].join(',')}`;
     if (lastFittedRouteIdRef.current !== routeSignature) {
       lastFittedRouteIdRef.current = routeSignature;
@@ -858,18 +742,6 @@ export function Map(props: MapEngineProps) {
         map.fitBounds(bounds, { padding: 80, duration: 600 });
       }
     }
-
-    map.on('move', syncPath);
-    map.on('zoom', syncPath);
-    map.on('rotate', syncPath);
-    map.on('pitch', syncPath);
-
-    return () => {
-      map.off('move', syncPath);
-      map.off('zoom', syncPath);
-      map.off('rotate', syncPath);
-      map.off('pitch', syncPath);
-    };
   }, [validCoords, isMapLoaded]);
 
   // Podpora pro volitelnou linku nejrychlejší alternativní trasy
