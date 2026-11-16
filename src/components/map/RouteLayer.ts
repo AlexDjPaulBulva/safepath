@@ -1,16 +1,19 @@
 import * as maplibregl from 'maplibre-gl';
 
 export function renderRoute(map: maplibregl.Map, coords: [number, number][]) {
-  console.log("ROUTE LAYER - PŘIJATÉ SOUŘADNICE:", coords);
   if (!map) return;
   
-  // Pokud styl ještě není načtený, počkáme na událost style.load
+  console.log("ROUTE LAYER - PŘIJATÉ SOUŘADNICE:", coords);
+
+  // Pokud souřadnice chybí nebo jsou prázdné, vůbec na nic nesahejme, ať se nesmaže stará čára
+  if (!coords || !Array.isArray(coords) || coords.length < 2) {
+    return;
+  }
+
   if (!map.isStyleLoaded()) {
     map.once('style.load', () => renderRoute(map, coords));
     return;
   }
-
-  const validCoords = coords && Array.isArray(coords) && coords.length >= 2 ? coords : [];
 
   const geojsonData: GeoJSON.FeatureCollection<GeoJSON.LineString> = {
     type: 'FeatureCollection',
@@ -19,7 +22,7 @@ export function renderRoute(map: maplibregl.Map, coords: [number, number][]) {
       properties: {},
       geometry: {
         type: 'LineString',
-        coordinates: validCoords
+        coordinates: coords
       }
     }]
   };
