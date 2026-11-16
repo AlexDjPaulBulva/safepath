@@ -18,7 +18,8 @@ import { useCompassHeading } from '../hooks/useCompassHeading';
 import { AudioNavToggle } from './AudioNavToggle';
 import { SafePassModal } from './SafePassModal';
 import { MapErrorBoundary, MapErrorFallback } from './MapErrorBoundary';
-import { updateRouteLayer } from './map/RouteLayer';
+import { renderRoute } from './map/RouteLayer';
+import { setupMapClickHandler } from './map/ClickHandler';
 import { getSafetyDataFusion } from '../lib/safetyDataFusion';
 
 export { MapErrorBoundary, MapErrorFallback };
@@ -560,7 +561,7 @@ export function Map(props: MapEngineProps) {
       map.resize();
       drawFastestRoute(map);
       if (validCoordsRef.current && validCoordsRef.current.length >= 2) {
-        updateRouteLayer(map, validCoordsRef.current);
+        renderRoute(map, validCoordsRef.current);
       }
       setIsMapLoaded(true);
     });
@@ -568,7 +569,7 @@ export function Map(props: MapEngineProps) {
     map.on('style.load', () => {
       drawFastestRoute(map);
       if (validCoordsRef.current && validCoordsRef.current.length >= 2) {
-        updateRouteLayer(map, validCoordsRef.current);
+        renderRoute(map, validCoordsRef.current);
       }
     });
 
@@ -577,27 +578,19 @@ export function Map(props: MapEngineProps) {
     map.on('zoomstart', (e: any) => { if (e.originalEvent) userInteractedRef.current = true; });
     map.on('rotatestart', () => { userInteractedRef.current = true; });
 
-    map.on('click', (e: maplibregl.MapMouseEvent) => {
-      const lat = e.lngLat.lat;
-      const lng = e.lngLat.lng;
-
-      const hasStart = !!startPointRef.current;
-      const hasEnd = !!endPointRef.current;
-
-      if (!hasStart) {
-        // Není start -> nastavit start
-        setStartPointRef.current?.({ lat, lng });
-        onSelectStartRef.current?.(lat, lng, 'Vybrané místo na mapě...');
-      } else if (!hasEnd) {
-        // Je start, není cíl -> nastavit cíl
-        setEndPointRef.current?.({ lat, lng });
-        onSelectEndRef.current?.(lat, lng, 'Vybrané místo na mapě...');
-      } else {
-        // Obojí už existuje -> další kliknutím inteligentně přepíšeme CÍL (nebo start podle potřeby, zde primárně cíl pro plynulé zkoušení tras)
-        setEndPointRef.current?.({ lat, lng });
-        onSelectEndRef.current?.(lat, lng, 'Vybrané místo na mapě...');
+    setupMapClickHandler(
+      map,
+      () => startPointRef.current,
+      () => endPointRef.current,
+      (pt) => {
+        setStartPointRef.current?.(pt);
+        onSelectStartRef.current?.(pt.lat, pt.lng, 'Vybrané místo na mapě...');
+      },
+      (pt) => {
+        setEndPointRef.current?.(pt);
+        onSelectEndRef.current?.(pt.lat, pt.lng, 'Vybrané místo na mapě...');
       }
-    });
+    );
 
     map.on('dblclick', (e: maplibregl.MapMouseEvent) => {
       props.onMapDoubleClick?.(e.lngLat.lat, e.lngLat.lng);
@@ -741,44 +734,8 @@ export function Map(props: MapEngineProps) {
   useEffect(() => {
     validCoordsRef.current = validCoords;
     const map = mapRef.current;
-    if (map && map.isStyleLoaded() && validCoords && validCoords.length >= 2) {
-      const source = map.getSource('safe-route-source') as maplibregl.GeoJSONSource | undefined;
-      const geojsonData = {
-        type: 'FeatureCollection' as const,
-        features: [{
-          type: 'Feature' as const,
-          properties: {},
-          geometry: { type: 'LineString' as const, coordinates: validCoords }
-        }]
-      };
-      if (source) {
-        source.setData(geojsonData);
-      } else {
-        map.addSource('safe-route-source', { type: 'geojson', data: geojsonData });
-      }
-      if (!map.getLayer('safe-route-glow')) {
-        map.addLayer({
-          id: 'safe-route-glow',
-          type: 'line',
-          source: 'safe-route-source',
-          paint: { 'line-color': '#10b981', 'line-width': 10, 'line-opacity': 0.5 }
-        });
-      }
-      if (!map.getLayer('safe-route-core')) {
-        map.addLayer({
-          id: 'safe-route-core',
-          type: 'line',
-          source: 'safe-route-source',
-          paint: { 'line-color': '#059669', 'line-width': 4, 'line-opacity': 1.0 }
-        });
-      }
-      try {
-        map.moveLayer('safe-route-glow');
-        map.moveLayer('safe-route-core');
-      } catch (e) {}
-    } else if (map && validCoords && validCoords.length >= 2) {
-      updateRouteLayer(map, validCoords);
-    }
+    if (!map || !isMapLoaded) return;
+    renderRoute(map, validCoords);
   }, [validCoords, isMapLoaded]);
 
   // Automatické přizpůsobení pohledu na novou trasu POUZE JEDNOU, pokud uživatel mapu manuálně neovládá
