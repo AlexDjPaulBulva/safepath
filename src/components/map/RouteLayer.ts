@@ -2,10 +2,14 @@ import * as maplibregl from 'maplibre-gl';
 
 export function renderRoute(map: maplibregl.Map, coords: [number, number][]) {
   if (!map) return;
-  if (!map.getStyle() && !map.isStyleLoaded()) {
+  
+  // Pokud styl ještě není načtený, počkáme na událost style.load
+  if (!map.isStyleLoaded()) {
     map.once('style.load', () => renderRoute(map, coords));
     return;
   }
+
+  const validCoords = coords && Array.isArray(coords) && coords.length >= 2 ? coords : [];
 
   const geojsonData: GeoJSON.FeatureCollection<GeoJSON.LineString> = {
     type: 'FeatureCollection',
@@ -14,7 +18,7 @@ export function renderRoute(map: maplibregl.Map, coords: [number, number][]) {
       properties: {},
       geometry: {
         type: 'LineString',
-        coordinates: coords && coords.length >= 2 ? coords : []
+        coordinates: validCoords
       }
     }]
   };
@@ -34,9 +38,9 @@ export function renderRoute(map: maplibregl.Map, coords: [number, number][]) {
       layout: { 'line-join': 'round', 'line-cap': 'round' },
       paint: {
         'line-color': '#10b981',
-        'line-opacity': 0.45,
-        'line-blur': 2,
-        'line-width': ['interpolate', ['linear'], ['zoom'], 10, 5, 13, 9, 16, 16]
+        'line-opacity': 0.6,
+        'line-blur': 3,
+        'line-width': ['interpolate', ['linear'], ['zoom'], 10, 6, 13, 10, 16, 18]
       }
     });
   }
@@ -50,14 +54,14 @@ export function renderRoute(map: maplibregl.Map, coords: [number, number][]) {
       paint: {
         'line-color': '#059669',
         'line-opacity': 1.0,
-        'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2.5, 13, 4.5, 16, 8]
+        'line-width': ['interpolate', ['linear'], ['zoom'], 10, 3, 13, 5, 16, 9]
       }
     });
   }
 
   try {
-    if (map.getLayer('safe-route-glow')) map.moveLayer('safe-route-glow');
-    if (map.getLayer('safe-route-core')) map.moveLayer('safe-route-core');
+    map.moveLayer('safe-route-glow');
+    map.moveLayer('safe-route-core');
   } catch (e) {}
 }
 
