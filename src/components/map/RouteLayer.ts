@@ -2,7 +2,7 @@ import * as maplibregl from 'maplibre-gl';
 
 export function renderRoute(map: maplibregl.Map, coords: [number, number][]) {
   if (!map) return;
-  if (!map.isStyleLoaded()) {
+  if (!map.getStyle() && !map.isStyleLoaded()) {
     map.once('style.load', () => renderRoute(map, coords));
     return;
   }
@@ -56,8 +56,8 @@ export function renderRoute(map: maplibregl.Map, coords: [number, number][]) {
   }
 
   try {
-    map.moveLayer('safe-route-glow');
-    map.moveLayer('safe-route-core');
+    if (map.getLayer('safe-route-glow')) map.moveLayer('safe-route-glow');
+    if (map.getLayer('safe-route-core')) map.moveLayer('safe-route-core');
   } catch (e) {}
 }
 

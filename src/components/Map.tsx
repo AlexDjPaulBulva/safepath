@@ -560,17 +560,13 @@ export function Map(props: MapEngineProps) {
     map.on('load', () => {
       map.resize();
       drawFastestRoute(map);
-      if (validCoordsRef.current && validCoordsRef.current.length >= 2) {
-        renderRoute(map, validCoordsRef.current);
-      }
+      renderRoute(map, validCoordsRef.current);
       setIsMapLoaded(true);
     });
 
     map.on('style.load', () => {
       drawFastestRoute(map);
-      if (validCoordsRef.current && validCoordsRef.current.length >= 2) {
-        renderRoute(map, validCoordsRef.current);
-      }
+      renderRoute(map, validCoordsRef.current);
     });
 
     // Uživatelský zámek kamery pro zamezení gumového zoomu (Rubberbanding)
