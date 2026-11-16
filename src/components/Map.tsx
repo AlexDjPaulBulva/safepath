@@ -18,7 +18,7 @@ import { useCompassHeading } from '../hooks/useCompassHeading';
 import { AudioNavToggle } from './AudioNavToggle';
 import { SafePassModal } from './SafePassModal';
 import { MapErrorBoundary, MapErrorFallback } from './MapErrorBoundary';
-import { renderRoute } from './map/RouteLayer';
+import { renderRoute, normalizeRouteCoords } from './map/RouteLayer';
 import { setupMapClickHandler } from './map/ClickHandler';
 import { getSafetyDataFusion } from '../lib/safetyDataFusion';
 
@@ -560,13 +560,23 @@ export function Map(props: MapEngineProps) {
     map.on('load', () => {
       map.resize();
       drawFastestRoute(map);
-      renderRoute(map, validCoordsRef.current);
+      const coords = (validCoordsRef.current && validCoordsRef.current.length >= 2)
+        ? validCoordsRef.current
+        : (props.routeA?.geometry || activeRoute?.geometry || []);
+      if (coords && coords.length >= 2) {
+        renderRoute(map, coords);
+      }
       setIsMapLoaded(true);
     });
 
     map.on('style.load', () => {
       drawFastestRoute(map);
-      renderRoute(map, validCoordsRef.current);
+      const coords = (validCoordsRef.current && validCoordsRef.current.length >= 2)
+        ? validCoordsRef.current
+        : (props.routeA?.geometry || activeRoute?.geometry || []);
+      if (coords && coords.length >= 2) {
+        renderRoute(map, coords);
+      }
     });
 
     // Uživatelský zámek kamery pro zamezení gumového zoomu (Rubberbanding)
@@ -649,16 +659,20 @@ export function Map(props: MapEngineProps) {
   const routeData = props.routeData ?? props.routeCoordinates ?? activeRoute;
 
   const validCoords: [number, number][] = useMemo(() => {
-    if (!routeData) return [];
+    // Podpora pro libovolný formát trasy s prioritou na props.routeA
+    const source = props.routeA || activeRoute || props.routeData || props.routeCoordinates;
+    if (!source) return [];
 
     let rawPoints = 
-      routeData?.coordinates || 
-      routeData?.geometry?.coordinates || 
-      routeData?.geometry || 
-      routeData?.path || 
-      routeData?.points || 
-      routeData?.latlngs || 
-      (Array.isArray(routeData) ? routeData : null);
+      props.routeA?.geometry ||
+      activeRoute?.geometry ||
+      source?.coordinates || 
+      source?.geometry?.coordinates || 
+      source?.geometry || 
+      source?.path || 
+      source?.points || 
+      source?.latlngs || 
+      (Array.isArray(source) ? source : null);
 
     // Pokud přišla zakódovaná polyline jako řetězec, dekóduj ji
     if (typeof rawPoints === 'string') {
@@ -669,20 +683,7 @@ export function Map(props: MapEngineProps) {
       }
     }
 
-    const rawCoords = (Array.isArray(rawPoints) ? rawPoints : [])
-      .map((p: any) => {
-        if (Array.isArray(p)) {
-          // Normalizace pro ČR: [lng ~14, lat ~50]
-          return Number(p[0]) > 30 ? [Number(p[1]), Number(p[0])] : [Number(p[0]), Number(p[1])];
-        }
-        if (p && typeof p === 'object') {
-          const lat = p.lat ?? p.latitude;
-          const lng = p.lng ?? p.longitude ?? p.lon;
-          return [Number(lng), Number(lat)];
-        }
-        return null;
-      })
-      .filter((p): p is [number, number] => p !== null && !isNaN(p[0]) && !isNaN(p[1]));
+    const rawCoords = normalizeRouteCoords(Array.isArray(rawPoints) ? rawPoints : []);
 
     if (rawCoords.length === 0) return [];
 
@@ -708,7 +709,18 @@ export function Map(props: MapEngineProps) {
     }
 
     return connectedCoords;
-  }, [routeData, props.startPoint, props.endPoint]);
+  }, [
+    props.routeA,
+    props.routeA?.geometry,
+    props.routeB?.geometry,
+    props.routeC?.geometry,
+    props.routeData,
+    props.routeCoordinates,
+    props.selectedRoute,
+    activeRoute,
+    props.startPoint,
+    props.endPoint
+  ]);
 
   const hasBothPoints = Boolean(props.startPoint && props.endPoint);
   const hasCalculatedRoute = Boolean(
@@ -726,13 +738,24 @@ export function Map(props: MapEngineProps) {
 
   validCoordsRef.current = validCoords;
 
-  // 2. Vykreslení trasy WebGL vrstvou
+  // 2. Vykreslení trasy WebGL vrstvou při jakékoliv změně validCoords nebo routeA.geometry
   useEffect(() => {
     validCoordsRef.current = validCoords;
     const map = mapRef.current;
-    if (!map || !isMapLoaded) return;
-    renderRoute(map, validCoords);
-  }, [validCoords, isMapLoaded]);
+    if (!map) return;
+
+    const coordsToRender = (validCoords && validCoords.length >= 2)
+      ? validCoords
+      : (props.routeA?.geometry && props.routeA.geometry.length >= 2)
+        ? props.routeA.geometry
+        : (activeRoute?.geometry && activeRoute.geometry.length >= 2)
+          ? activeRoute.geometry
+          : [];
+
+    if (coordsToRender.length >= 2) {
+      renderRoute(map, coordsToRender as [number, number][]);
+    }
+  }, [validCoords, props.routeA, props.routeA?.geometry, activeRoute?.geometry, isMapLoaded]);
 
   // Automatické přizpůsobení pohledu na novou trasu POUZE JEDNOU, pokud uživatel mapu manuálně neovládá
   useEffect(() => {

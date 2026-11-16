@@ -626,10 +626,19 @@ export function ParentDashboard({
         }
         return;
       } else {
-        // Obě hodnoty existují -> kliknutím se přirozeně posune cíl
-        applyInstantPoint('end', lat, lng, name || 'Vybrané místo na mapě...');
-        setSelectedRoute('A');
-        showMapToast('Cíl aktualizován. Přepočítávám trasu...', 'success');
+        // Obě hodnoty existují -> inteligentní rozhodnutí podle vzdálenosti
+        const distToStart = Math.hypot(lat - effectiveStart.lat, lng - effectiveStart.lng);
+        const distToEnd = Math.hypot(lat - endPoint.lat, lng - endPoint.lng);
+
+        if (distToStart < distToEnd) {
+          applyInstantPoint('start', lat, lng, name || 'Vybrané místo na mapě...');
+          setSelectedRoute('A');
+          showMapToast('Start aktualizován. Přepočítávám trasu...', 'success');
+        } else {
+          applyInstantPoint('end', lat, lng, name || 'Vybrané místo na mapě...');
+          setSelectedRoute('A');
+          showMapToast('Cíl aktualizován. Přepočítávám trasu...', 'success');
+        }
       }
     } catch (e) {
       console.error(e);
