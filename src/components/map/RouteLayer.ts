@@ -50,8 +50,19 @@ export function renderRoute(map: maplibregl.Map, coords: [number, number][] | an
   const validCoords = normalizeRouteCoords(coords);
   console.log("ROUTE LAYER - PŘIJATÉ A VALIDOVANÉ SOUŘADNICE:", validCoords.length);
 
-  // Pokud souřadnice chybí nebo je méně než 2 body, nemažeme vrstvu, ale ani nic nekreslíme
+  // Pokud souřadnice chybí nebo je méně než 2 body, vyčistíme zdroj trasy, aby nezůstávala viset stará trasa
   if (!validCoords || validCoords.length < 2) {
+    try {
+      const source = map.getSource('safe-route-source') as maplibregl.GeoJSONSource | undefined;
+      if (source) {
+        source.setData({
+          type: 'FeatureCollection',
+          features: []
+        });
+      }
+    } catch (e) {
+      console.warn('Chyba při promazávání safe-route-source:', e);
+    }
     return;
   }
 

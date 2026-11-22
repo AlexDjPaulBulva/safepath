@@ -477,13 +477,13 @@ export function Map(props: MapEngineProps) {
       if (props.startPoint) {
         const startCoord: [number, number] = [props.startPoint.lng, props.startPoint.lat];
         const dStart = Math.hypot(normalizedFastestCoords[0][0] - startCoord[0], normalizedFastestCoords[0][1] - startCoord[1]);
-        if (dStart > 0.00005) normalizedFastestCoords.unshift(startCoord);
+        if (dStart > 0.00005 && dStart < 0.00015) normalizedFastestCoords.unshift(startCoord);
       }
       if (props.endPoint) {
         const endCoord: [number, number] = [props.endPoint.lng, props.endPoint.lat];
         const lastIdx = normalizedFastestCoords.length - 1;
         const dEnd = Math.hypot(normalizedFastestCoords[lastIdx][0] - endCoord[0], normalizedFastestCoords[lastIdx][1] - endCoord[1]);
-        if (dEnd > 0.00005) normalizedFastestCoords.push(endCoord);
+        if (dEnd > 0.00005 && dEnd < 0.00015) normalizedFastestCoords.push(endCoord);
       }
     }
 
@@ -590,12 +590,14 @@ export function Map(props: MapEngineProps) {
       () => startPointRef.current,
       () => endPointRef.current,
       (pt) => {
-        setStartPointRef.current?.(pt);
-        onSelectStartRef.current?.(pt.lat, pt.lng, 'Vybrané místo na mapě...');
+        const coordLabel = `${pt.lat.toFixed(4)}, ${pt.lng.toFixed(4)}`;
+        setStartPointRef.current?.({ ...pt, name: coordLabel });
+        onSelectStartRef.current?.(pt.lat, pt.lng, coordLabel);
       },
       (pt) => {
-        setEndPointRef.current?.(pt);
-        onSelectEndRef.current?.(pt.lat, pt.lng, 'Vybrané místo na mapě...');
+        const coordLabel = `${pt.lat.toFixed(4)}, ${pt.lng.toFixed(4)}`;
+        setEndPointRef.current?.({ ...pt, name: coordLabel });
+        onSelectEndRef.current?.(pt.lat, pt.lng, coordLabel);
       }
     );
 
@@ -686,30 +688,11 @@ export function Map(props: MapEngineProps) {
 
     const rawCoords = normalizeRouteCoords(Array.isArray(rawPoints) ? rawPoints : []);
 
-    if (rawCoords.length === 0) return [];
+    if (rawCoords.length < 2) return [];
 
-    // Zajistit přesné spojení začátku a konce trasy s markery
-    const connectedCoords: [number, number][] = [...rawCoords];
-
-    if (props.startPoint && connectedCoords.length > 0) {
-      const [firstLng, firstLat] = connectedCoords[0];
-      const distStart = Math.hypot(firstLng - props.startPoint.lng, firstLat - props.startPoint.lat);
-      // Spojit pouze pokud je odchylka mezi 5m a 250m (cca 0.00005 až 0.003 stupně)
-      if (distStart > 0.00005 && distStart < 0.003) {
-        connectedCoords.unshift([props.startPoint.lng, props.startPoint.lat]);
-      }
-    }
-
-    if (props.endPoint && connectedCoords.length > 0) {
-      const [lastLng, lastLat] = connectedCoords[connectedCoords.length - 1];
-      const distEnd = Math.hypot(lastLng - props.endPoint.lng, lastLat - props.endPoint.lat);
-      // Spojit pouze pokud je odchylka mezi 5m a 250m. Pokud je cíl dál, čeká se na výpočet z OSRM!
-      if (distEnd > 0.00005 && distEnd < 0.003) {
-        connectedCoords.push([props.endPoint.lng, props.endPoint.lat]);
-      }
-    }
-
-    return connectedCoords;
+    // Finální souřadnice z dokončeného výpočtu trasy OSRM.
+    // Nepoužíváme syrové kliknuté body jako náhradní spojnice, aby nedocházelo k řezání zástavby.
+    return rawCoords;
   }, [
     props.routeA,
     props.routeA?.geometry,
@@ -718,9 +701,7 @@ export function Map(props: MapEngineProps) {
     props.routeData,
     props.routeCoordinates,
     props.selectedRoute,
-    activeRoute,
-    props.startPoint,
-    props.endPoint
+    activeRoute
   ]);
 
   const hasBothPoints = Boolean(props.startPoint && props.endPoint);
@@ -748,14 +729,12 @@ export function Map(props: MapEngineProps) {
     const coordsToRender = (validCoords && validCoords.length >= 2)
       ? validCoords
       : (props.routeA?.geometry && props.routeA.geometry.length >= 2)
-        ? props.routeA.geometry
+        ? normalizeRouteCoords(props.routeA.geometry)
         : (activeRoute?.geometry && activeRoute.geometry.length >= 2)
-          ? activeRoute.geometry
+          ? normalizeRouteCoords(activeRoute.geometry)
           : [];
 
-    if (coordsToRender.length >= 2) {
-      renderRoute(map, coordsToRender as [number, number][]);
-    }
+    renderRoute(map, coordsToRender);
   }, [validCoords, props.routeA, props.routeA?.geometry, activeRoute?.geometry, isMapLoaded]);
 
   // Synchronní aktualizace SVG linie trasy pro okamžitou a zaručenou viditelnost
@@ -925,12 +904,27 @@ export function Map(props: MapEngineProps) {
       startMarkerRef.current = null;
     }
     if (props.startPoint) {
+      let markerLng = props.startPoint.lng;
+      let markerLat = props.startPoint.lat;
+
+      // Pokud máme dokončenou trasu (validCoords >= 2), zajistíme, aby marker • START
+      // perfektně seděl přesně na začátku linie trasy [validCoords[0]], čímž je zaručena 100% návaznost
+      // bez mezery či odtržení, a linie nemusí řezat zástavbu.
+      if (validCoords && validCoords.length >= 2) {
+        const [routeFirstLng, routeFirstLat] = validCoords[0];
+        const dist = Math.hypot(routeFirstLng - markerLng, routeFirstLat - markerLat);
+        if (dist < 0.001) { // cca 80 metrů
+          markerLng = routeFirstLng;
+          markerLat = routeFirstLat;
+        }
+      }
+
       const startEl = document.createElement('div');
       startEl.style.cssText = 'display: inline-flex !important; align-items: center !important; gap: 4px !important; padding: 4px 10px !important; background: #059669 !important; color: #ffffff !important; font-size: 11px !important; font-weight: 800 !important; border-radius: 9999px !important; border: 2px solid #ffffff !important; box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important; white-space: nowrap !important; width: auto !important; min-width: max-content !important; flex-shrink: 0 !important; z-index: 40 !important;';
       startEl.innerHTML = `<span style="width: 6px; height: 6px; border-radius: 50%; background: #ffffff;"></span><span>START</span>`;
 
       startMarkerRef.current = new maplibregl.Marker({ element: startEl, anchor: 'center' })
-        .setLngLat([props.startPoint.lng, props.startPoint.lat])
+        .setLngLat([markerLng, markerLat])
         .addTo(map);
     }
 
@@ -940,12 +934,24 @@ export function Map(props: MapEngineProps) {
       endMarkerRef.current = null;
     }
     if (props.endPoint) {
+      let markerLng = props.endPoint.lng;
+      let markerLat = props.endPoint.lat;
+
+      if (validCoords && validCoords.length >= 2) {
+        const [routeLastLng, routeLastLat] = validCoords[validCoords.length - 1];
+        const dist = Math.hypot(routeLastLng - markerLng, routeLastLat - markerLat);
+        if (dist < 0.001) { // cca 80 metrů
+          markerLng = routeLastLng;
+          markerLat = routeLastLat;
+        }
+      }
+
       const destEl = document.createElement('div');
       destEl.style.cssText = 'display: inline-flex !important; align-items: center !important; gap: 4px !important; padding: 4px 10px !important; background: #4f46e5 !important; color: #ffffff !important; font-size: 11px !important; font-weight: 800 !important; border-radius: 9999px !important; border: 2px solid #ffffff !important; box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important; white-space: nowrap !important; width: auto !important; min-width: max-content !important; flex-shrink: 0 !important; z-index: 40 !important;';
       destEl.innerHTML = `<span style="width: 6px; height: 6px; border-radius: 50%; background: #ffffff;"></span><span>CÍL</span>`;
 
       endMarkerRef.current = new maplibregl.Marker({ element: destEl, anchor: 'center' })
-        .setLngLat([props.endPoint.lng, props.endPoint.lat])
+        .setLngLat([markerLng, markerLat])
         .addTo(map);
     }
 
@@ -959,7 +965,7 @@ export function Map(props: MapEngineProps) {
         endMarkerRef.current = null;
       }
     };
-  }, [props.startPoint, props.endPoint]);
+  }, [props.startPoint, props.endPoint, validCoords]);
 
   // 7. Vykreslení bezpečnostních odznaků podél trasy
   useEffect(() => {

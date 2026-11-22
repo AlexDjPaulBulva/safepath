@@ -1253,10 +1253,10 @@ export async function fetchOSRMRoute(
     throw new Error('Neplatné souřadnice počátku nebo cíle.');
   }
 
-  // 1. RÚIAN First/Last Mile Snapping na uliční čáru chodníku (do 60 m)
+  // 1. RÚIAN First/Last Mile Snapping na uliční čáru chodníku (do 25 m, aby nedocházelo k přeskokům mezi bloky)
   const fusion = getSafetyDataFusion();
-  const snappedStart = fusion.snapToNearestRuianEntrance(sLat, sLng, 60);
-  const snappedEnd = fusion.snapToNearestRuianEntrance(eLat, eLng, 60);
+  const snappedStart = fusion.snapToNearestRuianEntrance(sLat, sLng, 25);
+  const snappedEnd = fusion.snapToNearestRuianEntrance(eLat, eLng, 25);
 
   const routeSLat = snappedStart ? snappedStart.lat : sLat;
   const routeSLng = snappedStart ? snappedStart.lng : sLng;

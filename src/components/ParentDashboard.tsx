@@ -389,6 +389,8 @@ export function ParentDashboard({
   const endCoordKey = endPoint ? `${endPoint.lat.toFixed(5)},${endPoint.lng.toFixed(5)}` : '';
 
   // 2. Načtení trasy přes OSRM s debouncingem a eliminací problikávání
+  const routingRequestIdRef = useRef(0);
+
   useEffect(() => {
     if (!startPoint || !endPoint) {
       setRouteA(null);
@@ -397,10 +399,12 @@ export function ParentDashboard({
       setFastestRoute(null);
       setSafeStops([]);
       setCurrentRoute(null);
+      setIsRoutingLoading(false);
+      setLoading(false);
       return;
     }
 
-    let isCurrentRequest = true;
+    const currentRequestId = ++routingRequestIdRef.current;
     setIsRoutingLoading(true);
 
     const debounceTimer = setTimeout(async () => {
@@ -438,7 +442,7 @@ export function ParentDashboard({
           activeMode
         );
 
-        if (!isCurrentRequest) return;
+        if (currentRequestId !== routingRequestIdRef.current) return;
         setRouteA(rA);
         const rACoords = Array.isArray(rA?.geometry)
           ? rA.geometry
@@ -460,14 +464,14 @@ export function ParentDashboard({
         setSelectedRoute('A');
         setArgumentsText(generateParentArguments({ safeRoute: rA.metrics }, isChildMode));
       } catch (err) {
-        if (!isCurrentRequest) return;
+        if (currentRequestId !== routingRequestIdRef.current) return;
         console.error('Chyba routingu:', err);
         const message = err instanceof Error && err.name === 'AbortError'
           ? 'Výpočet trasy trval příliš dlouho. Zkuste body posunout blíže ke komunikaci.'
           : (err instanceof Error ? err.message : 'Nelze nalézt cestu po komunikacích. Zkuste body posunout blíže ke komunikaci.');
         setRoutingError(message);
       } finally {
-        if (isCurrentRequest) {
+        if (currentRequestId === routingRequestIdRef.current) {
           setLoading(false);
           setIsRoutingLoading(false);
         }
@@ -475,8 +479,11 @@ export function ParentDashboard({
     }, 180);
 
     return () => {
-      isCurrentRequest = false;
       clearTimeout(debounceTimer);
+      if (currentRequestId === routingRequestIdRef.current) {
+        setIsRoutingLoading(false);
+        setLoading(false);
+      }
     };
   }, [startCoordKey, endCoordKey, timeOfDay, activeMode, activeProfiles]);
 
@@ -494,17 +501,55 @@ export function ParentDashboard({
     setLayers(prev => ({ ...prev, [layer]: !prev[layer] }));
   };
 
-  const handleSelectStart = (lat: number, lng: number, name: string) => {
-    setStartPoint({lat, lng, name});
+  const handleSelectStart = async (lat: number, lng: number, name?: string) => {
+    const fallbackCoord = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    const isGeneric = !name || name === 'Vybrané místo na mapě...' || name === fallbackCoord;
+    const initialName = !isGeneric ? name! : fallbackCoord;
+
+    setStartPoint({ lat, lng, name: initialName });
     setMapCenter([lat, lng]);
+
+    if (isGeneric) {
+      try {
+        const address = await reverseGeocode(lat, lng);
+        setStartPoint(prev => {
+          if (!prev || prev.lat !== lat || prev.lng !== lng) return prev;
+          return { ...prev, name: address || fallbackCoord };
+        });
+      } catch {
+        setStartPoint(prev => {
+          if (!prev || prev.lat !== lat || prev.lng !== lng) return prev;
+          return { ...prev, name: fallbackCoord };
+        });
+      }
+    }
   };
 
-  const handleSelectEnd = (lat: number, lng: number, name: string) => {
-    setEndPoint({lat, lng, name});
+  const handleSelectEnd = async (lat: number, lng: number, name?: string) => {
+    const fallbackCoord = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    const isGeneric = !name || name === 'Vybrané místo na mapě...' || name === fallbackCoord;
+    const initialName = !isGeneric ? name! : fallbackCoord;
+
+    setEndPoint({ lat, lng, name: initialName });
     if (!startPoint) {
       setMapCenter([lat, lng]);
       if (locationPermissionDenied || !userLocation) {
         showMapToast('Cíl nastaven. Zvolte start klepnutím do mapy', 'info');
+      }
+    }
+
+    if (isGeneric) {
+      try {
+        const address = await reverseGeocode(lat, lng);
+        setEndPoint(prev => {
+          if (!prev || prev.lat !== lat || prev.lng !== lng) return prev;
+          return { ...prev, name: address || fallbackCoord };
+        });
+      } catch {
+        setEndPoint(prev => {
+          if (!prev || prev.lat !== lat || prev.lng !== lng) return prev;
+          return { ...prev, name: fallbackCoord };
+        });
       }
     }
   };
@@ -560,25 +605,34 @@ export function ParentDashboard({
     cameras: osmCameras
   });
 
-  const formatCoordinateLabel = (_lat?: number, _lng?: number) => 'Vybrané místo na mapě...';
+  const formatCoordinateLabel = (lat?: number, lng?: number) => {
+    if (lat !== undefined && lng !== undefined) {
+      return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    }
+    return '';
+  };
 
   const applyInstantPoint = (kind: 'start' | 'end', lat: number, lng: number, fallbackName?: string) => {
-    const coordinateName = fallbackName || formatCoordinateLabel(lat, lng);
-    const patch = { lat, lng, name: coordinateName };
+    const fallbackCoord = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    const isGeneric = !fallbackName || fallbackName === 'Vybrané místo na mapě...' || fallbackName === fallbackCoord;
+    const initialName = !isGeneric ? fallbackName! : fallbackCoord;
+    const patch = { lat, lng, name: initialName };
 
     if (kind === 'start') {
       setStartPoint(prev => {
         const next = prev && prev.lat === lat && prev.lng === lng ? prev : patch;
         return next;
       });
-      reverseGeocode(lat, lng)
-        .then(resolved => {
-          setStartPoint(prev => {
-            if (!prev || prev.lat !== lat || prev.lng !== lng) return prev;
-            return { ...prev, name: resolved || coordinateName };
-          });
-        })
-        .catch(() => undefined);
+      if (isGeneric) {
+        reverseGeocode(lat, lng)
+          .then(resolved => {
+            setStartPoint(prev => {
+              if (!prev || prev.lat !== lat || prev.lng !== lng) return prev;
+              return { ...prev, name: resolved || fallbackCoord };
+            });
+          })
+          .catch(() => undefined);
+      }
       return;
     }
 
@@ -586,14 +640,16 @@ export function ParentDashboard({
       const next = prev && prev.lat === lat && prev.lng === lng ? prev : patch;
       return next;
     });
-    reverseGeocode(lat, lng)
-      .then(resolved => {
-        setEndPoint(prev => {
-          if (!prev || prev.lat !== lat || prev.lng !== lng) return prev;
-          return { ...prev, name: resolved || coordinateName };
-        });
-      })
-      .catch(() => undefined);
+    if (isGeneric) {
+      reverseGeocode(lat, lng)
+        .then(resolved => {
+          setEndPoint(prev => {
+            if (!prev || prev.lat !== lat || prev.lng !== lng) return prev;
+            return { ...prev, name: resolved || fallbackCoord };
+          });
+        })
+        .catch(() => undefined);
+    }
   };
 
   const handleMapClick = async (lat: number, lng: number, name?: string) => {
@@ -610,14 +666,16 @@ export function ParentDashboard({
         setStartPoint(effectiveStart);
       }
 
+      const defaultCoordName = name || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+
       if (!effectiveStart) {
-        applyInstantPoint('start', lat, lng, name || 'Vybrané místo na mapě...');
+        applyInstantPoint('start', lat, lng, defaultCoordName);
         setSelectedRoute('A');
         showMapToast('Start nastaven. Nyní klepněte na cíl.', 'success');
         return;
       } else if (!endPoint) {
         // Jediné klepnutí rovnou nastaví CÍL a spustí navigaci od aktuální polohy!
-        applyInstantPoint('end', lat, lng, name || 'Vybrané místo na mapě...');
+        applyInstantPoint('end', lat, lng, defaultCoordName);
         setSelectedRoute('A');
         if (locationPermissionDenied || !userLocation) {
           showMapToast('Cíl nastaven. Zvolte start klepnutím do mapy', 'info');
@@ -631,11 +689,11 @@ export function ParentDashboard({
         const distToEnd = Math.hypot(lat - endPoint.lat, lng - endPoint.lng);
 
         if (distToStart < distToEnd) {
-          applyInstantPoint('start', lat, lng, name || 'Vybrané místo na mapě...');
+          applyInstantPoint('start', lat, lng, defaultCoordName);
           setSelectedRoute('A');
           showMapToast('Start aktualizován. Přepočítávám trasu...', 'success');
         } else {
-          applyInstantPoint('end', lat, lng, name || 'Vybrané místo na mapě...');
+          applyInstantPoint('end', lat, lng, defaultCoordName);
           setSelectedRoute('A');
           showMapToast('Cíl aktualizován. Přepočítávám trasu...', 'success');
         }
@@ -648,7 +706,7 @@ export function ParentDashboard({
   const handleMapDoubleClick = async (lat: number, lng: number) => {
     try {
       const addressName = await reverseGeocode(lat, lng);
-      const fallbackName = addressName || 'Vybrané místo na mapě...';
+      const fallbackName = addressName || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
 
       if (!startPoint) {
         setStartPoint({ lat, lng, name: fallbackName });
