@@ -1,5 +1,5 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
-import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import React, { useEffect, useLayoutEffect, useState, useMemo, useRef, useCallback } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import * as turf from '@turf/turf';
 import polyline from '@mapbox/polyline';
@@ -376,7 +376,7 @@ export function Map(props: MapEngineProps) {
 
   // Pomocná funkce pro 3D budovy (pokud styl obsahuje vektorové podklady)
   const add3DBuildingsLayer = (map: maplibregl.Map) => {
-    if (!map.isStyleLoaded() || map.getLayer('3d-buildings')) return;
+    if (!map.getStyle() || map.getLayer('3d-buildings')) return;
 
     const style = map.getStyle();
     if (!style) return;
@@ -439,8 +439,8 @@ export function Map(props: MapEngineProps) {
 
   // Pomocná funkce pro zaručené vykreslení vrstvy nejrychlejší alternativní trasy
   const drawFastestRoute = (map: maplibregl.Map) => {
-    if (!map.isStyleLoaded()) {
-      map.once('styledata', () => drawFastestRoute(map));
+    if (!map.getStyle()) {
+      map.once('load', () => drawFastestRoute(map));
       return;
     }
 
@@ -738,8 +738,9 @@ export function Map(props: MapEngineProps) {
     };
   }, [props.isRoutingLoading, props.requestId]);
 
-  // 2. Vykreslení trasy WebGL vrstvou při jakékoliv změně validCoords nebo loading stavu
-  useEffect(() => {
+  // 2. Synchronní vykreslení trasy WebGL vrstvou při jakékoliv změně validCoords nebo loading stavu
+  // Běží synchronně v useLayoutEffect ve stejném renderovacím cyklu jako markery a statistiky v bočním panelu
+  useLayoutEffect(() => {
     validCoordsRef.current = validCoords;
     const map = mapRef.current;
     if (!map) return;
@@ -917,8 +918,8 @@ export function Map(props: MapEngineProps) {
     }
   }, [currentNavPosition, props.userLocation, effectiveHeading, isCourseUp]);
 
-  // 6. Start a Cíl Markery: přesné ukotvení a plynulé posouvání bez blikání či přemazávání DOMu
-  useEffect(() => {
+  // 6. Start a Cíl Markery: synchronní ukotvení a plynulé posouvání bez blikání či přemazávání DOMu
+  useLayoutEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 

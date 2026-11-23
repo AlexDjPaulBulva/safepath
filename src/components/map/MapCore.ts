@@ -45,7 +45,7 @@ export const VIBRANT_STREET_STYLE: maplibregl.StyleSpecification = {
  * a rastrové dlaždice bez rizika zčernání pozadí při rychlých akcích či ztrátě stylu.
  */
 export function ensureBaseStyleAndLayers(map: maplibregl.Map): void {
-  if (!map || !map.isStyleLoaded()) return;
+  if (!map || !map.getStyle()) return;
 
   try {
     // 1. Zajištění background vrstvy s příjemnou světlou barvou (nikdy černá)

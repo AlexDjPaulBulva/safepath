@@ -88,7 +88,7 @@ export function stopRouteBreathing(map?: maplibregl.Map | null) {
   const targetMap = map || activeBreathingMap;
   activeBreathingMap = null;
 
-  if (targetMap && targetMap.isStyleLoaded()) {
+  if (targetMap && targetMap.getStyle()) {
     try {
       if (targetMap.getLayer('safe-route-glow')) {
         targetMap.setPaintProperty('safe-route-glow', 'line-opacity', DEFAULT_GLOW_OPACITY);
@@ -124,7 +124,7 @@ export function startRouteBreathing(map: maplibregl.Map) {
       return;
     }
 
-    if (!map.isStyleLoaded() || !map.getLayer('safe-route-glow') || !map.getLayer('safe-route-core')) {
+    if (!map.getStyle() || !map.getLayer('safe-route-glow') || !map.getLayer('safe-route-core')) {
       breathingAnimationId = requestAnimationFrame(step);
       return;
     }
@@ -160,7 +160,7 @@ export function scheduleRouteBreathing(map: maplibregl.Map, requestId: number, _
   activeBreathingRequestId = requestId;
 
   breathingDelayTimer = setTimeout(() => {
-    if (activeBreathingRequestId === requestId && map && map.isStyleLoaded()) {
+    if (activeBreathingRequestId === requestId && map && map.getStyle()) {
       if (map.getLayer('safe-route-glow') && map.getLayer('safe-route-core')) {
         startRouteBreathing(map);
       }
@@ -191,6 +191,7 @@ export function renderRoute(
           type: 'FeatureCollection',
           features: []
         });
+        map.triggerRepaint();
       }
     } catch (e) {
       console.warn('Chyba při promazávání safe-route-source:', e);
@@ -198,12 +199,11 @@ export function renderRoute(
     return;
   }
 
-  // Pokud styl mapy ještě není připraven, počkáme na jeho načtení
-  if (!map.isStyleLoaded()) {
-    const onStyleReady = () => {
+  // Pokud styl mapy ještě není inicializován, počkáme na prvotní načtení mapy
+  if (!map.getStyle()) {
+    map.once('load', () => {
       renderRoute(map, validCoords, isPending);
-    };
-    map.once('style.load', onStyleReady);
+    });
     return;
   }
 
@@ -234,6 +234,7 @@ export function renderRoute(
     } else {
       source.setData(geojsonData);
     }
+    map.triggerRepaint();
 
     const glowOpacity = isPending ? 0.35 : DEFAULT_GLOW_OPACITY;
     const coreOpacity = isPending ? 0.65 : DEFAULT_CORE_OPACITY;
