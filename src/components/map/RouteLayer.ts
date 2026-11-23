@@ -141,14 +141,13 @@ export function startRouteBreathing(map: maplibregl.Map) {
  * Spustí se POUZE v případě, kdy výpočet aktuálního requestId trvá déle než 1000 ms.
  * Pokud výpočet trasy skončí rychleji, animace se vůbec nespustí.
  */
-export function scheduleRouteBreathing(map: maplibregl.Map, requestId: number, currentCoords?: [number, number][]) {
+export function scheduleRouteBreathing(map: maplibregl.Map, requestId: number, _currentCoords?: [number, number][]) {
   stopRouteBreathing(map);
   activeBreathingRequestId = requestId;
 
   breathingDelayTimer = setTimeout(() => {
-    if (activeBreathingRequestId === requestId && map) {
-      // Animaci spustíme pouze pokud máme stávající vykreslenou trasu
-      if (currentCoords && currentCoords.length >= 2) {
+    if (activeBreathingRequestId === requestId && map && map.isStyleLoaded()) {
+      if (map.getLayer('safe-route-glow') && map.getLayer('safe-route-core')) {
         startRouteBreathing(map);
       }
     }

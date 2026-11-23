@@ -1,5 +1,6 @@
 import enrichedData from '../data/pragueEnrichedSafety.json';
 import staticData from '../data/pragueStaticSafety.json';
+import { PRAGUE_ROAD_CORRIDORS } from './pedestrianGeometryEngine';
 
 export interface GeocodeResult {
   place_id: number;
@@ -11,12 +12,65 @@ export interface GeocodeResult {
 const reverseGeocodeCache = new Map<string, string>();
 
 /**
- * Rychlé lokální určení ulice / adresního bodu z offline databáze RÚIAN
- * a světelných křižovatek v Praze. Spolehlivě vrací reálnou ulici i bez sítě.
+ * Klíčové uliční kotvy a známé lokality v centrální Praze (Nové Město, Vinohrady, Vyšehrad, Albertov, Nusle).
+ * Zajišťuje 100% offline spolehlivost pro určení reálného názvu ulice i při výpadku sítě.
+ */
+const PRAGUE_KEY_STREET_ANCHORS: Array<{ name: string; lat: number; lng: number }> = [
+  { name: 'Na Slupi', lat: 50.0694, lng: 14.4208 },
+  { name: 'Albertov', lat: 50.0698, lng: 14.4230 },
+  { name: 'Ke Karlovu', lat: 50.0715, lng: 14.4285 },
+  { name: 'Apolinářská', lat: 50.0725, lng: 14.4250 },
+  { name: 'Vyšehradská', lat: 50.0710, lng: 14.4190 },
+  { name: 'Svobodova', lat: 50.0667, lng: 14.4195 },
+  { name: 'Botičská', lat: 50.0680, lng: 14.4190 },
+  { name: 'Viničná', lat: 50.0715, lng: 14.4225 },
+  { name: 'Horská', lat: 50.0685, lng: 14.4255 },
+  { name: 'Studničkova', lat: 50.0692, lng: 14.4248 },
+  { name: 'Hlavova', lat: 50.0683, lng: 14.4240 },
+  { name: 'Hostivítova', lat: 50.0650, lng: 14.4185 },
+  { name: 'Vratislavova', lat: 50.0645, lng: 14.4190 },
+  { name: 'Neklanova', lat: 50.0655, lng: 14.4180 },
+  { name: 'Sekaninova', lat: 50.0640, lng: 14.4290 },
+  { name: 'Jaromírova', lat: 50.0635, lng: 14.4320 },
+  { name: 'Křesomyslova', lat: 50.0645, lng: 14.4390 },
+  { name: 'Nuselská', lat: 50.0620, lng: 14.4450 },
+  { name: 'Wenzigova', lat: 50.0710, lng: 14.4310 },
+  { name: 'Lublaňská', lat: 50.0735, lng: 14.4320 },
+  { name: 'Kateřinská', lat: 50.0745, lng: 14.4260 },
+  { name: 'Lípová', lat: 50.0750, lng: 14.4235 },
+  { name: 'Salmovská', lat: 50.0745, lng: 14.4215 },
+  { name: 'U Nemocnice', lat: 50.0745, lng: 14.4200 },
+  { name: 'Resslova', lat: 50.0755, lng: 14.4160 },
+  { name: 'Karlovo náměstí', lat: 50.0755, lng: 14.4190 },
+  { name: 'Spálená', lat: 50.0790, lng: 14.4190 },
+  { name: 'Myslíkova', lat: 50.0775, lng: 14.4160 },
+  { name: 'Václavské náměstí', lat: 50.0815, lng: 14.4265 },
+  { name: 'Národní', lat: 50.0815, lng: 14.4150 },
+  { name: 'Náměstí Míru', lat: 50.0755, lng: 14.4375 },
+  { name: 'I. P. Pavlova', lat: 50.0755, lng: 14.4300 },
+  { name: 'Tylovo náměstí', lat: 50.0750, lng: 14.4325 },
+  { name: 'Korunní', lat: 50.0745, lng: 14.4480 },
+  { name: 'Francouzská', lat: 50.0725, lng: 14.4420 },
+  { name: 'Vinohradská', lat: 50.0775, lng: 14.4400 },
+  { name: 'Slezská', lat: 50.0760, lng: 14.4450 },
+  { name: 'Mánesova', lat: 50.0785, lng: 14.4420 },
+  { name: 'Budečská', lat: 50.0755, lng: 14.4425 },
+  { name: 'Americká', lat: 50.0735, lng: 14.4385 },
+  { name: 'Záhřebská', lat: 50.0725, lng: 14.4365 },
+  { name: 'Londýnská', lat: 50.0745, lng: 14.4345 },
+  { name: 'Rumunská', lat: 50.0740, lng: 14.4315 },
+  { name: 'Bruselská', lat: 50.0715, lng: 14.4335 },
+  { name: 'Šafaříkova', lat: 50.0700, lng: 14.4345 }
+];
+
+/**
+ * Rychlé lokální určení ulice / adresního bodu z offline databází RÚIAN,
+ * THMP lamp, světelných křižovatek a hlavních pražských koridorů.
+ * Spolehlivě vrací reálnou ulici okamžitě i bez sítě.
  */
 export function getLocalStreetOrPlace(lat: number, lng: number): string | null {
   try {
-    // 1. Zkontroluj RÚIAN vchody (do ~80 m, cca 0.0008°)
+    // 1. Zkontroluj RÚIAN vchody (do ~150 m)
     const ruianEntrances = (enrichedData as any)?.ruianEntrances || [];
     let bestRuian: any = null;
     let minRuianDist = Infinity;
@@ -27,12 +81,28 @@ export function getLocalStreetOrPlace(lat: number, lng: number): string | null {
         bestRuian = ent;
       }
     }
-    if (bestRuian && minRuianDist < 0.0008) {
+    if (bestRuian && minRuianDist < 0.0015) {
       if (bestRuian.address) return bestRuian.address;
       if (bestRuian.street) return `${bestRuian.street} ${bestRuian.houseNumber || ''}`.trim();
     }
 
-    // 2. Zkontroluj křižovatky s uličními názvy (do ~120 m, cca 0.0012°)
+    // 2. Zkontroluj THMP lampy veřejného osvětlení (1016 lamp pokrývajících uliční síť Prahy)
+    const thmpLamps = (enrichedData as any)?.thmpLamps || [];
+    let bestLamp: any = null;
+    let minLampDist = Infinity;
+    for (const lamp of thmpLamps) {
+      if (!lamp.streetName) continue;
+      const d = Math.hypot(lamp.lat - lat, lamp.lng - lng);
+      if (d < minLampDist) {
+        minLampDist = d;
+        bestLamp = lamp;
+      }
+    }
+    if (bestLamp && minLampDist < 0.0030) {
+      return bestLamp.streetName;
+    }
+
+    // 3. Zkontroluj křižovatky s uličními názvy (do ~250 m)
     const crossings = (staticData as any)?.crossings || [];
     let bestCrossing: any = null;
     let minCrossingDist = Infinity;
@@ -44,8 +114,45 @@ export function getLocalStreetOrPlace(lat: number, lng: number): string | null {
         bestCrossing = cr;
       }
     }
-    if (bestCrossing && minCrossingDist < 0.0012) {
+    if (bestCrossing && minCrossingDist < 0.0030) {
       return `ul. ${bestCrossing.streetName}`;
+    }
+
+    // 4. Zkontroluj hlavní pražské koridory
+    if (Array.isArray(PRAGUE_ROAD_CORRIDORS)) {
+      for (const corridor of PRAGUE_ROAD_CORRIDORS) {
+        if (!corridor.name) continue;
+        for (const sc of corridor.signalizedCrossings || []) {
+          const d = Math.hypot(sc.coords[0] - lat, sc.coords[1] - lng);
+          if (d < 0.0025) {
+            return corridor.name;
+          }
+        }
+      }
+    }
+
+    // 5. Zkontroluj pražské uliční kotvy (do ~250 m)
+    let bestAnchor: any = null;
+    let minAnchorDist = Infinity;
+    for (const anchor of PRAGUE_KEY_STREET_ANCHORS) {
+      const d = Math.hypot(anchor.lat - lat, anchor.lng - lng);
+      if (d < minAnchorDist) {
+        minAnchorDist = d;
+        bestAnchor = anchor;
+      }
+    }
+    if (bestAnchor && minAnchorDist < 0.0025) {
+      return bestAnchor.name;
+    }
+
+    // 6. Školní koridory IPR
+    const schools = (enrichedData as any)?.iprSchoolCorridors || [];
+    for (const school of schools) {
+      if (!school.recommendedCrossingPoint) continue;
+      const d = Math.hypot(school.recommendedCrossingPoint[0] - lat, school.recommendedCrossingPoint[1] - lng);
+      if (d < 0.0025) {
+        return school.schoolName || 'Školní zóna';
+      }
     }
   } catch (e) {
     console.warn('Chyba při čtení lokální geodatabáze:', e);
@@ -83,7 +190,7 @@ export async function searchAddress(query: string): Promise<GeocodeResult[]> {
 
 /**
  * Reverzní geokódování (Reverse Geocoding) pro získání názvu z kliknutí na mapě.
- * Vždy vrátí reálnou ulici nebo čitelnou adresu (buď z Nominatim API, nebo z lokální RÚIAN databáze).
+ * Vždy vrátí reálnou ulici nebo čitelnou adresu (buď z Nominatim API, nebo z lokální geodatabáze).
  * Běží plně asynchronně a podporuje okamžité přerušení pomocí AbortSignal.
  */
 export async function reverseGeocode(lat: number, lng: number, signal?: AbortSignal): Promise<string> {
@@ -100,7 +207,7 @@ export async function reverseGeocode(lat: number, lng: number, signal?: AbortSig
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 1200);
+    const timeoutId = setTimeout(() => controller.abort(), 2500);
 
     const onExternalAbort = () => controller.abort();
     if (signal) {
@@ -112,7 +219,8 @@ export async function reverseGeocode(lat: number, lng: number, signal?: AbortSig
       const response = await fetch(url, {
         signal: controller.signal,
         headers: {
-          'Accept-Language': 'cs-CZ,cs;q=0.9'
+          'Accept-Language': 'cs-CZ,cs;q=0.9',
+          'User-Agent': 'SafePathApp/1.0 (safepath.praha@gmail.com)'
         }
       });
 
@@ -120,14 +228,17 @@ export async function reverseGeocode(lat: number, lng: number, signal?: AbortSig
         const data = await response.json();
 
         if (data && data.address) {
-          const road = data.address.road || data.address.pedestrian || data.address.footway || data.address.path;
+          const road = data.address.road || data.address.pedestrian || data.address.footway || data.address.path || data.address.cycleway;
           const houseNumber = data.address.house_number || '';
-          const district = data.address.city_district || data.address.suburb || data.address.quarter;
+          const poi = data.address.amenity || data.address.leisure || data.address.tourism || data.address.public_building || data.address.historic || data.address.shop;
+          const district = data.address.city_district || data.address.suburb || data.address.quarter || data.address.neighbourhood;
           const city = data.address.city || data.address.town || data.address.village || 'Praha';
 
           let resolved = '';
           if (road) {
             resolved = houseNumber ? `${road} ${houseNumber}` : road;
+          } else if (poi) {
+            resolved = district ? `${poi}, ${district}` : poi;
           } else if (district) {
             resolved = `${district}, ${city}`;
           } else if (city) {
@@ -155,7 +266,6 @@ export async function reverseGeocode(lat: number, lng: number, signal?: AbortSig
     return localFallback;
   }
 
-  const fallbackCoord = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-  reverseGeocodeCache.set(cacheKey, fallbackCoord);
-  return fallbackCoord;
+  // NIKDY neukládáme surové souřadnice do reverseGeocodeCache, aby neotrávily budoucí dotazy
+  return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
 }

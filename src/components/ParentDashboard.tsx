@@ -676,9 +676,14 @@ export function ParentDashboard({
         .then(resolved => {
           if (currentRequestId !== globalRequestIdRef.current || geoController.signal.aborted) return;
           if (!resolved) return;
+          const isCoordString = /^[\d.,\s]+$/.test(resolved.trim());
           setStartPoint(prev => {
             if (!prev || currentRequestId !== globalRequestIdRef.current) return prev;
             if (Math.hypot(prev.lat - lat, prev.lng - lng) > 0.0001) return prev;
+            // Pokud máme platný uliční název z lokální databáze, nepřepisovat ho surovými čísly souřadnic
+            if (isCoordString && prev.name && !/^[\d.,\s]+$/.test(prev.name.trim())) {
+              return prev;
+            }
             return { ...prev, name: resolved };
           });
         })
@@ -699,9 +704,14 @@ export function ParentDashboard({
       .then(resolved => {
         if (currentRequestId !== globalRequestIdRef.current || geoController.signal.aborted) return;
         if (!resolved) return;
+        const isCoordString = /^[\d.,\s]+$/.test(resolved.trim());
         setEndPoint(prev => {
           if (!prev || currentRequestId !== globalRequestIdRef.current) return prev;
           if (Math.hypot(prev.lat - lat, prev.lng - lng) > 0.0001) return prev;
+          // Pokud máme platný uliční název z lokální databáze, nepřepisovat ho surovými čísly souřadnic
+          if (isCoordString && prev.name && !/^[\d.,\s]+$/.test(prev.name.trim())) {
+            return prev;
+          }
           return { ...prev, name: resolved };
         });
       })

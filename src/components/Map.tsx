@@ -454,18 +454,14 @@ export function Map(props: MapEngineProps) {
       if (props.startPoint) {
         const [firstLng, firstLat] = normalizedFastestCoords[0];
         const dStart = Math.hypot(firstLng - props.startPoint.lng, firstLat - props.startPoint.lat);
-        if (dStart > 0.0012) {
-          normalizedFastestCoords = [];
-        } else if (dStart > 0.00002 && dStart <= 0.0012) {
+        if (dStart > 0.00002 && dStart <= 0.0012) {
           normalizedFastestCoords.unshift([props.startPoint.lng, props.startPoint.lat]);
         }
       }
       if (normalizedFastestCoords.length >= 2 && props.endPoint) {
         const [lastLng, lastLat] = normalizedFastestCoords[normalizedFastestCoords.length - 1];
         const dEnd = Math.hypot(lastLng - props.endPoint.lng, lastLat - props.endPoint.lat);
-        if (dEnd > 0.0012) {
-          normalizedFastestCoords = [];
-        } else if (dEnd > 0.00002 && dEnd <= 0.0012) {
+        if (dEnd > 0.00002 && dEnd <= 0.0012) {
           normalizedFastestCoords.push([props.endPoint.lng, props.endPoint.lat]);
         }
       }
@@ -701,21 +697,8 @@ export function Map(props: MapEngineProps) {
     const rawCoords = normalizeRouteCoords(Array.isArray(rawPoints) ? rawPoints : []);
     if (rawCoords.length < 2) return [];
 
-    // 1. Ověření souladu trasy se zadaným START a CÍL:
-    // Pokud je start nebo cíl vzdálen více než 100 m (~0.0012°), trasa je odtržená a nepatří k novému bodu.
-    if (props.startPoint) {
-      const [firstLng, firstLat] = rawCoords[0];
-      const dStart = Math.hypot(firstLng - props.startPoint.lng, firstLat - props.startPoint.lat);
-      if (dStart > 0.0012) return [];
-    }
-    if (props.endPoint) {
-      const [lastLng, lastLat] = rawCoords[rawCoords.length - 1];
-      const dEnd = Math.hypot(lastLng - props.endPoint.lng, lastLat - props.endPoint.lat);
-      if (dEnd > 0.0012) return [];
-    }
-
-    // 2. Plynulé napojení začátku a konce trasy na markery • START a • CÍL (do 100 m).
-    // Zajišťuje, že zelená linie začíná přesně pod markerem START bez odtržení či mezery.
+    // Plynulé napojení začátku a konce trasy na markery • START a • CÍL (do 100 m).
+    // Stará trasa se nemaže při přepočtu nového bodu, zůstává vykreslena a animována po dobu výpočtu.
     const connectedCoords: [number, number][] = [...rawCoords];
 
     if (props.startPoint) {
