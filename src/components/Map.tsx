@@ -156,7 +156,6 @@ export function Map(props: MapEngineProps) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [isCourseUp, setIsCourseUp] = useState(false);
-  const [svgPath, setSvgPath] = useState<string>('');
   const lastFittedRouteIdRef = useRef<string | null>(null);
   const userInteractedRef = useRef<boolean>(false);
 
@@ -524,7 +523,7 @@ export function Map(props: MapEngineProps) {
       style: VIBRANT_STREET_STYLE,
       center: initialCenter,
       zoom: 14,
-      maxZoom: 19,
+      maxZoom: 22,
       pitch: 0,
       bearing: 0,
       pitchWithRotate: true,
@@ -697,28 +696,8 @@ export function Map(props: MapEngineProps) {
     const rawCoords = normalizeRouteCoords(Array.isArray(rawPoints) ? rawPoints : []);
     if (rawCoords.length < 2) return [];
 
-    // Plynulé napojení začátku a konce trasy na markery • START a • CÍL (do 100 m).
-    // Stará trasa se nemaže při přepočtu nového bodu, zůstává vykreslena a animována po dobu výpočtu.
-    const connectedCoords: [number, number][] = [...rawCoords];
-
-    if (props.startPoint) {
-      const startCoord: [number, number] = [props.startPoint.lng, props.startPoint.lat];
-      const dStart = Math.hypot(connectedCoords[0][0] - startCoord[0], connectedCoords[0][1] - startCoord[1]);
-      if (dStart > 0.00002 && dStart <= 0.0012) {
-        connectedCoords.unshift(startCoord);
-      }
-    }
-
-    if (props.endPoint && connectedCoords.length > 0) {
-      const endCoord: [number, number] = [props.endPoint.lng, props.endPoint.lat];
-      const lastIdx = connectedCoords.length - 1;
-      const dEnd = Math.hypot(connectedCoords[lastIdx][0] - endCoord[0], connectedCoords[lastIdx][1] - endCoord[1]);
-      if (dEnd > 0.00002 && dEnd <= 0.0012) {
-        connectedCoords.push(endCoord);
-      }
-    }
-
-    return connectedCoords;
+    // Trasa se vykresluje striktně podle uliční sítě OSRM (žádné umělé přímé spojnice ani řezání přes budovy)
+    return rawCoords;
   }, [
     props.routeA,
     props.routeA?.geometry,
@@ -727,9 +706,7 @@ export function Map(props: MapEngineProps) {
     props.routeData,
     props.routeCoordinates,
     props.selectedRoute,
-    activeRoute,
-    props.startPoint,
-    props.endPoint
+    activeRoute
   ]);
 
   const hasBothPoints = Boolean(props.startPoint && props.endPoint);
@@ -778,40 +755,6 @@ export function Map(props: MapEngineProps) {
     const coordsToRender = (validCoords && validCoords.length >= 2) ? validCoords : [];
     renderRoute(map, coordsToRender, isRoutePending);
   }, [validCoords, isRoutePending, isMapLoaded]);
-
-  // Synchronní aktualizace SVG linie trasy pro okamžitou a zaručenou viditelnost
-  const updateSvgOverlay = useCallback(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    const coords = (validCoords && validCoords.length >= 2) ? validCoords : [];
-
-    if (!coords || coords.length < 2) {
-      setSvgPath('');
-      return;
-    }
-
-    try {
-      const points = coords.map((c) => map.project(c as [number, number]));
-      const pathD = points.reduce((acc, pt, i) => `${acc} ${i === 0 ? 'M' : 'L'} ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`, '');
-      setSvgPath(pathD);
-    } catch {
-      setSvgPath('');
-    }
-  }, [validCoords, props.routeA, activeRoute]);
-
-  useEffect(() => {
-    updateSvgOverlay();
-    const map = mapRef.current;
-    if (!map) return;
-    map.on('move', updateSvgOverlay);
-    map.on('zoom', updateSvgOverlay);
-    map.on('resize', updateSvgOverlay);
-    return () => {
-      map.off('move', updateSvgOverlay);
-      map.off('zoom', updateSvgOverlay);
-      map.off('resize', updateSvgOverlay);
-    };
-  }, [updateSvgOverlay, isMapLoaded]);
 
   // Automatické přizpůsobení pohledu na novou trasu POUZE JEDNOU, pokud uživatel mapu manuálně neovládá
   useEffect(() => {
@@ -929,58 +872,53 @@ export function Map(props: MapEngineProps) {
     }
   }, [currentNavPosition, props.userLocation, effectiveHeading, isCourseUp]);
 
-  // 6. Start a Cíl Markery (Striktní styl proti smrštění flexboxu - Zákaz ořezávání na písmeno "L")
+  // 6. Start a Cíl Markery: přesné ukotvení a plynulé posouvání bez blikání či přemazávání DOMu
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
     // Start
-    if (startMarkerRef.current) {
-      startMarkerRef.current.remove();
-      startMarkerRef.current = null;
-    }
     if (props.startPoint) {
       const markerLng = props.startPoint.lng;
       const markerLat = props.startPoint.lat;
 
-      const startEl = document.createElement('div');
-      startEl.style.cssText = 'box-sizing: border-box !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; gap: 5px !important; padding: 4px 10px !important; background: #059669 !important; color: #ffffff !important; font-size: 11px !important; font-weight: 800 !important; border-radius: 9999px !important; border: 2px solid #ffffff !important; box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important; white-space: nowrap !important; width: auto !important; min-width: max-content !important; flex-shrink: 0 !important; overflow: visible !important; line-height: 1 !important; z-index: 50 !important;';
-      startEl.innerHTML = `<span style="display: inline-block !important; width: 6px !important; height: 6px !important; border-radius: 50% !important; background: #ffffff !important; flex-shrink: 0 !important;"></span><span style="display: inline-block !important; white-space: nowrap !important; flex-shrink: 0 !important; font-size: 11px !important; font-weight: 800 !important; line-height: 1 !important;">START</span>`;
+      if (!startMarkerRef.current) {
+        const startEl = document.createElement('div');
+        startEl.style.cssText = 'box-sizing: border-box !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; gap: 5px !important; padding: 4px 10px !important; background: #059669 !important; color: #ffffff !important; font-size: 11px !important; font-weight: 800 !important; border-radius: 9999px !important; border: 2px solid #ffffff !important; box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important; white-space: nowrap !important; width: auto !important; min-width: max-content !important; flex-shrink: 0 !important; overflow: visible !important; line-height: 1 !important; z-index: 50 !important; cursor: pointer !important; user-select: none !important;';
+        startEl.innerHTML = `<span style="display: inline-block !important; width: 6px !important; height: 6px !important; border-radius: 50% !important; background: #ffffff !important; flex-shrink: 0 !important;"></span><span style="display: inline-block !important; white-space: nowrap !important; flex-shrink: 0 !important; font-size: 11px !important; font-weight: 800 !important; line-height: 1 !important;">START</span>`;
 
-      startMarkerRef.current = new maplibregl.Marker({ element: startEl, anchor: 'center' })
-        .setLngLat([markerLng, markerLat])
-        .addTo(map);
+        startMarkerRef.current = new maplibregl.Marker({ element: startEl, anchor: 'center' })
+          .setLngLat([markerLng, markerLat])
+          .addTo(map);
+      } else {
+        startMarkerRef.current.setLngLat([markerLng, markerLat]);
+      }
+    } else if (startMarkerRef.current) {
+      startMarkerRef.current.remove();
+      startMarkerRef.current = null;
     }
 
     // Cíl
-    if (endMarkerRef.current) {
-      endMarkerRef.current.remove();
-      endMarkerRef.current = null;
-    }
     if (props.endPoint) {
       const markerLng = props.endPoint.lng;
       const markerLat = props.endPoint.lat;
 
-      const destEl = document.createElement('div');
-      destEl.style.cssText = 'box-sizing: border-box !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; gap: 5px !important; padding: 4px 10px !important; background: #4f46e5 !important; color: #ffffff !important; font-size: 11px !important; font-weight: 800 !important; border-radius: 9999px !important; border: 2px solid #ffffff !important; box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important; white-space: nowrap !important; width: auto !important; min-width: max-content !important; flex-shrink: 0 !important; overflow: visible !important; line-height: 1 !important; z-index: 50 !important;';
-      destEl.innerHTML = `<span style="display: inline-block !important; width: 6px !important; height: 6px !important; border-radius: 50% !important; background: #ffffff !important; flex-shrink: 0 !important;"></span><span style="display: inline-block !important; white-space: nowrap !important; flex-shrink: 0 !important; font-size: 11px !important; font-weight: 800 !important; line-height: 1 !important;">CÍL</span>`;
+      if (!endMarkerRef.current) {
+        const destEl = document.createElement('div');
+        destEl.style.cssText = 'box-sizing: border-box !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; gap: 5px !important; padding: 4px 10px !important; background: #4f46e5 !important; color: #ffffff !important; font-size: 11px !important; font-weight: 800 !important; border-radius: 9999px !important; border: 2px solid #ffffff !important; box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important; white-space: nowrap !important; width: auto !important; min-width: max-content !important; flex-shrink: 0 !important; overflow: visible !important; line-height: 1 !important; z-index: 50 !important; cursor: pointer !important; user-select: none !important;';
+        destEl.innerHTML = `<span style="display: inline-block !important; width: 6px !important; height: 6px !important; border-radius: 50% !important; background: #ffffff !important; flex-shrink: 0 !important;"></span><span style="display: inline-block !important; white-space: nowrap !important; flex-shrink: 0 !important; font-size: 11px !important; font-weight: 800 !important; line-height: 1 !important;">CÍL</span>`;
 
-      endMarkerRef.current = new maplibregl.Marker({ element: destEl, anchor: 'center' })
-        .setLngLat([markerLng, markerLat])
-        .addTo(map);
+        endMarkerRef.current = new maplibregl.Marker({ element: destEl, anchor: 'center' })
+          .setLngLat([markerLng, markerLat])
+          .addTo(map);
+      } else {
+        endMarkerRef.current.setLngLat([markerLng, markerLat]);
+      }
+    } else if (endMarkerRef.current) {
+      endMarkerRef.current.remove();
+      endMarkerRef.current = null;
     }
-
-    return () => {
-      if (startMarkerRef.current) {
-        startMarkerRef.current.remove();
-        startMarkerRef.current = null;
-      }
-      if (endMarkerRef.current) {
-        endMarkerRef.current.remove();
-        endMarkerRef.current = null;
-      }
-    };
-  }, [props.startPoint, props.endPoint, validCoords]);
+  }, [props.startPoint?.lat, props.startPoint?.lng, props.endPoint?.lat, props.endPoint?.lng, isMapLoaded]);
 
   // 7. Vykreslení bezpečnostních odznaků podél trasy
   useEffect(() => {
@@ -1418,16 +1356,6 @@ export function Map(props: MapEngineProps) {
     <div className="relative w-full h-full overflow-hidden select-none bg-[#f8f4f0]">
       {/* Plátno MapLibre GL WebGL mapy pevně roztažené přes celou plochu se světlým neutrálním podkladem */}
       <div id="map" ref={mapContainerRef} className="w-full h-full absolute inset-0 bg-[#f8f4f0]" style={{ backgroundColor: '#f8f4f0' }} />
-
-      {/* Obnovená SVG vrstva spojující souřadnice */}
-      <svg className="absolute inset-0 w-full h-full pointer-events-none z-10" style={{ overflow: 'visible' }}>
-        {svgPath && (
-          <>
-            <path d={svgPath} fill="none" stroke="#10b981" strokeWidth={14} strokeOpacity={isRoutePending ? 0.15 : 0.4} strokeLinecap="round" strokeLinejoin="round" />
-            <path d={svgPath} fill="none" stroke="#059669" strokeWidth={6} strokeOpacity={isRoutePending ? 0.35 : 0.95} strokeLinecap="round" strokeLinejoin="round" />
-          </>
-        )}
-      </svg>
 
       {/* Tlačítko Course-Up: "Sledovat směr chůze" (3D rotace mapy s pohledem chodce) */}
       <button

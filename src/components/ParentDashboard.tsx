@@ -647,7 +647,6 @@ export function ParentDashboard({
     fallbackName?: string,
     centerMap: boolean = false
   ) => {
-    const currentRequestId = ++globalRequestIdRef.current;
     if (routingAbortControllerRef.current) {
       routingAbortControllerRef.current.abort();
       routingAbortControllerRef.current = null;
@@ -676,11 +675,10 @@ export function ParentDashboard({
 
       reverseGeocode(lat, lng, geoController.signal)
         .then(resolved => {
-          if (currentRequestId !== globalRequestIdRef.current || geoController.signal.aborted) return;
-          if (!resolved) return;
+          if (geoController.signal.aborted || !resolved) return;
           const isCoordString = /^[\d.,\s]+$/.test(resolved.trim());
           setStartPoint(prev => {
-            if (!prev || currentRequestId !== globalRequestIdRef.current) return prev;
+            if (!prev || geoController.signal.aborted) return prev;
             if (Math.hypot(prev.lat - lat, prev.lng - lng) > 0.0001) return prev;
             // Pokud máme platný uliční název z lokální databáze, nepřepisovat ho surovými čísly souřadnic
             if (isCoordString && prev.name && !/^[\d.,\s]+$/.test(prev.name.trim())) {
@@ -704,11 +702,10 @@ export function ParentDashboard({
 
     reverseGeocode(lat, lng, geoController.signal)
       .then(resolved => {
-        if (currentRequestId !== globalRequestIdRef.current || geoController.signal.aborted) return;
-        if (!resolved) return;
+        if (geoController.signal.aborted || !resolved) return;
         const isCoordString = /^[\d.,\s]+$/.test(resolved.trim());
         setEndPoint(prev => {
-          if (!prev || currentRequestId !== globalRequestIdRef.current) return prev;
+          if (!prev || geoController.signal.aborted) return prev;
           if (Math.hypot(prev.lat - lat, prev.lng - lng) > 0.0001) return prev;
           // Pokud máme platný uliční název z lokální databáze, nepřepisovat ho surovými čísly souřadnic
           if (isCoordString && prev.name && !/^[\d.,\s]+$/.test(prev.name.trim())) {
@@ -752,7 +749,25 @@ export function ParentDashboard({
         }
         return;
       } else {
-        // Obě hodnoty existují -> střídání posledně upraveného bodu
+        // Obě hodnoty existují -> cílená úprava podle blízkosti nebo střídání
+        const distToStartDeg = Math.hypot(lat - effectiveStart.lat, lng - effectiveStart.lng);
+        const distToEndDeg = Math.hypot(lat - endPoint.lat, lng - endPoint.lng);
+        const PROXIMITY_DEG = 0.0008; // cca 70-80 m
+
+        if (distToStartDeg <= PROXIMITY_DEG && distToStartDeg <= distToEndDeg) {
+          applyInstantPoint('start', lat, lng, defaultCoordName);
+          setSelectedRoute('A');
+          showMapToast('Start aktualizován. Přepočítávám trasu...', 'success');
+          return;
+        }
+
+        if (distToEndDeg <= PROXIMITY_DEG && distToEndDeg < distToStartDeg) {
+          applyInstantPoint('end', lat, lng, defaultCoordName);
+          setSelectedRoute('A');
+          showMapToast('Cíl aktualizován. Přepočítávám trasu...', 'success');
+          return;
+        }
+
         if (lastUpdatedPointRef.current === 'start') {
           applyInstantPoint('end', lat, lng, defaultCoordName);
           setSelectedRoute('A');

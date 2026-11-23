@@ -81,7 +81,7 @@ export function getLocalStreetOrPlace(lat: number, lng: number): string | null {
         bestRuian = ent;
       }
     }
-    if (bestRuian && minRuianDist < 0.0015) {
+    if (bestRuian && minRuianDist < 0.0035) {
       if (bestRuian.address) return bestRuian.address;
       if (bestRuian.street) return `${bestRuian.street} ${bestRuian.houseNumber || ''}`.trim();
     }
@@ -98,11 +98,11 @@ export function getLocalStreetOrPlace(lat: number, lng: number): string | null {
         bestLamp = lamp;
       }
     }
-    if (bestLamp && minLampDist < 0.0030) {
+    if (bestLamp && minLampDist < 0.0055) {
       return bestLamp.streetName;
     }
 
-    // 3. Zkontroluj křižovatky s uličními názvy (do ~250 m)
+    // 3. Zkontroluj křižovatky s uličními názvy (do ~600 m)
     const crossings = (staticData as any)?.crossings || [];
     let bestCrossing: any = null;
     let minCrossingDist = Infinity;
@@ -114,7 +114,7 @@ export function getLocalStreetOrPlace(lat: number, lng: number): string | null {
         bestCrossing = cr;
       }
     }
-    if (bestCrossing && minCrossingDist < 0.0030) {
+    if (bestCrossing && minCrossingDist < 0.0055) {
       return `ul. ${bestCrossing.streetName}`;
     }
 
@@ -124,14 +124,14 @@ export function getLocalStreetOrPlace(lat: number, lng: number): string | null {
         if (!corridor.name) continue;
         for (const sc of corridor.signalizedCrossings || []) {
           const d = Math.hypot(sc.coords[0] - lat, sc.coords[1] - lng);
-          if (d < 0.0025) {
+          if (d < 0.0040) {
             return corridor.name;
           }
         }
       }
     }
 
-    // 5. Zkontroluj pražské uliční kotvy (do ~250 m)
+    // 5. Zkontroluj pražské uliční kotvy (až do 1.2 km pro zaručené čitelné pojmenování)
     let bestAnchor: any = null;
     let minAnchorDist = Infinity;
     for (const anchor of PRAGUE_KEY_STREET_ANCHORS) {
@@ -141,7 +141,7 @@ export function getLocalStreetOrPlace(lat: number, lng: number): string | null {
         bestAnchor = anchor;
       }
     }
-    if (bestAnchor && minAnchorDist < 0.0025) {
+    if (bestAnchor && minAnchorDist < 0.0120) {
       return bestAnchor.name;
     }
 

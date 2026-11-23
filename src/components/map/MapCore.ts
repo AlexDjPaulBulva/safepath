@@ -11,7 +11,8 @@ export const VIBRANT_STREET_STYLE: maplibregl.StyleSpecification = {
     'street-tiles': {
       type: 'raster',
       tiles: [
-        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}'
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+        'https://services.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}'
       ],
       tileSize: 256,
       maxzoom: 19,
@@ -31,7 +32,10 @@ export const VIBRANT_STREET_STYLE: maplibregl.StyleSpecification = {
       type: 'raster',
       source: 'street-tiles',
       minzoom: 0,
-      maxzoom: 19
+      maxzoom: 24,
+      paint: {
+        'raster-fade-duration': 0
+      }
     }
   ]
 };
@@ -64,7 +68,7 @@ export function ensureBaseStyleAndLayers(map: maplibregl.Map): void {
       map.addSource('street-tiles', VIBRANT_STREET_STYLE.sources['street-tiles']);
     }
 
-    // 3. Zajištění základní podkladové vrstvy dlaždic
+    // 3. Zajištění základní podkladové vrstvy dlaždic (maxzoom 24 pro plynulý overzoom bez zmizení dlaždic)
     if (!map.getLayer('street-base-layer')) {
       const beforeId = map.getLayer('safe-route-glow') ? 'safe-route-glow' : undefined;
       map.addLayer(
@@ -73,7 +77,10 @@ export function ensureBaseStyleAndLayers(map: maplibregl.Map): void {
           type: 'raster',
           source: 'street-tiles',
           minzoom: 0,
-          maxzoom: 19
+          maxzoom: 24,
+          paint: {
+            'raster-fade-duration': 0
+          }
         },
         beforeId
       );

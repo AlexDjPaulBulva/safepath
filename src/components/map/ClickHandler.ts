@@ -43,7 +43,30 @@ export function setupMapClickHandler(
     }
 
     // 4. Obě hodnoty existují:
-    // Střídání posledně upraveného bodu:
+    // A) Cílená úprava existujícího bodu, pokud uživatel klepl blízko markeru • START nebo • CÍL (v okruhu 48 px)
+    try {
+      const startPx = map.project([start.lng, start.lat]);
+      const endPx = map.project([end.lng, end.lat]);
+      const distToStart = Math.hypot(e.point.x - startPx.x, e.point.y - startPx.y);
+      const distToEnd = Math.hypot(e.point.x - endPx.x, e.point.y - endPx.y);
+      const PROXIMITY_RADIUS_PX = 48;
+
+      if (distToStart <= PROXIMITY_RADIUS_PX && distToStart <= distToEnd) {
+        lastUpdated = 'start';
+        onSetStart({ lat, lng });
+        return;
+      }
+
+      if (distToEnd <= PROXIMITY_RADIUS_PX && distToEnd < distToStart) {
+        lastUpdated = 'end';
+        onSetEnd({ lat, lng });
+        return;
+      }
+    } catch {
+      // Bezpečný fallback při projekci souřadnic
+    }
+
+    // B) Jinak přehledné a předvídatelné střídání:
     // Pokud předchozí kliknutí změnilo start, další kliknutí do mapy automaticky změní cíl – a obráceně.
     if (lastUpdated === 'start') {
       lastUpdated = 'end';
