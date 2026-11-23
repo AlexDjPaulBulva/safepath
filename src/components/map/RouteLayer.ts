@@ -44,11 +44,10 @@ export function normalizeRouteCoords(raw: any[]): [number, number][] {
     .filter((pt): pt is [number, number] => pt !== null);
 }
 
-export function renderRoute(map: maplibregl.Map, coords: [number, number][] | any[]) {
+export function renderRoute(map: maplibregl.Map, coords: [number, number][] | any[], isPending: boolean = false) {
   if (!map) return;
 
   const validCoords = normalizeRouteCoords(coords);
-  console.log("ROUTE LAYER - PŘIJATÉ A VALIDOVANÉ SOUŘADNICE:", validCoords.length);
 
   // Pokud souřadnice chybí nebo je méně než 2 body, vyčistíme zdroj trasy, aby nezůstávala viset stará trasa
   if (!validCoords || validCoords.length < 2) {
@@ -69,7 +68,7 @@ export function renderRoute(map: maplibregl.Map, coords: [number, number][] | an
   // Pokud styl mapy ještě není připraven, počkáme na jeho načtení
   if (!map.getStyle()) {
     const onStyleReady = () => {
-      renderRoute(map, validCoords);
+      renderRoute(map, validCoords, isPending);
     };
     map.once('style.load', onStyleReady);
     map.once('load', onStyleReady);
@@ -96,6 +95,10 @@ export function renderRoute(map: maplibregl.Map, coords: [number, number][] | an
       source.setData(geojsonData);
     }
 
+    const glowOpacity = isPending ? 0.25 : 0.65;
+    const coreOpacity = isPending ? 0.35 : 1.0;
+    const coreColor = isPending ? '#6ee7b7' : '#059669';
+
     if (!map.getLayer('safe-route-glow')) {
       map.addLayer({
         id: 'safe-route-glow',
@@ -108,13 +111,14 @@ export function renderRoute(map: maplibregl.Map, coords: [number, number][] | an
         },
         paint: {
           'line-color': '#10b981',
-          'line-opacity': 0.65,
+          'line-opacity': glowOpacity,
           'line-blur': 3,
           'line-width': ['interpolate', ['linear'], ['zoom'], 10, 6, 13, 10, 16, 18]
         }
       });
     } else {
       map.setLayoutProperty('safe-route-glow', 'visibility', 'visible');
+      map.setPaintProperty('safe-route-glow', 'line-opacity', glowOpacity);
     }
 
     if (!map.getLayer('safe-route-core')) {
@@ -128,17 +132,16 @@ export function renderRoute(map: maplibregl.Map, coords: [number, number][] | an
           'visibility': 'visible'
         },
         paint: {
-          'line-color': '#059669',
-          'line-opacity': 1.0,
+          'line-color': coreColor,
+          'line-opacity': coreOpacity,
           'line-width': ['interpolate', ['linear'], ['zoom'], 10, 3, 13, 5, 16, 9]
         }
       });
     } else {
       map.setLayoutProperty('safe-route-core', 'visibility', 'visible');
+      map.setPaintProperty('safe-route-core', 'line-color', coreColor);
+      map.setPaintProperty('safe-route-core', 'line-opacity', coreOpacity);
     }
-
-    map.moveLayer('safe-route-glow');
-    map.moveLayer('safe-route-core');
   } catch (err) {
     console.error('Chyba při renderování trasy v RouteLayer:', err);
   }

@@ -457,12 +457,18 @@ export function ParentDashboard({
         );
 
         if (controller.signal.aborted || currentRequestId !== routingRequestIdRef.current) return;
-        setRouteA(rA);
+        const rAWithMeta = {
+          ...rA,
+          routeRequestId: currentRequestId,
+          startPoint: { lat: startPoint.lat, lng: startPoint.lng },
+          endPoint: { lat: endPoint.lat, lng: endPoint.lng }
+        };
+        setRouteA(rAWithMeta as any);
         const rACoords = Array.isArray(rA?.geometry)
           ? rA.geometry
           : (typeof rA?.geometry === 'string' ? polyline.decode(rA.geometry).map(([lat, lng]) => [lat, lng]) : []);
         setCurrentRoute({
-          ...rA,
+          ...rAWithMeta,
           coordinates: rACoords,
           distance: rA?.distance,
           duration: rA?.duration
@@ -492,7 +498,7 @@ export function ParentDashboard({
           setIsRoutingLoading(false);
         }
       }
-    }, 150);
+    }, 20);
 
     return () => {
       clearTimeout(debounceTimer);
@@ -518,7 +524,7 @@ export function ParentDashboard({
     setLayers(prev => ({ ...prev, [layer]: !prev[layer] }));
   };
 
-  const handleSelectStart = async (lat: number, lng: number, name?: string) => {
+  const handleSelectStart = (lat: number, lng: number, name?: string) => {
     const localQuickName = getLocalStreetOrPlace(lat, lng);
     const coordFallback = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
     const isGeneric = !name || name === 'Vybrané místo na mapě...' || name === coordFallback || name.startsWith('Místo (');
@@ -527,21 +533,19 @@ export function ParentDashboard({
     setStartPoint({ lat, lng, name: initialName });
     setMapCenter([lat, lng]);
 
-    try {
-      const address = await reverseGeocode(lat, lng);
-      setStartPoint(prev => {
-        if (!prev || Math.hypot(prev.lat - lat, prev.lng - lng) > 0.0001) return prev;
-        return { ...prev, name: address };
-      });
-    } catch {
-      setStartPoint(prev => {
-        if (!prev || Math.hypot(prev.lat - lat, prev.lng - lng) > 0.0001) return prev;
-        return { ...prev, name: localQuickName || coordFallback };
-      });
-    }
+    // Paralelní asynchronní reverse geocoding bez blokování UI a výpočtu trasy
+    reverseGeocode(lat, lng)
+      .then(address => {
+        if (!address) return;
+        setStartPoint(prev => {
+          if (!prev || Math.hypot(prev.lat - lat, prev.lng - lng) > 0.0001) return prev;
+          return { ...prev, name: address };
+        });
+      })
+      .catch(() => undefined);
   };
 
-  const handleSelectEnd = async (lat: number, lng: number, name?: string) => {
+  const handleSelectEnd = (lat: number, lng: number, name?: string) => {
     const localQuickName = getLocalStreetOrPlace(lat, lng);
     const coordFallback = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
     const isGeneric = !name || name === 'Vybrané místo na mapě...' || name === coordFallback || name.startsWith('Místo (');
@@ -555,18 +559,16 @@ export function ParentDashboard({
       }
     }
 
-    try {
-      const address = await reverseGeocode(lat, lng);
-      setEndPoint(prev => {
-        if (!prev || Math.hypot(prev.lat - lat, prev.lng - lng) > 0.0001) return prev;
-        return { ...prev, name: address };
-      });
-    } catch {
-      setEndPoint(prev => {
-        if (!prev || Math.hypot(prev.lat - lat, prev.lng - lng) > 0.0001) return prev;
-        return { ...prev, name: localQuickName || coordFallback };
-      });
-    }
+    // Paralelní asynchronní reverse geocoding bez blokování UI a výpočtu trasy
+    reverseGeocode(lat, lng)
+      .then(address => {
+        if (!address) return;
+        setEndPoint(prev => {
+          if (!prev || Math.hypot(prev.lat - lat, prev.lng - lng) > 0.0001) return prev;
+          return { ...prev, name: address };
+        });
+      })
+      .catch(() => undefined);
   };
 
   const [childDeviation, setChildDeviation] = useState<{lat: number, lng: number} | null>(null);

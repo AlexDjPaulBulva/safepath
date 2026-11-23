@@ -1344,7 +1344,7 @@ export async function fetchOSRMRoute(
 
   try {
     const transitHubs = findSafeTransitHubs(routeSLat, routeSLng, routeELat, routeELng, safetyNodes, rawFastest.distance);
-    for (const hub of transitHubs.slice(0, 5)) {
+    for (const hub of transitHubs.slice(0, 2)) {
       if (signal?.aborted) break;
 
       // 1. Zkontroluj úhel napojení: Bod vkládej jako via-point POUZE tehdy,

@@ -77,6 +77,8 @@ export interface MapEngineProps {
   proximityPoint?: [number, number] | null;
   onRouteProximityChange?: (point: [number, number] | null) => void;
   onSelectRoute?: (route: 'A' | 'B' | 'C') => void;
+  isRoutingLoading?: boolean;
+  routingError?: string | null;
   childLiveLocation?: {
     lat: number;
     lng: number;
@@ -477,12 +479,20 @@ export function Map(props: MapEngineProps) {
       if (props.startPoint) {
         const [firstLng, firstLat] = normalizedFastestCoords[0];
         const dStart = Math.hypot(firstLng - props.startPoint.lng, firstLat - props.startPoint.lat);
-        if (dStart > 0.002) normalizedFastestCoords = [];
+        if (dStart > 0.0035) {
+          normalizedFastestCoords = [];
+        } else if (dStart > 0.00002 && dStart < 0.0015) {
+          normalizedFastestCoords.unshift([props.startPoint.lng, props.startPoint.lat]);
+        }
       }
       if (normalizedFastestCoords.length >= 2 && props.endPoint) {
         const [lastLng, lastLat] = normalizedFastestCoords[normalizedFastestCoords.length - 1];
         const dEnd = Math.hypot(lastLng - props.endPoint.lng, lastLat - props.endPoint.lat);
-        if (dEnd > 0.002) normalizedFastestCoords = [];
+        if (dEnd > 0.0035) {
+          normalizedFastestCoords = [];
+        } else if (dEnd > 0.00002 && dEnd < 0.0015) {
+          normalizedFastestCoords.push([props.endPoint.lng, props.endPoint.lat]);
+        }
       }
     }
 
@@ -682,26 +692,42 @@ export function Map(props: MapEngineProps) {
     }
 
     const rawCoords = normalizeRouteCoords(Array.isArray(rawPoints) ? rawPoints : []);
-
     if (rawCoords.length < 2) return [];
 
-    // Ověříme, zda stávající trasa odpovídá aktuálním bodům Start a Cíl.
-    // Pokud uživatel kliknul jinam a body jsou vzdáleny (> 150 m), trasa je pro tento bod zastaralá
-    // a nesmí se vykreslovat s nově posunutými markery, dokud není hotová nová geometrie.
+    // 1. Ověření, zda je trasa z úplně jiné části města (> 350 m od aktuálního kliku)
     if (props.startPoint) {
       const [firstLng, firstLat] = rawCoords[0];
       const dStart = Math.hypot(firstLng - props.startPoint.lng, firstLat - props.startPoint.lat);
-      if (dStart > 0.002) return [];
+      if (dStart > 0.0035) return [];
     }
     if (props.endPoint) {
       const [lastLng, lastLat] = rawCoords[rawCoords.length - 1];
       const dEnd = Math.hypot(lastLng - props.endPoint.lng, lastLat - props.endPoint.lat);
-      if (dEnd > 0.002) return [];
+      if (dEnd > 0.0035) return [];
     }
 
-    // Finální souřadnice z dokončeného výpočtu trasy OSRM.
-    // Nepoužíváme syrové kliknuté body jako náhradní spojnice, aby nedocházelo k řezání zástavby.
-    return rawCoords;
+    // 2. Plynulé napojení začátku a konce trasy na markery • START a • CÍL (do 120 m uliční odchylky).
+    // Zajišťuje, že zelená linie začíná přesně pod markerem START bez odtržení či mezery.
+    const connectedCoords: [number, number][] = [...rawCoords];
+
+    if (props.startPoint) {
+      const startCoord: [number, number] = [props.startPoint.lng, props.startPoint.lat];
+      const dStart = Math.hypot(connectedCoords[0][0] - startCoord[0], connectedCoords[0][1] - startCoord[1]);
+      if (dStart > 0.00002 && dStart < 0.0015) {
+        connectedCoords.unshift(startCoord);
+      }
+    }
+
+    if (props.endPoint && connectedCoords.length > 0) {
+      const endCoord: [number, number] = [props.endPoint.lng, props.endPoint.lat];
+      const lastIdx = connectedCoords.length - 1;
+      const dEnd = Math.hypot(connectedCoords[lastIdx][0] - endCoord[0], connectedCoords[lastIdx][1] - endCoord[1]);
+      if (dEnd > 0.00002 && dEnd < 0.0015) {
+        connectedCoords.push(endCoord);
+      }
+    }
+
+    return connectedCoords;
   }, [
     props.routeA,
     props.routeA?.geometry,
@@ -731,15 +757,17 @@ export function Map(props: MapEngineProps) {
 
   validCoordsRef.current = validCoords;
 
-  // 2. Vykreslení trasy WebGL vrstvou při jakékoliv změně validCoords
+  const isRoutePending = Boolean(props.isRoutingLoading);
+
+  // 2. Vykreslení trasy WebGL vrstvou při jakékoliv změně validCoords nebo loading stavu
   useEffect(() => {
     validCoordsRef.current = validCoords;
     const map = mapRef.current;
     if (!map) return;
 
     const coordsToRender = (validCoords && validCoords.length >= 2) ? validCoords : [];
-    renderRoute(map, coordsToRender);
-  }, [validCoords, isMapLoaded]);
+    renderRoute(map, coordsToRender, isRoutePending);
+  }, [validCoords, isRoutePending, isMapLoaded]);
 
   // Synchronní aktualizace SVG linie trasy pro okamžitou a zaručenou viditelnost
   const updateSvgOverlay = useCallback(() => {
@@ -1406,8 +1434,8 @@ export function Map(props: MapEngineProps) {
       <svg className="absolute inset-0 w-full h-full pointer-events-none z-10" style={{ overflow: 'visible' }}>
         {svgPath && (
           <>
-            <path d={svgPath} fill="none" stroke="#10b981" strokeWidth={14} strokeOpacity={0.4} strokeLinecap="round" strokeLinejoin="round" />
-            <path d={svgPath} fill="none" stroke="#059669" strokeWidth={6} strokeOpacity={0.95} strokeLinecap="round" strokeLinejoin="round" />
+            <path d={svgPath} fill="none" stroke="#10b981" strokeWidth={14} strokeOpacity={isRoutePending ? 0.15 : 0.4} strokeLinecap="round" strokeLinejoin="round" />
+            <path d={svgPath} fill="none" stroke="#059669" strokeWidth={6} strokeOpacity={isRoutePending ? 0.35 : 0.95} strokeLinecap="round" strokeLinejoin="round" />
           </>
         )}
       </svg>
