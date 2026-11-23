@@ -117,8 +117,8 @@ export interface RouteResult {
   infoPoints?: RouteInfoPoint[];
 }
 
-const ROUTE_FETCH_TIMEOUT_MS = 4500;
-const WAYPOINT_FETCH_TIMEOUT_MS = 2000;
+const ROUTE_FETCH_TIMEOUT_MS = 1400; // Zkráceno na ~1.4s pro bleskovou odezvu trasy (~0.5s cíl)
+const WAYPOINT_FETCH_TIMEOUT_MS = 1200; // Zkráceno na 1.2s pro rychlé ověření mezilehlých bodů
 const MAX_DETOUR_RATIO = 1.30; // Omezení zacházky: max 30 % oproti nejkratší trase (poskytuje prostor pro bezpečné obcházky přes světla)
 const STANDARD_WALK_SPEED_KMH = 4.5;
 const FAST_WALK_SPEED_KMH = 5.2;
@@ -1235,17 +1235,62 @@ export type RouteCalculationResult = {
 export const routeCache = new Map<string, RouteCalculationResult>();
 const MAX_ROUTE_CACHE_SIZE = 120;
 
+/**
+ * Lehká paměťová cache naposledy spočítaných tras podle dvojice zaokrouhlených souřadnic
+ * start/cíl a režimu trasy pro okamžité zobrazení trasy (~0 ms) při návratu na podobné body.
+ */
+export function getCachedRoute(
+  startLat: number,
+  startLng: number,
+  endLat: number,
+  endLng: number,
+  activeMode?: string
+): RouteCalculationResult | null {
+  const roundedStart = `${startLat.toFixed(4)},${startLng.toFixed(4)}`;
+  const roundedEnd = `${endLat.toFixed(4)},${endLng.toFixed(4)}`;
+  const keyPrefix = `${roundedStart}->${roundedEnd}_${activeMode || 'default'}`;
+
+  for (const [k, v] of routeCache.entries()) {
+    if (k.startsWith(keyPrefix)) {
+      return v;
+    }
+  }
+
+  // Blízkostní (fuzzy) vyhledávání do cca 25 metrů pro návrat na podobné body
+  for (const [k, v] of routeCache.entries()) {
+    if (!k.includes(`_${activeMode || 'default'}_`)) continue;
+    const parts = k.split('->');
+    if (parts.length < 2) continue;
+    const startParts = parts[0].split(',');
+    const endRest = parts[1].split('_');
+    const endParts = endRest[0].split(',');
+    if (startParts.length === 2 && endParts.length === 2) {
+      const cSLat = parseFloat(startParts[0]);
+      const cSLng = parseFloat(startParts[1]);
+      const cELat = parseFloat(endParts[0]);
+      const cELng = parseFloat(endParts[1]);
+      if (
+        !isNaN(cSLat) && !isNaN(cSLng) && !isNaN(cELat) && !isNaN(cELng) &&
+        Math.hypot(cSLat - startLat, cSLng - startLng) < 0.00025 &&
+        Math.hypot(cELat - endLat, cELng - endLng) < 0.00025
+      ) {
+        return v;
+      }
+    }
+  }
+
+  return null;
+}
+
 export async function calculateSafeRoute(
   start: [number, number],
   end: [number, number],
   safetyNodes: SafetyFeature[] = [],
   timeOfDay: number = 12
 ): Promise<RouteResult> {
-  const key = `${start[0].toFixed(4)},${start[1].toFixed(4)}->${end[0].toFixed(4)},${end[1].toFixed(4)}`;
-  for (const [k, v] of routeCache.entries()) {
-    if (k.startsWith(key)) {
-      return v.routeA;
-    }
+  const cached = getCachedRoute(start[0], start[1], end[0], end[1]);
+  if (cached) {
+    return cached.routeA;
   }
   const result = await fetchOSRMRoute(start[0], start[1], end[0], end[1], safetyNodes, timeOfDay);
   return result.routeA;
@@ -1274,6 +1319,12 @@ export async function fetchOSRMRoute(
     const err = new Error('Aborted');
     err.name = 'AbortError';
     throw err;
+  }
+
+  // Okamžitá kontrola cache pro bleskovou odezvu
+  const cached = getCachedRoute(startLat, startLng, endLat, endLng, activeMode);
+  if (cached) {
+    return cached;
   }
 
   const cacheKey = `${startLat.toFixed(4)},${startLng.toFixed(4)}->${endLat.toFixed(4)},${endLng.toFixed(4)}_${activeMode || 'default'}_${profiles.join(',')}_${timeOfDay}`;

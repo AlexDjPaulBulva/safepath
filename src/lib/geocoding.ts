@@ -84,8 +84,9 @@ export async function searchAddress(query: string): Promise<GeocodeResult[]> {
 /**
  * Reverzní geokódování (Reverse Geocoding) pro získání názvu z kliknutí na mapě.
  * Vždy vrátí reálnou ulici nebo čitelnou adresu (buď z Nominatim API, nebo z lokální RÚIAN databáze).
+ * Běží plně asynchronně a podporuje okamžité přerušení pomocí AbortSignal.
  */
-export async function reverseGeocode(lat: number, lng: number): Promise<string> {
+export async function reverseGeocode(lat: number, lng: number, signal?: AbortSignal): Promise<string> {
   const cacheKey = `${lat.toFixed(4)},${lng.toFixed(4)}`;
   if (reverseGeocodeCache.has(cacheKey)) {
     return reverseGeocodeCache.get(cacheKey)!;
@@ -93,45 +94,60 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string> 
 
   const localFallback = getLocalStreetOrPlace(lat, lng);
 
+  if (signal?.aborted) {
+    return localFallback || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+  }
+
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2500);
+    const timeoutId = setTimeout(() => controller.abort(), 1200);
+
+    const onExternalAbort = () => controller.abort();
+    if (signal) {
+      signal.addEventListener('abort', onExternalAbort, { once: true });
+    }
 
     const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&email=safepath.praha@gmail.com`;
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        'Accept-Language': 'cs-CZ,cs;q=0.9'
+    try {
+      const response = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          'Accept-Language': 'cs-CZ,cs;q=0.9'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+
+        if (data && data.address) {
+          const road = data.address.road || data.address.pedestrian || data.address.footway || data.address.path;
+          const houseNumber = data.address.house_number || '';
+          const district = data.address.city_district || data.address.suburb || data.address.quarter;
+          const city = data.address.city || data.address.town || data.address.village || 'Praha';
+
+          let resolved = '';
+          if (road) {
+            resolved = houseNumber ? `${road} ${houseNumber}` : road;
+          } else if (district) {
+            resolved = `${district}, ${city}`;
+          } else if (city) {
+            resolved = `${city}`;
+          }
+
+          if (resolved) {
+            reverseGeocodeCache.set(cacheKey, resolved);
+            return resolved;
+          }
+        }
       }
-    });
-    clearTimeout(timeoutId);
-
-    if (response.ok) {
-      const data = await response.json();
-
-      if (data && data.address) {
-        const road = data.address.road || data.address.pedestrian || data.address.footway || data.address.path;
-        const houseNumber = data.address.house_number || '';
-        const district = data.address.city_district || data.address.suburb || data.address.quarter;
-        const city = data.address.city || data.address.town || data.address.village || 'Praha';
-
-        let resolved = '';
-        if (road) {
-          resolved = houseNumber ? `${road} ${houseNumber}` : road;
-        } else if (district) {
-          resolved = `${district}, ${city}`;
-        } else if (city) {
-          resolved = `${city}`;
-        }
-
-        if (resolved) {
-          reverseGeocodeCache.set(cacheKey, resolved);
-          return resolved;
-        }
+    } finally {
+      clearTimeout(timeoutId);
+      if (signal) {
+        signal.removeEventListener('abort', onExternalAbort);
       }
     }
-  } catch (error) {
-    // Síťové selhání, timeout nebo rate-limit – fallback na lokální data
+  } catch {
+    // Síťové selhání, abort nebo timeout – okamžitý fallback na lokální data
   }
 
   if (localFallback) {

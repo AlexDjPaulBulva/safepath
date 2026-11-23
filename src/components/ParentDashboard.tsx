@@ -6,7 +6,7 @@ import { Header } from './Header';
 import { ModeSelectionModal } from './ModeSelectionModal';
 import { OpenDataService, SafetyFeature } from '../lib/opendata';
 import { generateParentArguments, RouteComparison } from '../lib/nlp-generator';
-import { fetchOSRMRoute, RouteResult, RouteSegment, getPointAlongRoute } from '../lib/routing';
+import { fetchOSRMRoute, RouteResult, RouteSegment, getPointAlongRoute, getCachedRoute } from '../lib/routing';
 import { getDistance } from '../lib/safety-engine';
 import { fetchOSMCameras, OSMSurveillanceFeature } from '../lib/osm-surveillance-harvester';
 import { reverseGeocode, getLocalStreetOrPlace } from '../lib/geocoding';
@@ -388,9 +388,11 @@ export function ParentDashboard({
   const startCoordKey = startPoint ? `${startPoint.lat.toFixed(5)},${startPoint.lng.toFixed(5)}` : '';
   const endCoordKey = endPoint ? `${endPoint.lat.toFixed(5)},${endPoint.lng.toFixed(5)}` : '';
 
-  // 2. Načtení trasy přes OSRM s debouncingem a eliminací problikávání
-  const routingRequestIdRef = useRef(0);
+  // 2. Načtení trasy přes OSRM s debouncingem na 0 ms, izolací kliků a sekvenčním requestId
+  const globalRequestIdRef = useRef(0);
   const routingAbortControllerRef = useRef<AbortController | null>(null);
+  const startGeocodeAbortControllerRef = useRef<AbortController | null>(null);
+  const endGeocodeAbortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     // Okamžitě zrušíme předchozí rozjetý výpočet, aby stará data nepřepisovala nová
@@ -411,16 +413,56 @@ export function ParentDashboard({
       return;
     }
 
-    const currentRequestId = ++routingRequestIdRef.current;
+    const currentRequestId = ++globalRequestIdRef.current;
+    const isChildMode = activeMode === 'child' || activeMode === 'parent' || activeProfiles.includes('child') || activeProfiles.includes('parent');
+
+    // Okamžitá kontrola lehké paměťové cache: při návratu na podobné body se trasa zobrazí okamžitě (~0 ms)
+    const cached = getCachedRoute(startPoint.lat, startPoint.lng, endPoint.lat, endPoint.lng, activeMode);
+    if (cached) {
+      setRoutingError(null);
+      const rA = cached.routeA;
+      const fR = cached.fastestRoute;
+      const rAWithMeta = {
+        ...rA,
+        routeRequestId: currentRequestId,
+        startPoint: { lat: startPoint.lat, lng: startPoint.lng },
+        endPoint: { lat: endPoint.lat, lng: endPoint.lng }
+      };
+      setRouteA(rAWithMeta as any);
+      const rACoords = Array.isArray(rA?.geometry)
+        ? rA.geometry
+        : (typeof rA?.geometry === 'string' ? polyline.decode(rA.geometry).map(([lat, lng]) => [lat, lng]) : []);
+      setCurrentRoute({
+        ...rAWithMeta,
+        coordinates: rACoords,
+        distance: rA?.distance,
+        duration: rA?.duration
+      });
+      if (rA?.infoPoints && rA.infoPoints.length > 0) {
+        setSafeStops(rA.infoPoints.map(p => ({ lat: p.lat, lng: p.lng, name: p.name })));
+      } else {
+        setSafeStops([]);
+      }
+      setRouteB(null);
+      setRouteC(null);
+      setFastestRoute(fR || null);
+      setSelectedRoute('A');
+      setArgumentsText(generateParentArguments({ safeRoute: rA.metrics }, isChildMode));
+      setIsRoutingLoading(false);
+      setLoading(false);
+      return;
+    }
+
     const controller = new AbortController();
     routingAbortControllerRef.current = controller;
     setIsRoutingLoading(true);
 
+    // Výpočet spuštěn okamžitě (0 ms) bez umělého zpoždění
     const debounceTimer = setTimeout(async () => {
       try {
         setRoutingError(null);
 
-        if (controller.signal.aborted || currentRequestId !== routingRequestIdRef.current) {
+        if (controller.signal.aborted || currentRequestId !== globalRequestIdRef.current) {
           return;
         }
 
@@ -444,8 +486,6 @@ export function ParentDashboard({
           }))
         ];
 
-        const isChildMode = activeMode === 'child' || activeMode === 'parent' || activeProfiles.includes('child') || activeProfiles.includes('parent');
-
         const { routeA: rA, fastestRoute: fR } = await fetchOSRMRoute(
           startPoint.lat, startPoint.lng,
           endPoint.lat, endPoint.lng,
@@ -456,7 +496,7 @@ export function ParentDashboard({
           controller.signal
         );
 
-        if (controller.signal.aborted || currentRequestId !== routingRequestIdRef.current) return;
+        if (controller.signal.aborted || currentRequestId !== globalRequestIdRef.current) return;
         const rAWithMeta = {
           ...rA,
           routeRequestId: currentRequestId,
@@ -484,11 +524,11 @@ export function ParentDashboard({
         setSelectedRoute('A');
         setArgumentsText(generateParentArguments({ safeRoute: rA.metrics }, isChildMode));
       } catch (err: any) {
-        if (currentRequestId !== routingRequestIdRef.current) {
+        if (currentRequestId !== globalRequestIdRef.current) {
           return;
         }
         if (err?.name === 'AbortError' || controller.signal.aborted) {
-          console.warn('Výpočet trasy byl přerušen nebo vypršel časový limit pro request:', currentRequestId);
+          // Zrušeno novějším požadavkem – tichý odchod
         } else {
           console.error('Chyba routingu:', err);
           const message = err instanceof Error
@@ -497,17 +537,17 @@ export function ParentDashboard({
           setRoutingError(message);
         }
       } finally {
-        if (currentRequestId === routingRequestIdRef.current) {
+        if (currentRequestId === globalRequestIdRef.current) {
           setLoading(false);
           setIsRoutingLoading(false);
         }
       }
-    }, 20);
+    }, 0);
 
     return () => {
       clearTimeout(debounceTimer);
       controller.abort();
-      if (currentRequestId === routingRequestIdRef.current) {
+      if (currentRequestId === globalRequestIdRef.current) {
         setIsRoutingLoading(false);
         setLoading(false);
       }
@@ -529,50 +569,16 @@ export function ParentDashboard({
   };
 
   const handleSelectStart = (lat: number, lng: number, name?: string) => {
-    const localQuickName = getLocalStreetOrPlace(lat, lng);
-    const coordFallback = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-    const isGeneric = !name || name === 'Vybrané místo na mapě...' || name === coordFallback || name.startsWith('Místo (');
-    const initialName = (!isGeneric && name) ? name : (localQuickName || coordFallback);
-
-    setStartPoint({ lat, lng, name: initialName });
-    setMapCenter([lat, lng]);
-
-    // Paralelní asynchronní reverse geocoding bez blokování UI a výpočtu trasy
-    reverseGeocode(lat, lng)
-      .then(address => {
-        if (!address) return;
-        setStartPoint(prev => {
-          if (!prev || Math.hypot(prev.lat - lat, prev.lng - lng) > 0.0001) return prev;
-          return { ...prev, name: address };
-        });
-      })
-      .catch(() => undefined);
+    const isSearchInput = name && !name.startsWith('Místo (') && !name.includes(`${lat.toFixed(4)}`);
+    applyInstantPoint('start', lat, lng, name, Boolean(isSearchInput));
   };
 
   const handleSelectEnd = (lat: number, lng: number, name?: string) => {
-    const localQuickName = getLocalStreetOrPlace(lat, lng);
-    const coordFallback = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-    const isGeneric = !name || name === 'Vybrané místo na mapě...' || name === coordFallback || name.startsWith('Místo (');
-    const initialName = (!isGeneric && name) ? name : (localQuickName || coordFallback);
-
-    setEndPoint({ lat, lng, name: initialName });
-    if (!startPoint) {
-      setMapCenter([lat, lng]);
-      if (locationPermissionDenied || !userLocation) {
-        showMapToast('Cíl nastaven. Zvolte start klepnutím do mapy', 'info');
-      }
+    const isSearchInput = name && !name.startsWith('Místo (') && !name.includes(`${lat.toFixed(4)}`);
+    applyInstantPoint('end', lat, lng, name, Boolean(isSearchInput && !startPoint));
+    if (!startPoint && (locationPermissionDenied || !userLocation)) {
+      showMapToast('Cíl nastaven. Zvolte start klepnutím do mapy', 'info');
     }
-
-    // Paralelní asynchronní reverse geocoding bez blokování UI a výpočtu trasy
-    reverseGeocode(lat, lng)
-      .then(address => {
-        if (!address) return;
-        setEndPoint(prev => {
-          if (!prev || Math.hypot(prev.lat - lat, prev.lng - lng) > 0.0001) return prev;
-          return { ...prev, name: address };
-        });
-      })
-      .catch(() => undefined);
   };
 
   const [childDeviation, setChildDeviation] = useState<{lat: number, lng: number} | null>(null);
@@ -633,22 +639,46 @@ export function ParentDashboard({
     return '';
   };
 
-  const applyInstantPoint = (kind: 'start' | 'end', lat: number, lng: number, fallbackName?: string) => {
+  const applyInstantPoint = (
+    kind: 'start' | 'end',
+    lat: number,
+    lng: number,
+    fallbackName?: string,
+    centerMap: boolean = false
+  ) => {
+    const currentRequestId = ++globalRequestIdRef.current;
+    if (routingAbortControllerRef.current) {
+      routingAbortControllerRef.current.abort();
+      routingAbortControllerRef.current = null;
+    }
+
     const localQuickName = getLocalStreetOrPlace(lat, lng);
     const coordFallback = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
     const isGeneric = !fallbackName || fallbackName === 'Vybrané místo na mapě...' || fallbackName === coordFallback || fallbackName.startsWith('Místo (');
     const initialName = (!isGeneric && fallbackName) ? fallbackName : (localQuickName || coordFallback);
     const patch = { lat, lng, name: initialName };
 
+    if (centerMap) {
+      setMapCenter([lat, lng]);
+    }
+
     if (kind === 'start') {
-      setStartPoint(prev => {
-        const next = prev && prev.lat === lat && prev.lng === lng ? prev : patch;
-        return next;
-      });
-      reverseGeocode(lat, lng)
+      if (startGeocodeAbortControllerRef.current) {
+        startGeocodeAbortControllerRef.current.abort();
+        startGeocodeAbortControllerRef.current = null;
+      }
+      setStartPoint(patch);
+
+      const geoController = new AbortController();
+      startGeocodeAbortControllerRef.current = geoController;
+
+      reverseGeocode(lat, lng, geoController.signal)
         .then(resolved => {
+          if (currentRequestId !== globalRequestIdRef.current || geoController.signal.aborted) return;
+          if (!resolved) return;
           setStartPoint(prev => {
-            if (!prev || Math.hypot(prev.lat - lat, prev.lng - lng) > 0.0001) return prev;
+            if (!prev || currentRequestId !== globalRequestIdRef.current) return prev;
+            if (Math.hypot(prev.lat - lat, prev.lng - lng) > 0.0001) return prev;
             return { ...prev, name: resolved };
           });
         })
@@ -656,14 +686,22 @@ export function ParentDashboard({
       return;
     }
 
-    setEndPoint(prev => {
-      const next = prev && prev.lat === lat && prev.lng === lng ? prev : patch;
-      return next;
-    });
-    reverseGeocode(lat, lng)
+    if (endGeocodeAbortControllerRef.current) {
+      endGeocodeAbortControllerRef.current.abort();
+      endGeocodeAbortControllerRef.current = null;
+    }
+    setEndPoint(patch);
+
+    const geoController = new AbortController();
+    endGeocodeAbortControllerRef.current = geoController;
+
+    reverseGeocode(lat, lng, geoController.signal)
       .then(resolved => {
+        if (currentRequestId !== globalRequestIdRef.current || geoController.signal.aborted) return;
+        if (!resolved) return;
         setEndPoint(prev => {
-          if (!prev || Math.hypot(prev.lat - lat, prev.lng - lng) > 0.0001) return prev;
+          if (!prev || currentRequestId !== globalRequestIdRef.current) return prev;
+          if (Math.hypot(prev.lat - lat, prev.lng - lng) > 0.0001) return prev;
           return { ...prev, name: resolved };
         });
       })
@@ -723,15 +761,10 @@ export function ParentDashboard({
 
   const handleMapDoubleClick = async (lat: number, lng: number) => {
     try {
-      const addressName = await reverseGeocode(lat, lng);
-      const fallbackName = addressName || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-
       if (!startPoint) {
-        setStartPoint({ lat, lng, name: fallbackName });
-      } else if (!endPoint) {
-        setEndPoint({ lat, lng, name: fallbackName });
+        applyInstantPoint('start', lat, lng);
       } else {
-        setEndPoint({ lat, lng, name: fallbackName });
+        applyInstantPoint('end', lat, lng);
       }
     } catch (e) {
       console.error(e);
@@ -1146,6 +1179,9 @@ export function ParentDashboard({
             reveal={safetyReveal}
             proximityPoint={routeProximityPoint}
             onRouteProximityChange={setRouteProximityPoint}
+            isRoutingLoading={isRoutingLoading}
+            routingError={routingError}
+            requestId={globalRequestIdRef.current}
           />
         </MapErrorBoundary>
 

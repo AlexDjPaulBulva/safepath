@@ -18,8 +18,9 @@ import { useCompassHeading } from '../hooks/useCompassHeading';
 import { AudioNavToggle } from './AudioNavToggle';
 import { SafePassModal } from './SafePassModal';
 import { MapErrorBoundary, MapErrorFallback } from './MapErrorBoundary';
-import { renderRoute, normalizeRouteCoords, startRouteBreathing, stopRouteBreathing } from './map/RouteLayer';
+import { renderRoute, normalizeRouteCoords, startRouteBreathing, stopRouteBreathing, scheduleRouteBreathing } from './map/RouteLayer';
 import { setupMapClickHandler } from './map/ClickHandler';
+import { PRAGUE_CENTER_LNG_LAT, VIBRANT_STREET_STYLE, ensureBaseStyleAndLayers, MAP_BACKGROUND_COLOR } from './map/MapCore';
 import { getSafetyDataFusion } from '../lib/safetyDataFusion';
 
 export { MapErrorBoundary, MapErrorFallback };
@@ -79,6 +80,7 @@ export interface MapEngineProps {
   onSelectRoute?: (route: 'A' | 'B' | 'C') => void;
   isRoutingLoading?: boolean;
   routingError?: string | null;
+  requestId?: number;
   childLiveLocation?: {
     lat: number;
     lng: number;
@@ -92,33 +94,6 @@ export interface MapEngineProps {
   focusFeatureTrigger?: { featureType: 'camera' | 'traffic_light' | 'school' | 'hazard'; timestamp: number } | null;
   onFocusFeature?: (featureType: 'camera' | 'traffic_light' | 'school' | 'hazard') => void;
 }
-
-const PRAGUE_CENTER_LNG_LAT: [number, number] = [14.4378, 50.0755];
-
-// Oficiální barevné silniční dlaždice Esri World Street Map (zelené parky, modrá voda, žluté/bílé ulice)
-const VIBRANT_STREET_STYLE: maplibregl.StyleSpecification = {
-  version: 8,
-  sources: {
-    'street-tiles': {
-      type: 'raster',
-      tiles: [
-        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}'
-      ],
-      tileSize: 256,
-      maxzoom: 19,
-      attribution: '&copy; Esri, HERE, Garmin, USGS, NGA, EPA, USDA, NPS'
-    }
-  },
-  layers: [
-    {
-      id: 'street-base-layer',
-      type: 'raster',
-      source: 'street-tiles',
-      minzoom: 0,
-      maxzoom: 19
-    }
-  ]
-};
 
 const getRouteCoordinates = (route?: RouteResult | null): [number, number][] => {
   if (!route) return [];
@@ -569,6 +544,7 @@ export function Map(props: MapEngineProps) {
 
     map.on('load', () => {
       map.resize();
+      ensureBaseStyleAndLayers(map);
       stopRouteBreathing(map);
       drawFastestRoute(map);
       const coords = (validCoordsRef.current && validCoordsRef.current.length >= 2)
@@ -581,6 +557,7 @@ export function Map(props: MapEngineProps) {
     });
 
     map.on('style.load', () => {
+      ensureBaseStyleAndLayers(map);
       stopRouteBreathing(map);
       drawFastestRoute(map);
       const coords = (validCoordsRef.current && validCoordsRef.current.length >= 2)
@@ -590,6 +567,33 @@ export function Map(props: MapEngineProps) {
         renderRoute(map, coords);
       }
     });
+
+    // Ochrana stylu a vrstev trasy při změnách styledata (nikdy nedovolí zmizení podkladu či černé pozadí)
+    map.on('styledata', () => {
+      ensureBaseStyleAndLayers(map);
+    });
+
+    // Bezpečné ošetření chyb dlaždic bez rozpadu stylu
+    map.on('error', (e: any) => {
+      if (e?.error?.message?.includes('abort') || e?.status === 404) return;
+      console.warn('SafePath: MapLibre tile/render warning:', e);
+      ensureBaseStyleAndLayers(map);
+    });
+
+    // Obnovení WebGL kontextu při ztrátě (např. při extrémně rychlém přepínání oken/záložek)
+    const canvas = map.getCanvas();
+    const handleContextRestored = () => {
+      console.warn('SafePath: WebGL context obnoven, obnovuji styl a vrstvy...');
+      ensureBaseStyleAndLayers(map);
+      const coords = (validCoordsRef.current && validCoordsRef.current.length >= 2)
+        ? validCoordsRef.current
+        : [];
+      if (coords.length >= 2) {
+        renderRoute(map, coords);
+      }
+      drawFastestRoute(map);
+    };
+    canvas.addEventListener('webglcontextrestored', handleContextRestored);
 
     // Uživatelský zámek kamery pro zamezení gumového zoomu (Rubberbanding)
     map.on('dragstart', () => { userInteractedRef.current = true; });
@@ -633,6 +637,7 @@ export function Map(props: MapEngineProps) {
     }, 800);
 
     return () => {
+      canvas.removeEventListener('webglcontextrestored', handleContextRestored);
       window.removeEventListener('resize', handleResize);
       clearTimeout(resizeTimer1);
       clearTimeout(resizeTimer2);
@@ -764,43 +769,22 @@ export function Map(props: MapEngineProps) {
 
   // Přechod při výpočtu trasy s prahovou hodnotou 1000 ms:
   // - Pokud se nová trasa dopočítá do 1 s, vykreslí se okamžitě a čekací animace se nespouští.
-  // - Pokud výpočet trvá déle než 1 s a máme stávající neodtrženou trasu, spustíme jemné plynulé dýchání vrstvy.
-  // - Jakmile nová trasa dorazí (nebo je výpočet ukončen), animace se ihned zastaví a vrátí čistý výchozí styl.
-  const breathingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
+  // - Pokud výpočet trvá déle než 1 s pro aktuální requestId, spustíme jemné dýchání vrstvy.
+  // - Jakmile nová trasa dorazí (nebo je výpočet ukončen/zrušen), animace se ihned zastaví.
   useEffect(() => {
     const map = mapRef.current;
+    if (!map) return;
 
     if (props.isRoutingLoading) {
-      if (!breathingTimerRef.current) {
-        breathingTimerRef.current = setTimeout(() => {
-          if (mapRef.current && props.isRoutingLoading) {
-            if (validCoordsRef.current && validCoordsRef.current.length >= 2) {
-              startRouteBreathing(mapRef.current);
-            }
-          }
-        }, 1000);
-      }
+      scheduleRouteBreathing(map, props.requestId || 0, validCoordsRef.current);
     } else {
-      if (breathingTimerRef.current) {
-        clearTimeout(breathingTimerRef.current);
-        breathingTimerRef.current = null;
-      }
-      if (map) {
-        stopRouteBreathing(map);
-      }
+      stopRouteBreathing(map);
     }
 
     return () => {
-      if (breathingTimerRef.current) {
-        clearTimeout(breathingTimerRef.current);
-        breathingTimerRef.current = null;
-      }
-      if (mapRef.current) {
-        stopRouteBreathing(mapRef.current);
-      }
+      stopRouteBreathing(map);
     };
-  }, [props.isRoutingLoading]);
+  }, [props.isRoutingLoading, props.requestId]);
 
   // 2. Vykreslení trasy WebGL vrstvou při jakékoliv změně validCoords nebo loading stavu
   useEffect(() => {
@@ -1448,9 +1432,9 @@ export function Map(props: MapEngineProps) {
   }, [props.isSimulating, activeRoute?.segments, props.simulationProgress, props.childDeviation, isParentMode]);
 
   return (
-    <div className="relative w-full h-full overflow-hidden select-none bg-slate-950">
-      {/* Plátno MapLibre GL WebGL mapy pevně roztažené přes celou plochu */}
-      <div id="map" ref={mapContainerRef} className="w-full h-full absolute inset-0" />
+    <div className="relative w-full h-full overflow-hidden select-none bg-[#f8f4f0]">
+      {/* Plátno MapLibre GL WebGL mapy pevně roztažené přes celou plochu se světlým neutrálním podkladem */}
+      <div id="map" ref={mapContainerRef} className="w-full h-full absolute inset-0 bg-[#f8f4f0]" style={{ backgroundColor: '#f8f4f0' }} />
 
       {/* Obnovená SVG vrstva spojující souřadnice */}
       <svg className="absolute inset-0 w-full h-full pointer-events-none z-10" style={{ overflow: 'visible' }}>

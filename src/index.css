@@ -87,10 +87,13 @@ select,
 }
 
 #map,
+.maplibregl-map,
+.maplibregl-canvas-container,
 .leaflet-container {
   transform: translate3d(0, 0, 0);
   will-change: transform;
   pointer-events: auto !important;
+  background-color: #f8f4f0 !important;
 }
 
 /* MapLibre markery vždy navrchu nad podkladovým plátnem s kompaktní přirozenou šířkou a bez ořezávání textu */

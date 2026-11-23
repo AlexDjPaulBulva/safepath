@@ -1,4 +1,5 @@
 import * as maplibregl from 'maplibre-gl';
+import { ensureBaseStyleAndLayers } from './MapCore';
 
 /**
  * Normalizuje a ověří pole souřadnic pro MapLibre GeoJSON.
@@ -50,19 +51,26 @@ const DEFAULT_GLOW_BLUR = 3;
 const DEFAULT_CORE_OPACITY = 1.0;
 const DEFAULT_CORE_COLOR = '#059669';
 
-// Globální správa animační smyčky dýchání (pulse) pro výpočty trasy trvající > 1000 ms
+// Správa animační smyčky dýchání (pulse) pouze pro výpočty trasy trvající skutečně > 1000 ms
 let breathingAnimationId: number | null = null;
 let breathingStartTime = 0;
 let activeBreathingMap: maplibregl.Map | null = null;
+let activeBreathingRequestId: number | null = null;
+let breathingDelayTimer: ReturnType<typeof setTimeout> | null = null;
 
 /**
- * Zastaví animační smyčku dýchání trasy a vrátí paint vlastnosti vrstev do výchozího čistého stavu.
+ * Zastaví čekací časovač i běžící animační smyčku dýchání trasy a vrátí paint vlastnosti vrstev do výchozího stavu.
  */
 export function stopRouteBreathing(map?: maplibregl.Map | null) {
+  if (breathingDelayTimer !== null) {
+    clearTimeout(breathingDelayTimer);
+    breathingDelayTimer = null;
+  }
   if (breathingAnimationId !== null) {
     cancelAnimationFrame(breathingAnimationId);
     breathingAnimationId = null;
   }
+  activeBreathingRequestId = null;
   const targetMap = map || activeBreathingMap;
   activeBreathingMap = null;
 
@@ -83,12 +91,10 @@ export function stopRouteBreathing(map?: maplibregl.Map | null) {
 }
 
 /**
- * Spustí jemnou plynulou animaci „dýchání“ na vrstvách trasy (bezpečný sinusový průběh),
- * pokud výpočet nové trasy trvá déle než 1000 ms.
+ * Spustí jemnou plynulou animaci dýchání na vrstvách trasy.
  */
 export function startRouteBreathing(map: maplibregl.Map) {
   if (!map) return;
-  // Pokud již animace běží na této mapě, není třeba zakládat duplicitní smyčku
   if (breathingAnimationId !== null && activeBreathingMap === map) {
     return;
   }
@@ -105,21 +111,16 @@ export function startRouteBreathing(map: maplibregl.Map) {
     }
 
     if (!map.isStyleLoaded() || !map.getLayer('safe-route-glow') || !map.getLayer('safe-route-core')) {
-      // Pokud se styl zrovna načítá, počkáme na další snímek
       breathingAnimationId = requestAnimationFrame(step);
       return;
     }
 
     try {
       const elapsed = performance.now() - breathingStartTime;
-      // Plynulá sinusová oscilace (perioda ~1.5s, hodnota 0.0 až 1.0)
       const wave = (Math.sin((elapsed / 1000) * Math.PI * 1.33) + 1) / 2;
 
-      // Glow jemně pulzuje: opacity 0.35 až 0.75, blur 2.0 až 5.0
       const currentGlowOpacity = 0.35 + wave * 0.40;
       const currentGlowBlur = 2.0 + wave * 3.0;
-
-      // Jádro trasy jemně pulzuje: opacity 0.75 až 1.00
       const currentCoreOpacity = 0.75 + wave * 0.25;
 
       map.setPaintProperty('safe-route-glow', 'line-opacity', currentGlowOpacity);
@@ -135,16 +136,39 @@ export function startRouteBreathing(map: maplibregl.Map) {
   breathingAnimationId = requestAnimationFrame(step);
 }
 
+/**
+ * Naplánuje animaci dýchání trasy s ochranou:
+ * Spustí se POUZE v případě, kdy výpočet aktuálního requestId trvá déle než 1000 ms.
+ * Pokud výpočet trasy skončí rychleji, animace se vůbec nespustí.
+ */
+export function scheduleRouteBreathing(map: maplibregl.Map, requestId: number, currentCoords?: [number, number][]) {
+  stopRouteBreathing(map);
+  activeBreathingRequestId = requestId;
+
+  breathingDelayTimer = setTimeout(() => {
+    if (activeBreathingRequestId === requestId && map) {
+      // Animaci spustíme pouze pokud máme stávající vykreslenou trasu
+      if (currentCoords && currentCoords.length >= 2) {
+        startRouteBreathing(map);
+      }
+    }
+  }, 1000);
+}
+
 export function isRouteBreathing(): boolean {
   return breathingAnimationId !== null;
 }
 
-export function renderRoute(map: maplibregl.Map, coords: [number, number][] | any[], isPending: boolean = false) {
+export function renderRoute(
+  map: maplibregl.Map,
+  coords: [number, number][] | any[],
+  isPending: boolean = false
+) {
   if (!map) return;
 
   const validCoords = normalizeRouteCoords(coords);
 
-  // Pokud souřadnice chybí nebo je méně než 2 body, vyčistíme zdroj trasy, aby nezůstávala viset stará trasa
+  // Pokud souřadnice chybí nebo je méně než 2 body, vyčistíme zdroj trasy
   if (!validCoords || validCoords.length < 2) {
     stopRouteBreathing(map);
     try {
@@ -167,11 +191,13 @@ export function renderRoute(map: maplibregl.Map, coords: [number, number][] | an
       renderRoute(map, validCoords, isPending);
     };
     map.once('style.load', onStyleReady);
-    map.once('load', onStyleReady);
     return;
   }
 
-  // Pokud nová trasa dorazila a není pending, zastavíme animaci dýchání a vrátíme výchozí čistý styl
+  // Zajistíme, že základní styl a podkladové vrstvy jsou neporušeny
+  ensureBaseStyleAndLayers(map);
+
+  // Pokud nová trasa dorazila a není pending, ihned zastavíme čekací animaci a obnovíme čistý styl
   if (!isPending) {
     stopRouteBreathing(map);
   }
