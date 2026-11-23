@@ -506,7 +506,7 @@ export function Map(props: MapEngineProps) {
       style: VIBRANT_STREET_STYLE,
       center: initialCenter,
       zoom: 14,
-      maxZoom: 22,
+      maxZoom: 18.5,
       pitch: 0,
       bearing: 0,
       pitchWithRotate: true,
@@ -583,10 +583,19 @@ export function Map(props: MapEngineProps) {
       () => startPointRef.current,
       () => endPointRef.current,
       (pt) => {
+        startPointRef.current = { lat: pt.lat, lng: pt.lng };
         onSelectStartRef.current?.(pt.lat, pt.lng);
       },
       (pt) => {
+        endPointRef.current = { lat: pt.lat, lng: pt.lng };
         onSelectEndRef.current?.(pt.lat, pt.lng);
+      },
+      (pt) => {
+        endPointRef.current = null;
+        startPointRef.current = { lat: pt.lat, lng: pt.lng };
+        setEndPointRef.current?.(null);
+        onSelectStartRef.current?.(pt.lat, pt.lng);
+        onToastRef.current?.('Nový start nastaven. Nyní klepněte na cíl.');
       }
     );
 
@@ -742,7 +751,7 @@ export function Map(props: MapEngineProps) {
   // Automatické přizpůsobení pohledu na novou trasu s rozumným maxZoom a odsazením za postranním panelem
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !isMapLoaded || !validCoords || validCoords.length < 2 || isRoutePending) {
+    if (!map || !isMapLoaded || !validCoords || validCoords.length < 2) {
       if (!validCoords || validCoords.length < 2) {
         lastFittedRouteIdRef.current = null;
       }
@@ -756,7 +765,7 @@ export function Map(props: MapEngineProps) {
     // Odsazení zohledňující šířku levého postranního panelu na desktopu (~420 px) a ovládací prvky na mobilu
     const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
     const fitPadding = isDesktop
-      ? { top: 90, bottom: 90, left: 420, right: 90 }
+      ? { top: 100, bottom: 90, left: 420, right: 100 }
       : { top: 80, bottom: 80, left: 60, right: 60 };
 
     // Sestavení ohraničujícího obdélníku zahrnujícího trasu i samotné markery • START a • CÍL
@@ -805,7 +814,7 @@ export function Map(props: MapEngineProps) {
       maxZoom: 15.5,
       duration: 650
     });
-  }, [validCoords, isRoutePending, isMapLoaded, props.startPoint, props.endPoint]);
+  }, [validCoords, isMapLoaded, props.startPoint, props.endPoint]);
 
   // Podpora pro volitelnou linku nejrychlejší alternativní trasy
   useEffect(() => {
@@ -816,6 +825,7 @@ export function Map(props: MapEngineProps) {
 
   // 3. Plynulé vycentrování mapy na pokyn uživatele (GPS recenter / center prop)
   const lastRecenterRef = useRef<number>(0);
+  const lastCenterKeyRef = useRef<string | null>(null);
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !isMapLoaded) return;
@@ -833,13 +843,17 @@ export function Map(props: MapEngineProps) {
     }
 
     if (props.center && (!validCoords || validCoords.length < 2)) {
-      const c = props.center;
-      const normalizedCenter: [number, number] = c[0] > 30 ? [c[1], c[0]] : [c[0], c[1]];
-      map.flyTo({
-        center: normalizedCenter,
-        zoom: 15,
-        duration: 1000
-      });
+      const centerKey = `${props.center[0].toFixed(5)},${props.center[1].toFixed(5)}`;
+      if (lastCenterKeyRef.current !== centerKey) {
+        lastCenterKeyRef.current = centerKey;
+        const c = props.center;
+        const normalizedCenter: [number, number] = c[0] > 30 ? [c[1], c[0]] : [c[0], c[1]];
+        map.flyTo({
+          center: normalizedCenter,
+          zoom: 15,
+          duration: 1000
+        });
+      }
     }
   }, [props.recenterTrigger, props.center, isMapLoaded, validCoords]);
 

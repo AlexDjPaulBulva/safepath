@@ -181,12 +181,12 @@ function RouteCard({
       </p>
 
       {/* Ověřená bezpečnostní charakteristika */}
-      <div className="mb-3 px-3 py-2 rounded-lg bg-emerald-950/60 border border-emerald-700/60 flex items-center justify-between text-xs">
-        <div className="flex items-center gap-2 text-emerald-300 font-semibold">
+      <div className="mb-3 px-3 py-2 rounded-lg bg-emerald-950/60 border border-emerald-700/60 flex flex-wrap items-center justify-between gap-1.5 text-xs">
+        <div className="flex items-center gap-1.5 text-emerald-300 font-semibold text-[11px] leading-tight min-w-0">
           <span>🚦</span>
           <span>100 % světelně řízených přechodů</span>
         </div>
-        <span className="text-[10px] text-emerald-300 font-bold bg-emerald-900/80 px-2 py-0.5 rounded border border-emerald-600/60 whitespace-nowrap">
+        <span className="text-[10px] text-emerald-300 font-bold bg-emerald-900/80 px-2 py-0.5 rounded border border-emerald-600/60 whitespace-nowrap flex-shrink-0 self-center">
           Chráněná cesta ✓
         </span>
       </div>

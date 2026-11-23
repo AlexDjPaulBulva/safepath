@@ -112,8 +112,7 @@ export function MotionAnomalyModals({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            style={{ bottom: 'calc(var(--bottom-sheet-height, 9.5rem) + 40px + env(safe-area-inset-bottom, 0px))' }}
-            className="fixed left-1/2 -translate-x-1/2 z-[1050] bg-slate-900/95 border-2 border-indigo-500 rounded-2xl p-3 sm:p-4 shadow-2xl backdrop-blur-md max-w-md w-[calc(100vw-1.5rem)] text-slate-100 flex items-center justify-between gap-3"
+            className="fixed left-1/2 -translate-x-1/2 md:left-[calc(50%+200px)] bottom-[calc(var(--bottom-sheet-height,9.5rem)+40px+env(safe-area-inset-bottom,0px))] md:bottom-6 z-[1050] bg-slate-900/95 border-2 border-indigo-500 rounded-2xl p-3 sm:p-4 shadow-2xl backdrop-blur-md max-w-md w-[calc(100vw-1.5rem)] md:max-w-sm lg:max-w-md text-slate-100 flex items-center justify-between gap-3"
           >
             <div className="flex items-center gap-2.5 min-w-0">
               <span className="text-2xl sm:text-3xl shrink-0">⏱️</span>
@@ -145,7 +144,7 @@ export function MotionAnomalyModals({
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
             style={{ top: 'calc(0.75rem + env(safe-area-inset-top, 0px))' }}
-            className="fixed left-1/2 -translate-x-1/2 z-[1100] bg-gradient-to-r from-amber-950/95 via-red-950/95 to-amber-950/95 border-2 border-amber-400 rounded-2xl px-4 sm:px-6 py-2.5 sm:py-3 shadow-[0_0_35px_rgba(245,158,11,0.6)] backdrop-blur-md flex items-center gap-3 text-white max-w-[calc(100vw-1.5rem)] w-auto"
+            className="fixed left-1/2 -translate-x-1/2 md:left-[calc(50%+200px)] z-[1100] bg-gradient-to-r from-amber-950/95 via-red-950/95 to-amber-950/95 border-2 border-amber-400 rounded-2xl px-4 sm:px-6 py-2.5 sm:py-3 shadow-[0_0_35px_rgba(245,158,11,0.6)] backdrop-blur-md flex items-center gap-3 text-white max-w-[calc(100vw-1.5rem)] w-auto"
           >
             <span className="text-2xl animate-spin shrink-0">⚠️</span>
             <div className="min-w-0">

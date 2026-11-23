@@ -761,7 +761,7 @@ export function ParentDashboard({
         }
         return;
       } else {
-        // Obě hodnoty existují -> cílená úprava podle blízkosti nebo střídání
+        // Obě hodnoty existují -> cílená úprava podle blízkosti nebo nový cyklus (START -> CÍL -> nový START)
         const distToStartDeg = Math.hypot(lat - effectiveStart.lat, lng - effectiveStart.lng);
         const distToEndDeg = Math.hypot(lat - endPoint.lat, lng - endPoint.lng);
         const PROXIMITY_DEG = 0.0008; // cca 70-80 m
@@ -780,15 +780,11 @@ export function ParentDashboard({
           return;
         }
 
-        if (lastUpdatedPointRef.current === 'start') {
-          applyInstantPoint('end', lat, lng, defaultCoordName);
-          setSelectedRoute('A');
-          showMapToast('Cíl aktualizován. Přepočítávám trasu...', 'success');
-        } else {
-          applyInstantPoint('start', lat, lng, defaultCoordName);
-          setSelectedRoute('A');
-          showMapToast('Start aktualizován. Přepočítávám trasu...', 'success');
-        }
+        // Nový cyklus: po dokončení trasy další kliknutí nastaví nový START a resetuje CÍL
+        setEndPoint(null);
+        applyInstantPoint('start', lat, lng, defaultCoordName);
+        setSelectedRoute('A');
+        showMapToast('Nový start nastaven. Nyní klepněte na cíl.', 'success');
       }
     } catch (e) {
       console.error(e);

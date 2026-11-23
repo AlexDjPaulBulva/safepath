@@ -70,7 +70,7 @@ const PRAGUE_KEY_STREET_ANCHORS: Array<{ name: string; lat: number; lng: number 
  */
 export function getLocalStreetOrPlace(lat: number, lng: number): string | null {
   try {
-    // 1. Zkontroluj RÚIAN vchody (do ~150 m)
+    // 1. Zkontroluj RÚIAN vchody (do ~200 m) - preferujeme přesné číslo domu
     const ruianEntrances = (enrichedData as any)?.ruianEntrances || [];
     let bestRuian: any = null;
     let minRuianDist = Infinity;
@@ -81,12 +81,26 @@ export function getLocalStreetOrPlace(lat: number, lng: number): string | null {
         bestRuian = ent;
       }
     }
-    if (bestRuian && minRuianDist < 0.0035) {
+    if (bestRuian && minRuianDist < 0.0020) {
       if (bestRuian.address) return bestRuian.address;
       if (bestRuian.street) return `${bestRuian.street} ${bestRuian.houseNumber || ''}`.trim();
     }
 
-    // 2. Zkontroluj THMP lampy veřejného osvětlení (1016 lamp pokrývajících uliční síť Prahy)
+    // 2. Zkontroluj pražské uliční kotvy s číslem popisným/orientačním (do ~350 m)
+    let bestAnchor: any = null;
+    let minAnchorDist = Infinity;
+    for (const anchor of PRAGUE_KEY_STREET_ANCHORS) {
+      const d = Math.hypot(anchor.lat - lat, anchor.lng - lng);
+      if (d < minAnchorDist) {
+        minAnchorDist = d;
+        bestAnchor = anchor;
+      }
+    }
+    if (bestAnchor && minAnchorDist < 0.0035) {
+      return bestAnchor.name;
+    }
+
+    // 3. Zkontroluj THMP lampy veřejného osvětlení (do ~150 m)
     const thmpLamps = (enrichedData as any)?.thmpLamps || [];
     let bestLamp: any = null;
     let minLampDist = Infinity;
@@ -98,11 +112,11 @@ export function getLocalStreetOrPlace(lat: number, lng: number): string | null {
         bestLamp = lamp;
       }
     }
-    if (bestLamp && minLampDist < 0.0055) {
+    if (bestLamp && minLampDist < 0.0018) {
       return bestLamp.streetName;
     }
 
-    // 3. Zkontroluj křižovatky s uličními názvy (do ~600 m)
+    // 4. Zkontroluj křižovatky s uličními názvy (do ~250 m)
     const crossings = (staticData as any)?.crossings || [];
     let bestCrossing: any = null;
     let minCrossingDist = Infinity;
@@ -114,38 +128,29 @@ export function getLocalStreetOrPlace(lat: number, lng: number): string | null {
         bestCrossing = cr;
       }
     }
-    if (bestCrossing && minCrossingDist < 0.0055) {
+    if (bestCrossing && minCrossingDist < 0.0025) {
       return `ul. ${bestCrossing.streetName}`;
     }
 
-    // 4. Zkontroluj hlavní pražské koridory
+    // 5. Zkontroluj hlavní pražské koridory
     if (Array.isArray(PRAGUE_ROAD_CORRIDORS)) {
       for (const corridor of PRAGUE_ROAD_CORRIDORS) {
         if (!corridor.name) continue;
         for (const sc of corridor.signalizedCrossings || []) {
           const d = Math.hypot(sc.coords[0] - lat, sc.coords[1] - lng);
-          if (d < 0.0040) {
+          if (d < 0.0025) {
             return corridor.name;
           }
         }
       }
     }
 
-    // 5. Zkontroluj pražské uliční kotvy (až do 1.2 km pro zaručené čitelné pojmenování)
-    let bestAnchor: any = null;
-    let minAnchorDist = Infinity;
-    for (const anchor of PRAGUE_KEY_STREET_ANCHORS) {
-      const d = Math.hypot(anchor.lat - lat, anchor.lng - lng);
-      if (d < minAnchorDist) {
-        minAnchorDist = d;
-        bestAnchor = anchor;
-      }
-    }
+    // 6. Pokud je v dosahu širší uliční kotva (do 1.2 km), použij ji pro reálný název ulice
     if (bestAnchor && minAnchorDist < 0.0120) {
       return bestAnchor.name;
     }
 
-    // 6. Školní koridory IPR
+    // 7. Školní koridory IPR
     const schools = (enrichedData as any)?.iprSchoolCorridors || [];
     for (const school of schools) {
       if (!school.recommendedCrossingPoint) continue;
