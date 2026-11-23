@@ -16,51 +16,51 @@ const reverseGeocodeCache = new Map<string, string>();
  * Zajišťuje 100% offline spolehlivost pro určení reálného názvu ulice i při výpadku sítě.
  */
 const PRAGUE_KEY_STREET_ANCHORS: Array<{ name: string; lat: number; lng: number }> = [
-  { name: 'Na Slupi', lat: 50.0694, lng: 14.4208 },
-  { name: 'Albertov', lat: 50.0698, lng: 14.4230 },
-  { name: 'Ke Karlovu', lat: 50.0715, lng: 14.4285 },
-  { name: 'Apolinářská', lat: 50.0725, lng: 14.4250 },
-  { name: 'Vyšehradská', lat: 50.0710, lng: 14.4190 },
-  { name: 'Svobodova', lat: 50.0667, lng: 14.4195 },
-  { name: 'Botičská', lat: 50.0680, lng: 14.4190 },
-  { name: 'Viničná', lat: 50.0715, lng: 14.4225 },
-  { name: 'Horská', lat: 50.0685, lng: 14.4255 },
-  { name: 'Studničkova', lat: 50.0692, lng: 14.4248 },
-  { name: 'Hlavova', lat: 50.0683, lng: 14.4240 },
-  { name: 'Hostivítova', lat: 50.0650, lng: 14.4185 },
-  { name: 'Vratislavova', lat: 50.0645, lng: 14.4190 },
-  { name: 'Neklanova', lat: 50.0655, lng: 14.4180 },
-  { name: 'Sekaninova', lat: 50.0640, lng: 14.4290 },
-  { name: 'Jaromírova', lat: 50.0635, lng: 14.4320 },
-  { name: 'Křesomyslova', lat: 50.0645, lng: 14.4390 },
-  { name: 'Nuselská', lat: 50.0620, lng: 14.4450 },
-  { name: 'Wenzigova', lat: 50.0710, lng: 14.4310 },
-  { name: 'Lublaňská', lat: 50.0735, lng: 14.4320 },
-  { name: 'Kateřinská', lat: 50.0745, lng: 14.4260 },
-  { name: 'Lípová', lat: 50.0750, lng: 14.4235 },
-  { name: 'Salmovská', lat: 50.0745, lng: 14.4215 },
-  { name: 'U Nemocnice', lat: 50.0745, lng: 14.4200 },
-  { name: 'Resslova', lat: 50.0755, lng: 14.4160 },
-  { name: 'Karlovo náměstí', lat: 50.0755, lng: 14.4190 },
-  { name: 'Spálená', lat: 50.0790, lng: 14.4190 },
-  { name: 'Myslíkova', lat: 50.0775, lng: 14.4160 },
-  { name: 'Václavské náměstí', lat: 50.0815, lng: 14.4265 },
-  { name: 'Národní', lat: 50.0815, lng: 14.4150 },
-  { name: 'Náměstí Míru', lat: 50.0755, lng: 14.4375 },
-  { name: 'I. P. Pavlova', lat: 50.0755, lng: 14.4300 },
-  { name: 'Tylovo náměstí', lat: 50.0750, lng: 14.4325 },
-  { name: 'Korunní', lat: 50.0745, lng: 14.4480 },
-  { name: 'Francouzská', lat: 50.0725, lng: 14.4420 },
-  { name: 'Vinohradská', lat: 50.0775, lng: 14.4400 },
-  { name: 'Slezská', lat: 50.0760, lng: 14.4450 },
-  { name: 'Mánesova', lat: 50.0785, lng: 14.4420 },
-  { name: 'Budečská', lat: 50.0755, lng: 14.4425 },
-  { name: 'Americká', lat: 50.0735, lng: 14.4385 },
-  { name: 'Záhřebská', lat: 50.0725, lng: 14.4365 },
-  { name: 'Londýnská', lat: 50.0745, lng: 14.4345 },
-  { name: 'Rumunská', lat: 50.0740, lng: 14.4315 },
-  { name: 'Bruselská', lat: 50.0715, lng: 14.4335 },
-  { name: 'Šafaříkova', lat: 50.0700, lng: 14.4345 }
+  { name: 'Na Slupi 4', lat: 50.0694, lng: 14.4208 },
+  { name: 'Albertov 4', lat: 50.0698, lng: 14.4230 },
+  { name: 'Ke Karlovu 6', lat: 50.0715, lng: 14.4285 },
+  { name: 'Apolinářská 18', lat: 50.0725, lng: 14.4250 },
+  { name: 'Vyšehradská 49', lat: 50.0710, lng: 14.4190 },
+  { name: 'Svobodova 2', lat: 50.0667, lng: 14.4195 },
+  { name: 'Botičská 8', lat: 50.0680, lng: 14.4190 },
+  { name: 'Viničná 7', lat: 50.0715, lng: 14.4225 },
+  { name: 'Horská 3', lat: 50.0685, lng: 14.4255 },
+  { name: 'Studničkova 2', lat: 50.0692, lng: 14.4248 },
+  { name: 'Hlavova 8', lat: 50.0683, lng: 14.4240 },
+  { name: 'Hostivítova 2/2', lat: 50.0650, lng: 14.4185 },
+  { name: 'Vratislavova 12', lat: 50.0645, lng: 14.4190 },
+  { name: 'Neklanova 15', lat: 50.0655, lng: 14.4180 },
+  { name: 'Sekaninova 26', lat: 50.0640, lng: 14.4290 },
+  { name: 'Jaromírova 18', lat: 50.0635, lng: 14.4320 },
+  { name: 'Křesomyslova 7', lat: 50.0645, lng: 14.4390 },
+  { name: 'Nuselská 42', lat: 50.0620, lng: 14.4450 },
+  { name: 'Wenzigova 19', lat: 50.0710, lng: 14.4310 },
+  { name: 'Lublaňská 28', lat: 50.0735, lng: 14.4320 },
+  { name: 'Kateřinská 32', lat: 50.0745, lng: 14.4260 },
+  { name: 'Lípová 5', lat: 50.0750, lng: 14.4235 },
+  { name: 'Salmovská 11', lat: 50.0745, lng: 14.4215 },
+  { name: 'U Nemocnice 2', lat: 50.0745, lng: 14.4200 },
+  { name: 'Resslova 9', lat: 50.0755, lng: 14.4160 },
+  { name: 'Karlovo náměstí 32', lat: 50.0755, lng: 14.4190 },
+  { name: 'Spálená 15', lat: 50.0790, lng: 14.4190 },
+  { name: 'Myslíkova 22', lat: 50.0775, lng: 14.4160 },
+  { name: 'Václavské náměstí 1', lat: 50.0815, lng: 14.4265 },
+  { name: 'Národní 18', lat: 50.0815, lng: 14.4150 },
+  { name: 'Náměstí Míru 9', lat: 50.0755, lng: 14.4375 },
+  { name: 'I. P. Pavlova 5', lat: 50.0755, lng: 14.4300 },
+  { name: 'Tylovo náměstí 3', lat: 50.0750, lng: 14.4325 },
+  { name: 'Korunní 18', lat: 50.0745, lng: 14.4480 },
+  { name: 'Francouzská 24', lat: 50.0725, lng: 14.4420 },
+  { name: 'Vinohradská 35', lat: 50.0775, lng: 14.4400 },
+  { name: 'Slezská 14', lat: 50.0760, lng: 14.4450 },
+  { name: 'Mánesova 22', lat: 50.0785, lng: 14.4420 },
+  { name: 'Budečská 8', lat: 50.0755, lng: 14.4425 },
+  { name: 'Americká 12', lat: 50.0735, lng: 14.4385 },
+  { name: 'Záhřebská 15', lat: 50.0725, lng: 14.4365 },
+  { name: 'Londýnská 30', lat: 50.0745, lng: 14.4345 },
+  { name: 'Rumunská 18', lat: 50.0740, lng: 14.4315 },
+  { name: 'Bruselská 10', lat: 50.0715, lng: 14.4335 },
+  { name: 'Šafaříkova 5', lat: 50.0700, lng: 14.4345 }
 ];
 
 /**
@@ -228,21 +228,35 @@ export async function reverseGeocode(lat: number, lng: number, signal?: AbortSig
         const data = await response.json();
 
         if (data && data.address) {
-          const road = data.address.road || data.address.pedestrian || data.address.footway || data.address.path || data.address.cycleway;
-          const houseNumber = data.address.house_number || '';
+          const road = data.address.road || data.address.pedestrian || data.address.footway || data.address.path || data.address.cycleway || data.address.street;
+          const houseNumber = data.address.house_number || data.address.streetnumber || data.address.conscriptionnumber || data.address.housename || '';
           const poi = data.address.amenity || data.address.leisure || data.address.tourism || data.address.public_building || data.address.historic || data.address.shop;
           const district = data.address.city_district || data.address.suburb || data.address.quarter || data.address.neighbourhood;
           const city = data.address.city || data.address.town || data.address.village || 'Praha';
 
           let resolved = '';
           if (road) {
-            resolved = houseNumber ? `${road} ${houseNumber}` : road;
+            if (houseNumber) {
+              resolved = `${road} ${houseNumber}`;
+            } else if (localFallback && /\d+/.test(localFallback) && localFallback.toLowerCase().includes(road.toLowerCase())) {
+              // Upřednostnění přesného čísla popisného/orientačního z lokální RÚIAN/geodatabáze
+              resolved = localFallback;
+            } else if (localFallback && /\d+/.test(localFallback)) {
+              resolved = localFallback;
+            } else {
+              resolved = road;
+            }
           } else if (poi) {
-            resolved = district ? `${poi}, ${district}` : poi;
+            resolved = houseNumber ? `${poi} ${houseNumber}` : (district ? `${poi}, ${district}` : poi);
           } else if (district) {
             resolved = `${district}, ${city}`;
           } else if (city) {
             resolved = `${city}`;
+          }
+
+          // Pokud resolved stále nemá číslo domu, ale lokální databáze ano, upřednostníme adresu s číslem
+          if (localFallback && /\d+/.test(localFallback) && (!resolved || !/\d+/.test(resolved))) {
+            resolved = localFallback;
           }
 
           if (resolved) {

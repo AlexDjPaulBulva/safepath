@@ -9,7 +9,7 @@ import { ensureBaseStyleAndLayers } from './MapCore';
 export function normalizeRouteCoords(raw: any[]): [number, number][] {
   if (!raw || !Array.isArray(raw)) return [];
 
-  return raw
+  const cleaned = raw
     .map((p: any) => {
       if (!p) return null;
       let lng: number;
@@ -43,6 +43,20 @@ export function normalizeRouteCoords(raw: any[]): [number, number][] {
       return [lng, lat] as [number, number];
     })
     .filter((pt): pt is [number, number] => pt !== null);
+
+  if (cleaned.length < 2) return cleaned;
+
+  // Odstranění bezprostředních identických bodů pro čisté zobrazení bez zlomů a smyček
+  const deduped: [number, number][] = [cleaned[0]];
+  for (let i = 1; i < cleaned.length; i++) {
+    const prev = deduped[deduped.length - 1];
+    const curr = cleaned[i];
+    if (Math.hypot(curr[0] - prev[0], curr[1] - prev[1]) > 0.000003) {
+      deduped.push(curr);
+    }
+  }
+
+  return deduped.length >= 2 ? deduped : cleaned;
 }
 
 // Výchozí hodnoty vrstev trasy

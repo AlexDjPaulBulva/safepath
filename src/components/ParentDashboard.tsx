@@ -684,6 +684,12 @@ export function ParentDashboard({
             if (isCoordString && prev.name && !/^[\d.,\s]+$/.test(prev.name.trim())) {
               return prev;
             }
+            // Pokud předchozí název již obsahuje číslo popisné/orientační a resolved je jen holá ulice bez čísla, zachovej číslo
+            const prevHasNum = /\d+/.test(prev.name || '');
+            const newHasNum = /\d+/.test(resolved);
+            if (prevHasNum && !newHasNum && prev.name && prev.name.toLowerCase().includes(resolved.toLowerCase())) {
+              return prev;
+            }
             return { ...prev, name: resolved };
           });
         })
@@ -709,6 +715,12 @@ export function ParentDashboard({
           if (Math.hypot(prev.lat - lat, prev.lng - lng) > 0.0001) return prev;
           // Pokud máme platný uliční název z lokální databáze, nepřepisovat ho surovými čísly souřadnic
           if (isCoordString && prev.name && !/^[\d.,\s]+$/.test(prev.name.trim())) {
+            return prev;
+          }
+          // Pokud předchozí název již obsahuje číslo popisné/orientační a resolved je jen holá ulice bez čísla, zachovej číslo
+          const prevHasNum = /\d+/.test(prev.name || '');
+          const newHasNum = /\d+/.test(resolved);
+          if (prevHasNum && !newHasNum && prev.name && prev.name.toLowerCase().includes(resolved.toLowerCase())) {
             return prev;
           }
           return { ...prev, name: resolved };

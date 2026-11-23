@@ -445,26 +445,9 @@ export function Map(props: MapEngineProps) {
     }
 
     const rawFastestCoords = getRouteCoordinates(props.fastestRoute);
-    let normalizedFastestCoords = (props.showFastestRoute && rawFastestCoords.length >= 2)
+    const normalizedFastestCoords = (props.showFastestRoute && rawFastestCoords.length >= 2)
       ? normalizeToLngLat(rawFastestCoords)
       : [];
-
-    if (normalizedFastestCoords.length >= 2) {
-      if (props.startPoint) {
-        const [firstLng, firstLat] = normalizedFastestCoords[0];
-        const dStart = Math.hypot(firstLng - props.startPoint.lng, firstLat - props.startPoint.lat);
-        if (dStart > 0.00002 && dStart <= 0.0012) {
-          normalizedFastestCoords.unshift([props.startPoint.lng, props.startPoint.lat]);
-        }
-      }
-      if (normalizedFastestCoords.length >= 2 && props.endPoint) {
-        const [lastLng, lastLat] = normalizedFastestCoords[normalizedFastestCoords.length - 1];
-        const dEnd = Math.hypot(lastLng - props.endPoint.lng, lastLat - props.endPoint.lat);
-        if (dEnd > 0.00002 && dEnd <= 0.0012) {
-          normalizedFastestCoords.push([props.endPoint.lng, props.endPoint.lat]);
-        }
-      }
-    }
 
     const fastestData: GeoJSON.Feature<GeoJSON.LineString> = {
       type: 'Feature',
@@ -756,25 +739,73 @@ export function Map(props: MapEngineProps) {
     renderRoute(map, coordsToRender, isRoutePending);
   }, [validCoords, isRoutePending, isMapLoaded]);
 
-  // Automatické přizpůsobení pohledu na novou trasu POUZE JEDNOU, pokud uživatel mapu manuálně neovládá
+  // Automatické přizpůsobení pohledu na novou trasu s rozumným maxZoom a odsazením za postranním panelem
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !isMapLoaded || !validCoords || validCoords.length < 2) {
-      lastFittedRouteIdRef.current = null;
+    if (!map || !isMapLoaded || !validCoords || validCoords.length < 2 || isRoutePending) {
+      if (!validCoords || validCoords.length < 2) {
+        lastFittedRouteIdRef.current = null;
+      }
       return;
     }
+
     const routeSignature = `${validCoords[0].join(',')}-${validCoords[validCoords.length - 1].join(',')}`;
-    if (lastFittedRouteIdRef.current !== routeSignature) {
-      lastFittedRouteIdRef.current = routeSignature;
-      if (!userInteractedRef.current) {
-        const bounds = validCoords.reduce(
-          (b, c) => b.extend(c),
-          new maplibregl.LngLatBounds(validCoords[0], validCoords[0])
-        );
-        map.fitBounds(bounds, { padding: 80, duration: 600 });
-      }
+    if (lastFittedRouteIdRef.current === routeSignature) return;
+    lastFittedRouteIdRef.current = routeSignature;
+
+    // Odsazení zohledňující šířku levého postranního panelu na desktopu (~420 px) a ovládací prvky na mobilu
+    const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
+    const fitPadding = isDesktop
+      ? { top: 90, bottom: 90, left: 420, right: 90 }
+      : { top: 80, bottom: 80, left: 60, right: 60 };
+
+    // Sestavení ohraničujícího obdélníku zahrnujícího trasu i samotné markery • START a • CÍL
+    const bounds = new maplibregl.LngLatBounds();
+    validCoords.forEach((c) => bounds.extend(c));
+    if (props.startPoint) {
+      bounds.extend([props.startPoint.lng, props.startPoint.lat]);
     }
-  }, [validCoords, isMapLoaded]);
+    if (props.endPoint) {
+      bounds.extend([props.endPoint.lng, props.endPoint.lat]);
+    }
+
+    // Pokud uživatel kliká v rámci aktuálního výřezu mapy a START i CÍL jsou již pohodlně viditelné v zorném poli,
+    // nespouštíme agresivní přibližování ani skok kamery.
+    try {
+      const canvas = map.getCanvas();
+      const w = canvas.width;
+      const h = canvas.height;
+
+      const checkPoints: [number, number][] = [];
+      if (props.startPoint) checkPoints.push([props.startPoint.lng, props.startPoint.lat]);
+      if (props.endPoint) checkPoints.push([props.endPoint.lng, props.endPoint.lat]);
+      checkPoints.push(validCoords[0]);
+      checkPoints.push(validCoords[validCoords.length - 1]);
+
+      const allVisibleInView = checkPoints.length > 0 && checkPoints.every(([lng, lat]) => {
+        const pt = map.project([lng, lat]);
+        return (
+          pt.x >= fitPadding.left + 15 &&
+          pt.x <= w - fitPadding.right - 15 &&
+          pt.y >= fitPadding.top + 15 &&
+          pt.y <= h - fitPadding.bottom - 15
+        );
+      });
+
+      if (allVisibleInView && map.getZoom() <= 16.0) {
+        return;
+      }
+    } catch {
+      // Pokračovat standardním fitBounds
+    }
+
+    // Plynulý jednorázový posun s bezpečným maxZoom (max 15.5), aby START i CÍL zůstaly vždy viditelné
+    map.fitBounds(bounds, {
+      padding: fitPadding,
+      maxZoom: 15.5,
+      duration: 650
+    });
+  }, [validCoords, isRoutePending, isMapLoaded, props.startPoint, props.endPoint]);
 
   // Podpora pro volitelnou linku nejrychlejší alternativní trasy
   useEffect(() => {
