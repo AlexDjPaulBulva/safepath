@@ -117,7 +117,8 @@ export interface RouteResult {
   infoPoints?: RouteInfoPoint[];
 }
 
-const ROUTE_FETCH_TIMEOUT_MS = 8000;
+const ROUTE_FETCH_TIMEOUT_MS = 4500;
+const WAYPOINT_FETCH_TIMEOUT_MS = 2000;
 const MAX_DETOUR_RATIO = 1.30; // Omezení zacházky: max 30 % oproti nejkratší trase (poskytuje prostor pro bezpečné obcházky přes světla)
 const STANDARD_WALK_SPEED_KMH = 4.5;
 const FAST_WALK_SPEED_KMH = 5.2;
@@ -244,7 +245,7 @@ async function fetchFootRouteWithWaypoint(
   const url = `https://routing.openstreetmap.de/routed-foot/route/v1/driving/${coordStr}?overview=full&geometries=geojson&alternatives=false&steps=true&continue_straight=false`;
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), ROUTE_FETCH_TIMEOUT_MS);
+  const timeoutId = setTimeout(() => controller.abort(), WAYPOINT_FETCH_TIMEOUT_MS);
   const onAbort = () => controller.abort();
   if (signal) {
     signal.addEventListener('abort', onAbort, { once: true });

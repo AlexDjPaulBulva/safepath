@@ -93,11 +93,13 @@ select,
   pointer-events: auto !important;
 }
 
-/* MapLibre markery vždy navrchu nad podkladovým plátnem s kompaktní přirozenou šířkou */
+/* MapLibre markery vždy navrchu nad podkladovým plátnem s kompaktní přirozenou šířkou a bez ořezávání textu */
 .maplibregl-marker {
   z-index: 50 !important;
   width: max-content !important;
   height: max-content !important;
+  overflow: visible !important;
+  box-sizing: border-box !important;
 }
 
 .safety-fade-layer {

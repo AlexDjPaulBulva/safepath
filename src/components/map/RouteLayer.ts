@@ -44,6 +44,101 @@ export function normalizeRouteCoords(raw: any[]): [number, number][] {
     .filter((pt): pt is [number, number] => pt !== null);
 }
 
+// Výchozí hodnoty vrstev trasy
+const DEFAULT_GLOW_OPACITY = 0.65;
+const DEFAULT_GLOW_BLUR = 3;
+const DEFAULT_CORE_OPACITY = 1.0;
+const DEFAULT_CORE_COLOR = '#059669';
+
+// Globální správa animační smyčky dýchání (pulse) pro výpočty trasy trvající > 1000 ms
+let breathingAnimationId: number | null = null;
+let breathingStartTime = 0;
+let activeBreathingMap: maplibregl.Map | null = null;
+
+/**
+ * Zastaví animační smyčku dýchání trasy a vrátí paint vlastnosti vrstev do výchozího čistého stavu.
+ */
+export function stopRouteBreathing(map?: maplibregl.Map | null) {
+  if (breathingAnimationId !== null) {
+    cancelAnimationFrame(breathingAnimationId);
+    breathingAnimationId = null;
+  }
+  const targetMap = map || activeBreathingMap;
+  activeBreathingMap = null;
+
+  if (targetMap && targetMap.isStyleLoaded()) {
+    try {
+      if (targetMap.getLayer('safe-route-glow')) {
+        targetMap.setPaintProperty('safe-route-glow', 'line-opacity', DEFAULT_GLOW_OPACITY);
+        targetMap.setPaintProperty('safe-route-glow', 'line-blur', DEFAULT_GLOW_BLUR);
+      }
+      if (targetMap.getLayer('safe-route-core')) {
+        targetMap.setPaintProperty('safe-route-core', 'line-opacity', DEFAULT_CORE_OPACITY);
+        targetMap.setPaintProperty('safe-route-core', 'line-color', DEFAULT_CORE_COLOR);
+      }
+    } catch {
+      // Ignorovat, pokud se styl právě mění
+    }
+  }
+}
+
+/**
+ * Spustí jemnou plynulou animaci „dýchání“ na vrstvách trasy (bezpečný sinusový průběh),
+ * pokud výpočet nové trasy trvá déle než 1000 ms.
+ */
+export function startRouteBreathing(map: maplibregl.Map) {
+  if (!map) return;
+  // Pokud již animace běží na této mapě, není třeba zakládat duplicitní smyčku
+  if (breathingAnimationId !== null && activeBreathingMap === map) {
+    return;
+  }
+
+  stopRouteBreathing(map);
+
+  activeBreathingMap = map;
+  breathingStartTime = performance.now();
+
+  const step = () => {
+    if (!activeBreathingMap || activeBreathingMap !== map) {
+      stopRouteBreathing(map);
+      return;
+    }
+
+    if (!map.isStyleLoaded() || !map.getLayer('safe-route-glow') || !map.getLayer('safe-route-core')) {
+      // Pokud se styl zrovna načítá, počkáme na další snímek
+      breathingAnimationId = requestAnimationFrame(step);
+      return;
+    }
+
+    try {
+      const elapsed = performance.now() - breathingStartTime;
+      // Plynulá sinusová oscilace (perioda ~1.5s, hodnota 0.0 až 1.0)
+      const wave = (Math.sin((elapsed / 1000) * Math.PI * 1.33) + 1) / 2;
+
+      // Glow jemně pulzuje: opacity 0.35 až 0.75, blur 2.0 až 5.0
+      const currentGlowOpacity = 0.35 + wave * 0.40;
+      const currentGlowBlur = 2.0 + wave * 3.0;
+
+      // Jádro trasy jemně pulzuje: opacity 0.75 až 1.00
+      const currentCoreOpacity = 0.75 + wave * 0.25;
+
+      map.setPaintProperty('safe-route-glow', 'line-opacity', currentGlowOpacity);
+      map.setPaintProperty('safe-route-glow', 'line-blur', currentGlowBlur);
+      map.setPaintProperty('safe-route-core', 'line-opacity', currentCoreOpacity);
+
+      breathingAnimationId = requestAnimationFrame(step);
+    } catch {
+      stopRouteBreathing(map);
+    }
+  };
+
+  breathingAnimationId = requestAnimationFrame(step);
+}
+
+export function isRouteBreathing(): boolean {
+  return breathingAnimationId !== null;
+}
+
 export function renderRoute(map: maplibregl.Map, coords: [number, number][] | any[], isPending: boolean = false) {
   if (!map) return;
 
@@ -51,6 +146,7 @@ export function renderRoute(map: maplibregl.Map, coords: [number, number][] | an
 
   // Pokud souřadnice chybí nebo je méně než 2 body, vyčistíme zdroj trasy, aby nezůstávala viset stará trasa
   if (!validCoords || validCoords.length < 2) {
+    stopRouteBreathing(map);
     try {
       const source = map.getSource('safe-route-source') as maplibregl.GeoJSONSource | undefined;
       if (source) {
@@ -66,13 +162,18 @@ export function renderRoute(map: maplibregl.Map, coords: [number, number][] | an
   }
 
   // Pokud styl mapy ještě není připraven, počkáme na jeho načtení
-  if (!map.getStyle()) {
+  if (!map.isStyleLoaded()) {
     const onStyleReady = () => {
       renderRoute(map, validCoords, isPending);
     };
     map.once('style.load', onStyleReady);
     map.once('load', onStyleReady);
     return;
+  }
+
+  // Pokud nová trasa dorazila a není pending, zastavíme animaci dýchání a vrátíme výchozí čistý styl
+  if (!isPending) {
+    stopRouteBreathing(map);
   }
 
   const geojsonData: GeoJSON.FeatureCollection<GeoJSON.LineString> = {
@@ -95,9 +196,9 @@ export function renderRoute(map: maplibregl.Map, coords: [number, number][] | an
       source.setData(geojsonData);
     }
 
-    const glowOpacity = isPending ? 0.25 : 0.65;
-    const coreOpacity = isPending ? 0.35 : 1.0;
-    const coreColor = isPending ? '#6ee7b7' : '#059669';
+    const glowOpacity = isPending ? 0.35 : DEFAULT_GLOW_OPACITY;
+    const coreOpacity = isPending ? 0.65 : DEFAULT_CORE_OPACITY;
+    const coreColor = DEFAULT_CORE_COLOR;
 
     if (!map.getLayer('safe-route-glow')) {
       map.addLayer({
@@ -112,13 +213,14 @@ export function renderRoute(map: maplibregl.Map, coords: [number, number][] | an
         paint: {
           'line-color': '#10b981',
           'line-opacity': glowOpacity,
-          'line-blur': 3,
+          'line-blur': DEFAULT_GLOW_BLUR,
           'line-width': ['interpolate', ['linear'], ['zoom'], 10, 6, 13, 10, 16, 18]
         }
       });
-    } else {
+    } else if (!isRouteBreathing()) {
       map.setLayoutProperty('safe-route-glow', 'visibility', 'visible');
       map.setPaintProperty('safe-route-glow', 'line-opacity', glowOpacity);
+      map.setPaintProperty('safe-route-glow', 'line-blur', DEFAULT_GLOW_BLUR);
     }
 
     if (!map.getLayer('safe-route-core')) {
@@ -137,7 +239,7 @@ export function renderRoute(map: maplibregl.Map, coords: [number, number][] | an
           'line-width': ['interpolate', ['linear'], ['zoom'], 10, 3, 13, 5, 16, 9]
         }
       });
-    } else {
+    } else if (!isRouteBreathing()) {
       map.setLayoutProperty('safe-route-core', 'visibility', 'visible');
       map.setPaintProperty('safe-route-core', 'line-color', coreColor);
       map.setPaintProperty('safe-route-core', 'line-opacity', coreOpacity);

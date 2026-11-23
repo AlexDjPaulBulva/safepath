@@ -484,14 +484,18 @@ export function ParentDashboard({
         setSelectedRoute('A');
         setArgumentsText(generateParentArguments({ safeRoute: rA.metrics }, isChildMode));
       } catch (err: any) {
-        if (err?.name === 'AbortError' || controller.signal.aborted || currentRequestId !== routingRequestIdRef.current) {
+        if (currentRequestId !== routingRequestIdRef.current) {
           return;
         }
-        console.error('Chyba routingu:', err);
-        const message = err instanceof Error
-          ? err.message
-          : 'Nelze nalézt cestu po komunikacích. Zkuste body posunout blíže ke komunikaci.';
-        setRoutingError(message);
+        if (err?.name === 'AbortError' || controller.signal.aborted) {
+          console.warn('Výpočet trasy byl přerušen nebo vypršel časový limit pro request:', currentRequestId);
+        } else {
+          console.error('Chyba routingu:', err);
+          const message = err instanceof Error
+            ? err.message
+            : 'Nelze nalézt cestu po komunikacích. Zkuste body posunout blíže ke komunikaci.';
+          setRoutingError(message);
+        }
       } finally {
         if (currentRequestId === routingRequestIdRef.current) {
           setLoading(false);

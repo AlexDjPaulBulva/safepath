@@ -18,7 +18,7 @@ import { useCompassHeading } from '../hooks/useCompassHeading';
 import { AudioNavToggle } from './AudioNavToggle';
 import { SafePassModal } from './SafePassModal';
 import { MapErrorBoundary, MapErrorFallback } from './MapErrorBoundary';
-import { renderRoute, normalizeRouteCoords } from './map/RouteLayer';
+import { renderRoute, normalizeRouteCoords, startRouteBreathing, stopRouteBreathing } from './map/RouteLayer';
 import { setupMapClickHandler } from './map/ClickHandler';
 import { getSafetyDataFusion } from '../lib/safetyDataFusion';
 
@@ -479,18 +479,18 @@ export function Map(props: MapEngineProps) {
       if (props.startPoint) {
         const [firstLng, firstLat] = normalizedFastestCoords[0];
         const dStart = Math.hypot(firstLng - props.startPoint.lng, firstLat - props.startPoint.lat);
-        if (dStart > 0.0035) {
+        if (dStart > 0.0012) {
           normalizedFastestCoords = [];
-        } else if (dStart > 0.00002 && dStart < 0.0015) {
+        } else if (dStart > 0.00002 && dStart <= 0.0012) {
           normalizedFastestCoords.unshift([props.startPoint.lng, props.startPoint.lat]);
         }
       }
       if (normalizedFastestCoords.length >= 2 && props.endPoint) {
         const [lastLng, lastLat] = normalizedFastestCoords[normalizedFastestCoords.length - 1];
         const dEnd = Math.hypot(lastLng - props.endPoint.lng, lastLat - props.endPoint.lat);
-        if (dEnd > 0.0035) {
+        if (dEnd > 0.0012) {
           normalizedFastestCoords = [];
-        } else if (dEnd > 0.00002 && dEnd < 0.0015) {
+        } else if (dEnd > 0.00002 && dEnd <= 0.0012) {
           normalizedFastestCoords.push([props.endPoint.lng, props.endPoint.lat]);
         }
       }
@@ -569,6 +569,7 @@ export function Map(props: MapEngineProps) {
 
     map.on('load', () => {
       map.resize();
+      stopRouteBreathing(map);
       drawFastestRoute(map);
       const coords = (validCoordsRef.current && validCoordsRef.current.length >= 2)
         ? validCoordsRef.current
@@ -580,6 +581,7 @@ export function Map(props: MapEngineProps) {
     });
 
     map.on('style.load', () => {
+      stopRouteBreathing(map);
       drawFastestRoute(map);
       const coords = (validCoordsRef.current && validCoordsRef.current.length >= 2)
         ? validCoordsRef.current
@@ -694,26 +696,27 @@ export function Map(props: MapEngineProps) {
     const rawCoords = normalizeRouteCoords(Array.isArray(rawPoints) ? rawPoints : []);
     if (rawCoords.length < 2) return [];
 
-    // 1. Ověření, zda je trasa z úplně jiné části města (> 350 m od aktuálního kliku)
+    // 1. Ověření souladu trasy se zadaným START a CÍL:
+    // Pokud je start nebo cíl vzdálen více než 100 m (~0.0012°), trasa je odtržená a nepatří k novému bodu.
     if (props.startPoint) {
       const [firstLng, firstLat] = rawCoords[0];
       const dStart = Math.hypot(firstLng - props.startPoint.lng, firstLat - props.startPoint.lat);
-      if (dStart > 0.0035) return [];
+      if (dStart > 0.0012) return [];
     }
     if (props.endPoint) {
       const [lastLng, lastLat] = rawCoords[rawCoords.length - 1];
       const dEnd = Math.hypot(lastLng - props.endPoint.lng, lastLat - props.endPoint.lat);
-      if (dEnd > 0.0035) return [];
+      if (dEnd > 0.0012) return [];
     }
 
-    // 2. Plynulé napojení začátku a konce trasy na markery • START a • CÍL (do 120 m uliční odchylky).
+    // 2. Plynulé napojení začátku a konce trasy na markery • START a • CÍL (do 100 m).
     // Zajišťuje, že zelená linie začíná přesně pod markerem START bez odtržení či mezery.
     const connectedCoords: [number, number][] = [...rawCoords];
 
     if (props.startPoint) {
       const startCoord: [number, number] = [props.startPoint.lng, props.startPoint.lat];
       const dStart = Math.hypot(connectedCoords[0][0] - startCoord[0], connectedCoords[0][1] - startCoord[1]);
-      if (dStart > 0.00002 && dStart < 0.0015) {
+      if (dStart > 0.00002 && dStart <= 0.0012) {
         connectedCoords.unshift(startCoord);
       }
     }
@@ -722,7 +725,7 @@ export function Map(props: MapEngineProps) {
       const endCoord: [number, number] = [props.endPoint.lng, props.endPoint.lat];
       const lastIdx = connectedCoords.length - 1;
       const dEnd = Math.hypot(connectedCoords[lastIdx][0] - endCoord[0], connectedCoords[lastIdx][1] - endCoord[1]);
-      if (dEnd > 0.00002 && dEnd < 0.0015) {
+      if (dEnd > 0.00002 && dEnd <= 0.0012) {
         connectedCoords.push(endCoord);
       }
     }
@@ -758,6 +761,46 @@ export function Map(props: MapEngineProps) {
   validCoordsRef.current = validCoords;
 
   const isRoutePending = Boolean(props.isRoutingLoading);
+
+  // Přechod při výpočtu trasy s prahovou hodnotou 1000 ms:
+  // - Pokud se nová trasa dopočítá do 1 s, vykreslí se okamžitě a čekací animace se nespouští.
+  // - Pokud výpočet trvá déle než 1 s a máme stávající neodtrženou trasu, spustíme jemné plynulé dýchání vrstvy.
+  // - Jakmile nová trasa dorazí (nebo je výpočet ukončen), animace se ihned zastaví a vrátí čistý výchozí styl.
+  const breathingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const map = mapRef.current;
+
+    if (props.isRoutingLoading) {
+      if (!breathingTimerRef.current) {
+        breathingTimerRef.current = setTimeout(() => {
+          if (mapRef.current && props.isRoutingLoading) {
+            if (validCoordsRef.current && validCoordsRef.current.length >= 2) {
+              startRouteBreathing(mapRef.current);
+            }
+          }
+        }, 1000);
+      }
+    } else {
+      if (breathingTimerRef.current) {
+        clearTimeout(breathingTimerRef.current);
+        breathingTimerRef.current = null;
+      }
+      if (map) {
+        stopRouteBreathing(map);
+      }
+    }
+
+    return () => {
+      if (breathingTimerRef.current) {
+        clearTimeout(breathingTimerRef.current);
+        breathingTimerRef.current = null;
+      }
+      if (mapRef.current) {
+        stopRouteBreathing(mapRef.current);
+      }
+    };
+  }, [props.isRoutingLoading]);
 
   // 2. Vykreslení trasy WebGL vrstvou při jakékoliv změně validCoords nebo loading stavu
   useEffect(() => {
@@ -930,24 +973,12 @@ export function Map(props: MapEngineProps) {
       startMarkerRef.current = null;
     }
     if (props.startPoint) {
-      let markerLng = props.startPoint.lng;
-      let markerLat = props.startPoint.lat;
-
-      // Pokud máme dokončenou trasu (validCoords >= 2), zajistíme, aby marker • START
-      // perfektně seděl přesně na začátku linie trasy [validCoords[0]], čímž je zaručena 100% návaznost
-      // bez mezery či odtržení, a linie nemusí řezat zástavbu.
-      if (validCoords && validCoords.length >= 2) {
-        const [routeFirstLng, routeFirstLat] = validCoords[0];
-        const dist = Math.hypot(routeFirstLng - markerLng, routeFirstLat - markerLat);
-        if (dist < 0.001) { // cca 80 metrů
-          markerLng = routeFirstLng;
-          markerLat = routeFirstLat;
-        }
-      }
+      const markerLng = props.startPoint.lng;
+      const markerLat = props.startPoint.lat;
 
       const startEl = document.createElement('div');
-      startEl.style.cssText = 'display: inline-flex !important; align-items: center !important; gap: 4px !important; padding: 4px 10px !important; background: #059669 !important; color: #ffffff !important; font-size: 11px !important; font-weight: 800 !important; border-radius: 9999px !important; border: 2px solid #ffffff !important; box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important; white-space: nowrap !important; width: auto !important; min-width: max-content !important; flex-shrink: 0 !important; z-index: 40 !important;';
-      startEl.innerHTML = `<span style="width: 6px; height: 6px; border-radius: 50%; background: #ffffff;"></span><span>START</span>`;
+      startEl.style.cssText = 'box-sizing: border-box !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; gap: 5px !important; padding: 4px 10px !important; background: #059669 !important; color: #ffffff !important; font-size: 11px !important; font-weight: 800 !important; border-radius: 9999px !important; border: 2px solid #ffffff !important; box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important; white-space: nowrap !important; width: auto !important; min-width: max-content !important; flex-shrink: 0 !important; overflow: visible !important; line-height: 1 !important; z-index: 50 !important;';
+      startEl.innerHTML = `<span style="display: inline-block !important; width: 6px !important; height: 6px !important; border-radius: 50% !important; background: #ffffff !important; flex-shrink: 0 !important;"></span><span style="display: inline-block !important; white-space: nowrap !important; flex-shrink: 0 !important; font-size: 11px !important; font-weight: 800 !important; line-height: 1 !important;">START</span>`;
 
       startMarkerRef.current = new maplibregl.Marker({ element: startEl, anchor: 'center' })
         .setLngLat([markerLng, markerLat])
@@ -960,21 +991,12 @@ export function Map(props: MapEngineProps) {
       endMarkerRef.current = null;
     }
     if (props.endPoint) {
-      let markerLng = props.endPoint.lng;
-      let markerLat = props.endPoint.lat;
-
-      if (validCoords && validCoords.length >= 2) {
-        const [routeLastLng, routeLastLat] = validCoords[validCoords.length - 1];
-        const dist = Math.hypot(routeLastLng - markerLng, routeLastLat - markerLat);
-        if (dist < 0.001) { // cca 80 metrů
-          markerLng = routeLastLng;
-          markerLat = routeLastLat;
-        }
-      }
+      const markerLng = props.endPoint.lng;
+      const markerLat = props.endPoint.lat;
 
       const destEl = document.createElement('div');
-      destEl.style.cssText = 'display: inline-flex !important; align-items: center !important; gap: 4px !important; padding: 4px 10px !important; background: #4f46e5 !important; color: #ffffff !important; font-size: 11px !important; font-weight: 800 !important; border-radius: 9999px !important; border: 2px solid #ffffff !important; box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important; white-space: nowrap !important; width: auto !important; min-width: max-content !important; flex-shrink: 0 !important; z-index: 40 !important;';
-      destEl.innerHTML = `<span style="width: 6px; height: 6px; border-radius: 50%; background: #ffffff;"></span><span>CÍL</span>`;
+      destEl.style.cssText = 'box-sizing: border-box !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; gap: 5px !important; padding: 4px 10px !important; background: #4f46e5 !important; color: #ffffff !important; font-size: 11px !important; font-weight: 800 !important; border-radius: 9999px !important; border: 2px solid #ffffff !important; box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important; white-space: nowrap !important; width: auto !important; min-width: max-content !important; flex-shrink: 0 !important; overflow: visible !important; line-height: 1 !important; z-index: 50 !important;';
+      destEl.innerHTML = `<span style="display: inline-block !important; width: 6px !important; height: 6px !important; border-radius: 50% !important; background: #ffffff !important; flex-shrink: 0 !important;"></span><span style="display: inline-block !important; white-space: nowrap !important; flex-shrink: 0 !important; font-size: 11px !important; font-weight: 800 !important; line-height: 1 !important;">CÍL</span>`;
 
       endMarkerRef.current = new maplibregl.Marker({ element: destEl, anchor: 'center' })
         .setLngLat([markerLng, markerLat])
