@@ -688,8 +688,29 @@ export function Map(props: MapEngineProps) {
     const rawCoords = normalizeRouteCoords(Array.isArray(rawPoints) ? rawPoints : []);
     if (rawCoords.length < 2) return [];
 
-    // Trasa se vykresluje striktně podle uliční sítě OSRM (žádné umělé přímé spojnice ani řezání přes budovy)
-    return rawCoords;
+    const resultCoords: [number, number][] = [...rawCoords];
+
+    // Plynulé napojení na přesné souřadnice markeru • START bez mezery
+    if (props.startPoint) {
+      const sLng = props.startPoint.lng;
+      const sLat = props.startPoint.lat;
+      const first = resultCoords[0];
+      if (Math.hypot(first[0] - sLng, first[1] - sLat) > 0.000005) {
+        resultCoords.unshift([sLng, sLat]);
+      }
+    }
+
+    // Plynulé napojení na přesné souřadnice markeru • CÍL bez mezery
+    if (props.endPoint) {
+      const eLng = props.endPoint.lng;
+      const eLat = props.endPoint.lat;
+      const last = resultCoords[resultCoords.length - 1];
+      if (Math.hypot(last[0] - eLng, last[1] - eLat) > 0.000005) {
+        resultCoords.push([eLng, eLat]);
+      }
+    }
+
+    return resultCoords;
   }, [
     props.routeA,
     props.routeA?.geometry,
@@ -698,6 +719,10 @@ export function Map(props: MapEngineProps) {
     props.routeData,
     props.routeCoordinates,
     props.selectedRoute,
+    props.startPoint?.lat,
+    props.startPoint?.lng,
+    props.endPoint?.lat,
+    props.endPoint?.lng,
     activeRoute
   ]);
 
@@ -763,11 +788,11 @@ export function Map(props: MapEngineProps) {
     if (lastFittedRouteIdRef.current === routeSignature) return;
     lastFittedRouteIdRef.current = routeSignature;
 
-    // Odsazení zohledňující šířku levého postranního panelu na desktopu (~420 px) a ovládací prvky na mobilu
+    // Odsazení zohledňující šířku levého postranního panelu na desktopu (~420 px), horní ovládací prvky (SafePass, režim dětí) a mobilní prvky
     const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
     const fitPadding = isDesktop
-      ? { top: 100, bottom: 90, left: 420, right: 100 }
-      : { top: 80, bottom: 80, left: 60, right: 60 };
+      ? { top: 130, bottom: 95, left: 430, right: 105 }
+      : { top: 110, bottom: 85, left: 60, right: 60 };
 
     // Sestavení ohraničujícího obdélníku zahrnujícího trasu i samotné markery • START a • CÍL
     const bounds = new maplibregl.LngLatBounds();
@@ -795,10 +820,10 @@ export function Map(props: MapEngineProps) {
       const allVisibleInView = checkPoints.length > 0 && checkPoints.every(([lng, lat]) => {
         const pt = map.project([lng, lat]);
         return (
-          pt.x >= fitPadding.left + 15 &&
-          pt.x <= w - fitPadding.right - 15 &&
-          pt.y >= fitPadding.top + 15 &&
-          pt.y <= h - fitPadding.bottom - 15
+          pt.x >= fitPadding.left + 25 &&
+          pt.x <= w - fitPadding.right - 25 &&
+          pt.y >= fitPadding.top + 25 &&
+          pt.y <= h - fitPadding.bottom - 25
         );
       });
 
@@ -809,11 +834,11 @@ export function Map(props: MapEngineProps) {
       // Pokračovat standardním fitBounds
     }
 
-    // Plynulý jednorázový posun s bezpečným maxZoom (max 15.5), aby START i CÍL zůstaly vždy viditelné
+    // Plynulý jednorázový posun s bezpečným maxZoom (max 15.5), aby START i CÍL zůstaly vždy viditelné s dostatečným horním odstupem
     map.fitBounds(bounds, {
       padding: fitPadding,
       maxZoom: 15.5,
-      duration: 650
+      duration: 500
     });
   }, [validCoords, isMapLoaded, props.startPoint, props.endPoint]);
 

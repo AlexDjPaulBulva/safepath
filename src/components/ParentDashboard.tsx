@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sidebar } from './Sidebar';
 import { Map, MapErrorBoundary, MapErrorFallback } from './Map';
@@ -52,10 +52,10 @@ export function ParentDashboard({
   const [internalRoute, setInternalRoute] = useState<any>(null);
   const currentRouteData = propRouteData ?? propCurrentRouteData ?? propCurrentRoute ?? internalRoute;
   const currentRoute = currentRouteData;
-  const setCurrentRouteData = (route: any) => {
+  const setCurrentRouteData = useCallback((route: any) => {
     setInternalRoute(route);
     propOnRouteCalculated?.(route);
-  };
+  }, [propOnRouteCalculated]);
   const setCurrentRoute = setCurrentRouteData;
 
   const activeMode = useAppStore((state) => state.activeMode);
@@ -458,8 +458,8 @@ export function ParentDashboard({
     routingAbortControllerRef.current = controller;
     setIsRoutingLoading(true);
 
-    // Výpočet spuštěn okamžitě (0 ms) bez umělého zpoždění
-    const debounceTimer = setTimeout(async () => {
+    // Výpočet spuštěn okamžitě bez umělého zpoždění
+    (async () => {
       try {
         setRoutingError(null);
 
@@ -543,10 +543,9 @@ export function ParentDashboard({
           setIsRoutingLoading(false);
         }
       }
-    }, 0);
+    })();
 
     return () => {
-      clearTimeout(debounceTimer);
       controller.abort();
       if (currentRequestId === globalRequestIdRef.current) {
         setIsRoutingLoading(false);
@@ -1021,10 +1020,7 @@ export function ParentDashboard({
           activeProfiles={activeProfiles}
           activeMode={activeMode}
           onMetricHover={setSafetyReveal}
-          onRouteCalculated={(route) => {
-            console.log('App received route:', route);
-            setCurrentRouteData(route);
-          }}
+          onRouteCalculated={setCurrentRouteData}
           isRoutingLoading={isRoutingLoading}
           routingError={routingError}
           userLocation={userLocation}

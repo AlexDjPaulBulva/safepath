@@ -141,19 +141,6 @@ function RouteCard({
   onSelect?: () => void;
   isSingleRoute?: boolean;
 }) {
-  useEffect(() => {
-    if (route) {
-      const routeCoordinatesArray = extractRouteCoordinates(route);
-      onRouteCalculated?.({
-        ...route,
-        coordinates: routeCoordinatesArray,
-        distance: route.distance,
-        duration: route.duration,
-        steps: route.navigationSteps || []
-      });
-    }
-  }, [route, onRouteCalculated]);
-
   if (!route) {
     return null;
   }
@@ -325,9 +312,11 @@ export function Sidebar({
   };
 
   const calculatedRoute = selectedRoute === 'A' ? routeA : selectedRoute === 'B' ? (routeB || routeA) : (routeC || routeA);
+  const lastReportedRouteRef = useRef<any>(null);
 
   useEffect(() => {
-    if (calculatedRoute) {
+    if (calculatedRoute && calculatedRoute !== lastReportedRouteRef.current) {
+      lastReportedRouteRef.current = calculatedRoute;
       const routeCoordinatesArray = extractRouteCoordinates(calculatedRoute);
       onRouteCalculated?.({
         ...calculatedRoute,

@@ -155,8 +155,11 @@ export function startRouteBreathing(map: maplibregl.Map) {
  * Spustí se POUZE v případě, kdy výpočet aktuálního requestId trvá déle než 1000 ms.
  * Pokud výpočet trasy skončí rychleji, animace se vůbec nespustí.
  */
-export function scheduleRouteBreathing(map: maplibregl.Map, requestId: number, _currentCoords?: [number, number][]) {
+export function scheduleRouteBreathing(map: maplibregl.Map, requestId: number, currentCoords?: [number, number][]) {
   stopRouteBreathing(map);
+  if (!currentCoords || currentCoords.length < 2) {
+    return;
+  }
   activeBreathingRequestId = requestId;
 
   breathingDelayTimer = setTimeout(() => {
@@ -210,10 +213,8 @@ export function renderRoute(
   // Zajistíme, že základní styl a podkladové vrstvy jsou neporušeny
   ensureBaseStyleAndLayers(map);
 
-  // Pokud nová trasa dorazila a není pending, ihned zastavíme čekací animaci a obnovíme čistý styl
-  if (!isPending) {
-    stopRouteBreathing(map);
-  }
+  // Zastavíme čekací animaci a obnovíme čisté zobrazení trasy
+  stopRouteBreathing(map);
 
   const geojsonData: GeoJSON.FeatureCollection<GeoJSON.LineString> = {
     type: 'FeatureCollection',
@@ -234,10 +235,9 @@ export function renderRoute(
     } else {
       source.setData(geojsonData);
     }
-    map.triggerRepaint();
 
-    const glowOpacity = isPending ? 0.35 : DEFAULT_GLOW_OPACITY;
-    const coreOpacity = isPending ? 0.65 : DEFAULT_CORE_OPACITY;
+    const glowOpacity = isPending ? 0.45 : DEFAULT_GLOW_OPACITY;
+    const coreOpacity = isPending ? 0.75 : DEFAULT_CORE_OPACITY;
     const coreColor = DEFAULT_CORE_COLOR;
 
     if (!map.getLayer('safe-route-glow')) {
@@ -257,7 +257,7 @@ export function renderRoute(
           'line-width': ['interpolate', ['linear'], ['zoom'], 10, 6, 13, 10, 16, 18]
         }
       });
-    } else if (!isRouteBreathing()) {
+    } else {
       map.setLayoutProperty('safe-route-glow', 'visibility', 'visible');
       map.setPaintProperty('safe-route-glow', 'line-opacity', glowOpacity);
       map.setPaintProperty('safe-route-glow', 'line-blur', DEFAULT_GLOW_BLUR);
@@ -279,11 +279,12 @@ export function renderRoute(
           'line-width': ['interpolate', ['linear'], ['zoom'], 10, 3, 13, 5, 16, 9]
         }
       });
-    } else if (!isRouteBreathing()) {
+    } else {
       map.setLayoutProperty('safe-route-core', 'visibility', 'visible');
       map.setPaintProperty('safe-route-core', 'line-color', coreColor);
       map.setPaintProperty('safe-route-core', 'line-opacity', coreOpacity);
     }
+    map.triggerRepaint();
   } catch (err) {
     console.error('Chyba při renderování trasy v RouteLayer:', err);
   }

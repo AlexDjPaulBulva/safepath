@@ -501,19 +501,19 @@ function evaluateRoute(
 
   const displayGeometry: [number, number][] = [...rawBaseGeometry];
 
-  // Plynulá návaznost bez viditelné mezery přímo z bodu • START do tělesa trasy
+  // Plynulá návaznost bez viditelné mezery přímo z bodu • START do tělesa trasy (např. z vnitrobloku či dvora)
   if (startPoint && Array.isArray(startPoint) && startPoint.length === 2 && displayGeometry.length > 0) {
     const dStart = getDistance(startPoint[0], startPoint[1], displayGeometry[0][0], displayGeometry[0][1]);
-    if (dStart > 0.5 && dStart <= 60) {
+    if (dStart > 0.5) {
       displayGeometry.unshift(startPoint);
     }
   }
 
-  // Plynulá návaznost bez viditelné mezery z konce trasy přímo k markeru • CÍL
+  // Plynulá návaznost bez viditelné mezery z konce trasy přímo k markeru • CÍL (např. do areálu či dvora)
   if (endPoint && Array.isArray(endPoint) && endPoint.length === 2 && displayGeometry.length > 0) {
     const lastIdx = displayGeometry.length - 1;
     const dEnd = getDistance(endPoint[0], endPoint[1], displayGeometry[lastIdx][0], displayGeometry[lastIdx][1]);
-    if (dEnd > 0.5 && dEnd <= 60) {
+    if (dEnd > 0.5) {
       displayGeometry.push(endPoint);
     }
   }
