@@ -9,7 +9,7 @@ import { generateParentArguments, RouteComparison } from '../lib/nlp-generator';
 import { fetchOSRMRoute, RouteResult, RouteSegment, getPointAlongRoute } from '../lib/routing';
 import { getDistance } from '../lib/safety-engine';
 import { fetchOSMCameras, OSMSurveillanceFeature } from '../lib/osm-surveillance-harvester';
-import { reverseGeocode } from '../lib/geocoding';
+import { reverseGeocode, getLocalStreetOrPlace } from '../lib/geocoding';
 import { fetchOSMSafeHavens, SafeHavenFeature } from '../lib/opendata';
 import polyline from '@mapbox/polyline';
 
@@ -390,8 +390,15 @@ export function ParentDashboard({
 
   // 2. Načtení trasy přes OSRM s debouncingem a eliminací problikávání
   const routingRequestIdRef = useRef(0);
+  const routingAbortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
+    // Okamžitě zrušíme předchozí rozjetý výpočet, aby stará data nepřepisovala nová
+    if (routingAbortControllerRef.current) {
+      routingAbortControllerRef.current.abort();
+      routingAbortControllerRef.current = null;
+    }
+
     if (!startPoint || !endPoint) {
       setRouteA(null);
       setRouteB(null);
@@ -405,11 +412,17 @@ export function ParentDashboard({
     }
 
     const currentRequestId = ++routingRequestIdRef.current;
+    const controller = new AbortController();
+    routingAbortControllerRef.current = controller;
     setIsRoutingLoading(true);
 
     const debounceTimer = setTimeout(async () => {
       try {
         setRoutingError(null);
+
+        if (controller.signal.aborted || currentRequestId !== routingRequestIdRef.current) {
+          return;
+        }
 
         const { safetyNodes: sNodes, osmCameras: oCams, safeHavens: sHavens } = safetyDataRef.current;
 
@@ -439,10 +452,11 @@ export function ParentDashboard({
           combinedSafetyNodes,
           timeOfDay,
           activeProfiles,
-          activeMode
+          activeMode,
+          controller.signal
         );
 
-        if (currentRequestId !== routingRequestIdRef.current) return;
+        if (controller.signal.aborted || currentRequestId !== routingRequestIdRef.current) return;
         setRouteA(rA);
         const rACoords = Array.isArray(rA?.geometry)
           ? rA.geometry
@@ -463,12 +477,14 @@ export function ParentDashboard({
         setFastestRoute(fR || null);
         setSelectedRoute('A');
         setArgumentsText(generateParentArguments({ safeRoute: rA.metrics }, isChildMode));
-      } catch (err) {
-        if (currentRequestId !== routingRequestIdRef.current) return;
+      } catch (err: any) {
+        if (err?.name === 'AbortError' || controller.signal.aborted || currentRequestId !== routingRequestIdRef.current) {
+          return;
+        }
         console.error('Chyba routingu:', err);
-        const message = err instanceof Error && err.name === 'AbortError'
-          ? 'Výpočet trasy trval příliš dlouho. Zkuste body posunout blíže ke komunikaci.'
-          : (err instanceof Error ? err.message : 'Nelze nalézt cestu po komunikacích. Zkuste body posunout blíže ke komunikaci.');
+        const message = err instanceof Error
+          ? err.message
+          : 'Nelze nalézt cestu po komunikacích. Zkuste body posunout blíže ke komunikaci.';
         setRoutingError(message);
       } finally {
         if (currentRequestId === routingRequestIdRef.current) {
@@ -476,10 +492,11 @@ export function ParentDashboard({
           setIsRoutingLoading(false);
         }
       }
-    }, 180);
+    }, 150);
 
     return () => {
       clearTimeout(debounceTimer);
+      controller.abort();
       if (currentRequestId === routingRequestIdRef.current) {
         setIsRoutingLoading(false);
         setLoading(false);
@@ -502,33 +519,33 @@ export function ParentDashboard({
   };
 
   const handleSelectStart = async (lat: number, lng: number, name?: string) => {
-    const fallbackCoord = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-    const isGeneric = !name || name === 'Vybrané místo na mapě...' || name === fallbackCoord;
-    const initialName = !isGeneric ? name! : fallbackCoord;
+    const localQuickName = getLocalStreetOrPlace(lat, lng);
+    const coordFallback = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    const isGeneric = !name || name === 'Vybrané místo na mapě...' || name === coordFallback || name.startsWith('Místo (');
+    const initialName = (!isGeneric && name) ? name : (localQuickName || coordFallback);
 
     setStartPoint({ lat, lng, name: initialName });
     setMapCenter([lat, lng]);
 
-    if (isGeneric) {
-      try {
-        const address = await reverseGeocode(lat, lng);
-        setStartPoint(prev => {
-          if (!prev || prev.lat !== lat || prev.lng !== lng) return prev;
-          return { ...prev, name: address || fallbackCoord };
-        });
-      } catch {
-        setStartPoint(prev => {
-          if (!prev || prev.lat !== lat || prev.lng !== lng) return prev;
-          return { ...prev, name: fallbackCoord };
-        });
-      }
+    try {
+      const address = await reverseGeocode(lat, lng);
+      setStartPoint(prev => {
+        if (!prev || Math.hypot(prev.lat - lat, prev.lng - lng) > 0.0001) return prev;
+        return { ...prev, name: address };
+      });
+    } catch {
+      setStartPoint(prev => {
+        if (!prev || Math.hypot(prev.lat - lat, prev.lng - lng) > 0.0001) return prev;
+        return { ...prev, name: localQuickName || coordFallback };
+      });
     }
   };
 
   const handleSelectEnd = async (lat: number, lng: number, name?: string) => {
-    const fallbackCoord = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-    const isGeneric = !name || name === 'Vybrané místo na mapě...' || name === fallbackCoord;
-    const initialName = !isGeneric ? name! : fallbackCoord;
+    const localQuickName = getLocalStreetOrPlace(lat, lng);
+    const coordFallback = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    const isGeneric = !name || name === 'Vybrané místo na mapě...' || name === coordFallback || name.startsWith('Místo (');
+    const initialName = (!isGeneric && name) ? name : (localQuickName || coordFallback);
 
     setEndPoint({ lat, lng, name: initialName });
     if (!startPoint) {
@@ -538,19 +555,17 @@ export function ParentDashboard({
       }
     }
 
-    if (isGeneric) {
-      try {
-        const address = await reverseGeocode(lat, lng);
-        setEndPoint(prev => {
-          if (!prev || prev.lat !== lat || prev.lng !== lng) return prev;
-          return { ...prev, name: address || fallbackCoord };
-        });
-      } catch {
-        setEndPoint(prev => {
-          if (!prev || prev.lat !== lat || prev.lng !== lng) return prev;
-          return { ...prev, name: fallbackCoord };
-        });
-      }
+    try {
+      const address = await reverseGeocode(lat, lng);
+      setEndPoint(prev => {
+        if (!prev || Math.hypot(prev.lat - lat, prev.lng - lng) > 0.0001) return prev;
+        return { ...prev, name: address };
+      });
+    } catch {
+      setEndPoint(prev => {
+        if (!prev || Math.hypot(prev.lat - lat, prev.lng - lng) > 0.0001) return prev;
+        return { ...prev, name: localQuickName || coordFallback };
+      });
     }
   };
 
@@ -613,9 +628,10 @@ export function ParentDashboard({
   };
 
   const applyInstantPoint = (kind: 'start' | 'end', lat: number, lng: number, fallbackName?: string) => {
-    const fallbackCoord = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-    const isGeneric = !fallbackName || fallbackName === 'Vybrané místo na mapě...' || fallbackName === fallbackCoord;
-    const initialName = !isGeneric ? fallbackName! : fallbackCoord;
+    const localQuickName = getLocalStreetOrPlace(lat, lng);
+    const coordFallback = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    const isGeneric = !fallbackName || fallbackName === 'Vybrané místo na mapě...' || fallbackName === coordFallback || fallbackName.startsWith('Místo (');
+    const initialName = (!isGeneric && fallbackName) ? fallbackName : (localQuickName || coordFallback);
     const patch = { lat, lng, name: initialName };
 
     if (kind === 'start') {
@@ -623,16 +639,14 @@ export function ParentDashboard({
         const next = prev && prev.lat === lat && prev.lng === lng ? prev : patch;
         return next;
       });
-      if (isGeneric) {
-        reverseGeocode(lat, lng)
-          .then(resolved => {
-            setStartPoint(prev => {
-              if (!prev || prev.lat !== lat || prev.lng !== lng) return prev;
-              return { ...prev, name: resolved || fallbackCoord };
-            });
-          })
-          .catch(() => undefined);
-      }
+      reverseGeocode(lat, lng)
+        .then(resolved => {
+          setStartPoint(prev => {
+            if (!prev || Math.hypot(prev.lat - lat, prev.lng - lng) > 0.0001) return prev;
+            return { ...prev, name: resolved };
+          });
+        })
+        .catch(() => undefined);
       return;
     }
 
@@ -640,16 +654,14 @@ export function ParentDashboard({
       const next = prev && prev.lat === lat && prev.lng === lng ? prev : patch;
       return next;
     });
-    if (isGeneric) {
-      reverseGeocode(lat, lng)
-        .then(resolved => {
-          setEndPoint(prev => {
-            if (!prev || prev.lat !== lat || prev.lng !== lng) return prev;
-            return { ...prev, name: resolved || fallbackCoord };
-          });
-        })
-        .catch(() => undefined);
-    }
+    reverseGeocode(lat, lng)
+      .then(resolved => {
+        setEndPoint(prev => {
+          if (!prev || Math.hypot(prev.lat - lat, prev.lng - lng) > 0.0001) return prev;
+          return { ...prev, name: resolved };
+        });
+      })
+      .catch(() => undefined);
   };
 
   const handleMapClick = async (lat: number, lng: number, name?: string) => {
@@ -666,7 +678,7 @@ export function ParentDashboard({
         setStartPoint(effectiveStart);
       }
 
-      const defaultCoordName = name || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+      const defaultCoordName = name || getLocalStreetOrPlace(lat, lng) || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
 
       if (!effectiveStart) {
         applyInstantPoint('start', lat, lng, defaultCoordName);

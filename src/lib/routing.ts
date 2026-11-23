@@ -173,8 +173,15 @@ async function fetchFootAlternatives(
   sLng: number,
   sLat: number,
   eLng: number,
-  eLat: number
+  eLat: number,
+  signal?: AbortSignal
 ): Promise<any[]> {
+  if (signal?.aborted) {
+    const err = new Error('Aborted');
+    err.name = 'AbortError';
+    throw err;
+  }
+
   const cacheKey = `${sLng.toFixed(5)},${sLat.toFixed(5)}_${eLng.toFixed(5)},${eLat.toFixed(5)}`;
   const cached = footAlternativesCache.get(cacheKey);
   if (cached && (Date.now() - cached.timestamp < ROUTE_CACHE_TTL_MS)) {
@@ -186,6 +193,10 @@ async function fetchFootAlternatives(
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), ROUTE_FETCH_TIMEOUT_MS);
+  const onAbort = () => controller.abort();
+  if (signal) {
+    signal.addEventListener('abort', onAbort, { once: true });
+  }
 
   try {
     const response = await fetch(url, { signal: controller.signal });
@@ -200,6 +211,9 @@ async function fetchFootAlternatives(
     return data.routes;
   } finally {
     clearTimeout(timeoutId);
+    if (signal) {
+      signal.removeEventListener('abort', onAbort);
+    }
   }
 }
 
@@ -213,8 +227,13 @@ async function fetchFootRouteWithWaypoint(
   wpLng: number,
   wpLat: number,
   eLng: number,
-  eLat: number
+  eLat: number,
+  signal?: AbortSignal
 ): Promise<any[]> {
+  if (signal?.aborted) {
+    return [];
+  }
+
   const cacheKey = `${sLng.toFixed(5)},${sLat.toFixed(5)}_${wpLng.toFixed(5)},${wpLat.toFixed(5)}_${eLng.toFixed(5)},${eLat.toFixed(5)}`;
   const cached = footWaypointCache.get(cacheKey);
   if (cached && (Date.now() - cached.timestamp < ROUTE_CACHE_TTL_MS)) {
@@ -226,6 +245,10 @@ async function fetchFootRouteWithWaypoint(
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), ROUTE_FETCH_TIMEOUT_MS);
+  const onAbort = () => controller.abort();
+  if (signal) {
+    signal.addEventListener('abort', onAbort, { once: true });
+  }
 
   try {
     const response = await fetch(url, { signal: controller.signal });
@@ -238,6 +261,9 @@ async function fetchFootRouteWithWaypoint(
     return [];
   } finally {
     clearTimeout(timeoutId);
+    if (signal) {
+      signal.removeEventListener('abort', onAbort);
+    }
   }
 }
 
@@ -1240,8 +1266,15 @@ export async function fetchOSRMRoute(
   safetyNodes: SafetyFeature[],
   timeOfDay: number,
   profiles: string[] = ['parent'],
-  activeMode?: 'parent' | 'night_girl' | 'child'
+  activeMode?: 'parent' | 'night_girl' | 'child',
+  signal?: AbortSignal
 ): Promise<{ routeA: RouteResult; routeB: RouteResult | null; routeC: RouteResult | null; fastestRoute: RouteResult | null }> {
+  if (signal?.aborted) {
+    const err = new Error('Aborted');
+    err.name = 'AbortError';
+    throw err;
+  }
+
   const cacheKey = `${startLat.toFixed(4)},${startLng.toFixed(4)}->${endLat.toFixed(4)},${endLng.toFixed(4)}_${activeMode || 'default'}_${profiles.join(',')}_${timeOfDay}`;
 
   if (routeCache.has(cacheKey)) {
@@ -1276,7 +1309,13 @@ export async function fetchOSRMRoute(
   const isNightGirl = profiles.includes('night_girl');
 
   // 3. Načtení základních pěších alternativ
-  let rawRoutes = await fetchFootAlternatives(routeSLng, routeSLat, routeELng, routeELat);
+  let rawRoutes = await fetchFootAlternatives(routeSLng, routeSLat, routeELng, routeELat, signal);
+
+  if (signal?.aborted) {
+    const err = new Error('Aborted');
+    err.name = 'AbortError';
+    throw err;
+  }
 
   if (!rawRoutes || rawRoutes.length === 0) {
     throw new Error('Nelze nalézt pěší trasu po komunikacích. Zkuste body posunout blíže ke komunikaci.');
@@ -1306,6 +1345,8 @@ export async function fetchOSRMRoute(
   try {
     const transitHubs = findSafeTransitHubs(routeSLat, routeSLng, routeELat, routeELng, safetyNodes, rawFastest.distance);
     for (const hub of transitHubs.slice(0, 5)) {
+      if (signal?.aborted) break;
+
       // 1. Zkontroluj úhel napojení: Bod vkládej jako via-point POUZE tehdy,
       // pokud leží v geometrickém koridoru přímého směru chůze (úhel odklonu < 45° vůči vektoru trasy).
       const deflection = getDeflectionAngleDeg(routeSLat, routeSLng, routeELat, routeELng, hub.coords[0], hub.coords[1]);
@@ -1323,7 +1364,7 @@ export async function fetchOSRMRoute(
         continue;
       }
 
-      const hubRoutes = await fetchFootRouteWithWaypoint(routeSLng, routeSLat, hub.coords[1], hub.coords[0], routeELng, routeELat);
+      const hubRoutes = await fetchFootRouteWithWaypoint(routeSLng, routeSLat, hub.coords[1], hub.coords[0], routeELng, routeELat, signal);
       if (hubRoutes && hubRoutes.length > 0) {
         const candidateHubRoute = hubRoutes[0];
         const candidateCoords: [number, number][] = candidateHubRoute.geometry.coordinates.map(
@@ -1353,6 +1394,12 @@ export async function fetchOSRMRoute(
     console.warn('Aktivní bezpečnostní trasování přes koridor selhalo, pokračuji se standardními trasami:', hubErr);
   }
 
+  if (signal?.aborted) {
+    const err = new Error('Aborted');
+    err.name = 'AbortError';
+    throw err;
+  }
+
   // 5. Child Safety Constraint & TSK uzávěrky: validace a re-routing přes světelnou křižovatku nebo obcházku výkopu
   try {
     const primaryRouteCoords: [number, number][] = rawRoutes[0].geometry.coordinates.map(
@@ -1370,13 +1417,13 @@ export async function fetchOSRMRoute(
       suggestedWp = [vPt[0] + 0.0006, vPt[1] + 0.0006];
     }
 
-    if ((!safetyCheck.isChildSafe || !tramCheck.isTramSafe || tskCheck.hasHardClosureViolation) && suggestedWp) {
+    if ((!safetyCheck.isChildSafe || !tramCheck.isTramSafe || tskCheck.hasHardClosureViolation) && suggestedWp && !signal?.aborted) {
       const wp = suggestedWp;
       const deflection = getDeflectionAngleDeg(routeSLat, routeSLng, routeELat, routeELng, wp[0], wp[1]);
       const turnAngle = getTurnAngleAtWaypointDeg(routeSLat, routeSLng, wp[0], wp[1], routeELat, routeELng);
 
       if (deflection < 45 && turnAngle <= 120) {
-        const wpRoutes = await fetchFootRouteWithWaypoint(routeSLng, routeSLat, wp[1], wp[0], routeELng, routeELat);
+        const wpRoutes = await fetchFootRouteWithWaypoint(routeSLng, routeSLat, wp[1], wp[0], routeELng, routeELat, signal);
         if (wpRoutes && wpRoutes.length > 0) {
           const wpCoords: [number, number][] = wpRoutes[0].geometry.coordinates.map(
             ([lng, lat]: [number, number]) => [lat, lng]
@@ -1390,6 +1437,12 @@ export async function fetchOSRMRoute(
     }
   } catch (safetyErr) {
     console.warn('Child safety / TSK routing check failed, continuing with direct routes:', safetyErr);
+  }
+
+  if (signal?.aborted) {
+    const err = new Error('Aborted');
+    err.name = 'AbortError';
+    throw err;
   }
 
   // 6. Nalezení minimální fyzické délky trasy a vyřazení neúměrných zacházek

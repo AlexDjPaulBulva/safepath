@@ -62,8 +62,8 @@ export interface MapEngineProps {
   timeOfDay?: number;
   center?: [number, number] | null;
   onMapClick?: (lat: number, lng: number, name?: string) => void;
-  onSelectStart?: (lat: number, lng: number, name: string) => void;
-  onSelectEnd?: (lat: number, lng: number, name: string) => void;
+  onSelectStart?: (lat: number, lng: number, name?: string) => void;
+  onSelectEnd?: (lat: number, lng: number, name?: string) => void;
   isSimulating?: boolean;
   simulationProgress?: number;
   activeProfiles?: string[];
@@ -475,15 +475,14 @@ export function Map(props: MapEngineProps) {
 
     if (normalizedFastestCoords.length >= 2) {
       if (props.startPoint) {
-        const startCoord: [number, number] = [props.startPoint.lng, props.startPoint.lat];
-        const dStart = Math.hypot(normalizedFastestCoords[0][0] - startCoord[0], normalizedFastestCoords[0][1] - startCoord[1]);
-        if (dStart > 0.00005 && dStart < 0.00015) normalizedFastestCoords.unshift(startCoord);
+        const [firstLng, firstLat] = normalizedFastestCoords[0];
+        const dStart = Math.hypot(firstLng - props.startPoint.lng, firstLat - props.startPoint.lat);
+        if (dStart > 0.002) normalizedFastestCoords = [];
       }
-      if (props.endPoint) {
-        const endCoord: [number, number] = [props.endPoint.lng, props.endPoint.lat];
-        const lastIdx = normalizedFastestCoords.length - 1;
-        const dEnd = Math.hypot(normalizedFastestCoords[lastIdx][0] - endCoord[0], normalizedFastestCoords[lastIdx][1] - endCoord[1]);
-        if (dEnd > 0.00005 && dEnd < 0.00015) normalizedFastestCoords.push(endCoord);
+      if (normalizedFastestCoords.length >= 2 && props.endPoint) {
+        const [lastLng, lastLat] = normalizedFastestCoords[normalizedFastestCoords.length - 1];
+        const dEnd = Math.hypot(lastLng - props.endPoint.lng, lastLat - props.endPoint.lat);
+        if (dEnd > 0.002) normalizedFastestCoords = [];
       }
     }
 
@@ -590,14 +589,10 @@ export function Map(props: MapEngineProps) {
       () => startPointRef.current,
       () => endPointRef.current,
       (pt) => {
-        const coordLabel = `${pt.lat.toFixed(4)}, ${pt.lng.toFixed(4)}`;
-        setStartPointRef.current?.({ ...pt, name: coordLabel });
-        onSelectStartRef.current?.(pt.lat, pt.lng, coordLabel);
+        onSelectStartRef.current?.(pt.lat, pt.lng);
       },
       (pt) => {
-        const coordLabel = `${pt.lat.toFixed(4)}, ${pt.lng.toFixed(4)}`;
-        setEndPointRef.current?.({ ...pt, name: coordLabel });
-        onSelectEndRef.current?.(pt.lat, pt.lng, coordLabel);
+        onSelectEndRef.current?.(pt.lat, pt.lng);
       }
     );
 
@@ -690,6 +685,20 @@ export function Map(props: MapEngineProps) {
 
     if (rawCoords.length < 2) return [];
 
+    // Ověříme, zda stávající trasa odpovídá aktuálním bodům Start a Cíl.
+    // Pokud uživatel kliknul jinam a body jsou vzdáleny (> 150 m), trasa je pro tento bod zastaralá
+    // a nesmí se vykreslovat s nově posunutými markery, dokud není hotová nová geometrie.
+    if (props.startPoint) {
+      const [firstLng, firstLat] = rawCoords[0];
+      const dStart = Math.hypot(firstLng - props.startPoint.lng, firstLat - props.startPoint.lat);
+      if (dStart > 0.002) return [];
+    }
+    if (props.endPoint) {
+      const [lastLng, lastLat] = rawCoords[rawCoords.length - 1];
+      const dEnd = Math.hypot(lastLng - props.endPoint.lng, lastLat - props.endPoint.lat);
+      if (dEnd > 0.002) return [];
+    }
+
     // Finální souřadnice z dokončeného výpočtu trasy OSRM.
     // Nepoužíváme syrové kliknuté body jako náhradní spojnice, aby nedocházelo k řezání zástavby.
     return rawCoords;
@@ -701,7 +710,9 @@ export function Map(props: MapEngineProps) {
     props.routeData,
     props.routeCoordinates,
     props.selectedRoute,
-    activeRoute
+    activeRoute,
+    props.startPoint,
+    props.endPoint
   ]);
 
   const hasBothPoints = Boolean(props.startPoint && props.endPoint);
@@ -720,34 +731,21 @@ export function Map(props: MapEngineProps) {
 
   validCoordsRef.current = validCoords;
 
-  // 2. Vykreslení trasy WebGL vrstvou při jakékoliv změně validCoords nebo routeA.geometry
+  // 2. Vykreslení trasy WebGL vrstvou při jakékoliv změně validCoords
   useEffect(() => {
     validCoordsRef.current = validCoords;
     const map = mapRef.current;
     if (!map) return;
 
-    const coordsToRender = (validCoords && validCoords.length >= 2)
-      ? validCoords
-      : (props.routeA?.geometry && props.routeA.geometry.length >= 2)
-        ? normalizeRouteCoords(props.routeA.geometry)
-        : (activeRoute?.geometry && activeRoute.geometry.length >= 2)
-          ? normalizeRouteCoords(activeRoute.geometry)
-          : [];
-
+    const coordsToRender = (validCoords && validCoords.length >= 2) ? validCoords : [];
     renderRoute(map, coordsToRender);
-  }, [validCoords, props.routeA, props.routeA?.geometry, activeRoute?.geometry, isMapLoaded]);
+  }, [validCoords, isMapLoaded]);
 
   // Synchronní aktualizace SVG linie trasy pro okamžitou a zaručenou viditelnost
   const updateSvgOverlay = useCallback(() => {
     const map = mapRef.current;
     if (!map) return;
-    const coords = (validCoords && validCoords.length >= 2)
-      ? validCoords
-      : (props.routeA?.geometry && props.routeA.geometry.length >= 2)
-        ? normalizeRouteCoords(props.routeA.geometry)
-        : (activeRoute?.geometry && activeRoute.geometry.length >= 2)
-          ? normalizeRouteCoords(activeRoute.geometry)
-          : [];
+    const coords = (validCoords && validCoords.length >= 2) ? validCoords : [];
 
     if (!coords || coords.length < 2) {
       setSvgPath('');
