@@ -390,6 +390,7 @@ export function ParentDashboard({
 
   // 2. Načtení trasy přes OSRM s debouncingem na 0 ms, izolací kliků a sekvenčním requestId
   const globalRequestIdRef = useRef(0);
+  const lastUpdatedPointRef = useRef<'start' | 'end'>('end');
   const routingAbortControllerRef = useRef<AbortController | null>(null);
   const startGeocodeAbortControllerRef = useRef<AbortController | null>(null);
   const endGeocodeAbortControllerRef = useRef<AbortController | null>(null);
@@ -657,6 +658,7 @@ export function ParentDashboard({
     const isGeneric = !fallbackName || fallbackName === 'Vybrané místo na mapě...' || fallbackName === coordFallback || fallbackName.startsWith('Místo (');
     const initialName = (!isGeneric && fallbackName) ? fallbackName : (localQuickName || coordFallback);
     const patch = { lat, lng, name: initialName };
+    lastUpdatedPointRef.current = kind;
 
     if (centerMap) {
       setMapCenter([lat, lng]);
@@ -750,18 +752,15 @@ export function ParentDashboard({
         }
         return;
       } else {
-        // Obě hodnoty existují -> inteligentní rozhodnutí podle vzdálenosti
-        const distToStart = Math.hypot(lat - effectiveStart.lat, lng - effectiveStart.lng);
-        const distToEnd = Math.hypot(lat - endPoint.lat, lng - endPoint.lng);
-
-        if (distToStart < distToEnd) {
-          applyInstantPoint('start', lat, lng, defaultCoordName);
-          setSelectedRoute('A');
-          showMapToast('Start aktualizován. Přepočítávám trasu...', 'success');
-        } else {
+        // Obě hodnoty existují -> střídání posledně upraveného bodu
+        if (lastUpdatedPointRef.current === 'start') {
           applyInstantPoint('end', lat, lng, defaultCoordName);
           setSelectedRoute('A');
           showMapToast('Cíl aktualizován. Přepočítávám trasu...', 'success');
+        } else {
+          applyInstantPoint('start', lat, lng, defaultCoordName);
+          setSelectedRoute('A');
+          showMapToast('Start aktualizován. Přepočítávám trasu...', 'success');
         }
       }
     } catch (e) {

@@ -8,6 +8,9 @@ export function setupMapClickHandler(
   onSetEnd: (pt: { lat: number; lng: number }) => void,
   isSettingStartMode?: () => boolean
 ) {
+  // Pamatuje si naposledy upravený bod pro střídání při klikání do mapy
+  let lastUpdated: 'start' | 'end' = 'end';
+
   map.on('click', (e: maplibregl.MapMouseEvent) => {
     const lat = e.lngLat.lat;
     const lng = e.lngLat.lng;
@@ -20,32 +23,34 @@ export function setupMapClickHandler(
     const forceStart = isShiftPressed || (isSettingStartMode ? isSettingStartMode() : false);
 
     if (forceStart) {
+      lastUpdated = 'start';
       onSetStart({ lat, lng });
       return;
     }
 
     // 2. Pokud nemáme start, nastavíme START
     if (!start) {
+      lastUpdated = 'start';
       onSetStart({ lat, lng });
       return;
     }
 
     // 3. Pokud nemáme cíl, nastavíme CÍL
     if (!end) {
+      lastUpdated = 'end';
       onSetEnd({ lat, lng });
       return;
     }
 
     // 4. Obě hodnoty existují:
-    // Inteligentní rozhodování podle vzdálenosti:
-    // Pokud je nový klik blíž k současnému startu než k cíli, aktualizujeme start, jinak cíl!
-    const distToStart = Math.hypot(lat - start.lat, lng - start.lng);
-    const distToEnd = Math.hypot(lat - end.lat, lng - end.lng);
-
-    if (distToStart < distToEnd) {
-      onSetStart({ lat, lng });
-    } else {
+    // Střídání posledně upraveného bodu:
+    // Pokud předchozí kliknutí změnilo start, další kliknutí do mapy automaticky změní cíl – a obráceně.
+    if (lastUpdated === 'start') {
+      lastUpdated = 'end';
       onSetEnd({ lat, lng });
+    } else {
+      lastUpdated = 'start';
+      onSetStart({ lat, lng });
     }
   });
 }

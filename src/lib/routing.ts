@@ -117,8 +117,8 @@ export interface RouteResult {
   infoPoints?: RouteInfoPoint[];
 }
 
-const ROUTE_FETCH_TIMEOUT_MS = 1500; // Zkráceno na 1.5s pro bleskovou odezvu trasy a spolehlivý fallback
-const WAYPOINT_FETCH_TIMEOUT_MS = 600; // Zkráceno na 600ms pro rychlé ověření mezilehlých bodů bez zpoždění
+const ROUTE_FETCH_TIMEOUT_MS = 3500; // Zvýšeno na 3.5s pro spolehlivou odezvu OSRM po uliční síti bez falešných timeoutů
+const WAYPOINT_FETCH_TIMEOUT_MS = 1500; // 1.5s pro rychlé ověření mezilehlých bodů bez zbytečného prodlení
 const MAX_DETOUR_RATIO = 1.30; // Omezení zacházky: max 30 % oproti nejkratší trase (poskytuje prostor pro bezpečné obcházky přes světla)
 const STANDARD_WALK_SPEED_KMH = 4.5;
 const FAST_WALK_SPEED_KMH = 5.2;
@@ -168,55 +168,6 @@ const footWaypointCache = new Map<string, { data: any[]; timestamp: number }>();
 const ROUTE_CACHE_TTL_MS = 15 * 60 * 1000; // 15 minut
 
 /**
- * Vytvoří syntetickou přímou pěší trasu mezi dvěma body v případě výpadku nebo timeoutu OSRM serveru (> 1500 ms).
- * Zaručuje, že mapa nikdy nezůstane prázdná a uživatel dostane spolehlivou odezvu do limitu.
- */
-function createDirectFallbackRoute(sLng: number, sLat: number, eLng: number, eLat: number): any {
-  const distance = Math.round(getDistance(sLat, sLng, eLat, eLng));
-  const duration = Math.round(distance / ((STANDARD_WALK_SPEED_KMH * 1000) / 3600));
-
-  const numSteps = Math.max(3, Math.min(10, Math.ceil(distance / 50)));
-  const coords: [number, number][] = [];
-  for (let i = 0; i <= numSteps; i++) {
-    const t = i / numSteps;
-    coords.push([
-      Number((sLng + (eLng - sLng) * t).toFixed(6)),
-      Number((sLat + (eLat - sLat) * t).toFixed(6))
-    ]);
-  }
-
-  return {
-    _isFallback: true,
-    distance,
-    duration,
-    geometry: {
-      type: 'LineString',
-      coordinates: coords
-    },
-    legs: [
-      {
-        distance,
-        duration,
-        steps: [
-          {
-            distance,
-            duration,
-            name: 'Pěší trasa (základní spojení)',
-            geometry: {
-              coordinates: coords
-            },
-            maneuver: {
-              type: 'depart',
-              location: [sLng, sLat]
-            }
-          }
-        ]
-      }
-    ]
-  };
-}
-
-/**
  * Zavolá skutečný pěší OSRM profil OpenStreetMap (routed-foot):
  */
 async function fetchFootAlternatives(
@@ -259,14 +210,6 @@ async function fetchFootAlternatives(
     }
     footAlternativesCache.set(cacheKey, { data: data.routes, timestamp: Date.now() });
     return data.routes;
-  } catch (err: any) {
-    if (signal?.aborted) {
-      const abortErr = new Error('Aborted');
-      abortErr.name = 'AbortError';
-      throw abortErr;
-    }
-    console.warn('fetchFootAlternatives: OSRM timeout (>1500 ms) nebo nedostupnost, vracím garantovanou základní trasu:', err?.message || err);
-    return [createDirectFallbackRoute(sLng, sLat, eLng, eLat)];
   } finally {
     clearTimeout(timeoutId);
     if (signal) {
@@ -1418,17 +1361,7 @@ export async function fetchOSRMRoute(
   const isNightGirl = profiles.includes('night_girl');
 
   // 3. Načtení základních pěších alternativ
-  let rawRoutes: any[];
-  try {
-    rawRoutes = await fetchFootAlternatives(routeSLng, routeSLat, routeELng, routeELat, signal);
-  } catch (err: any) {
-    if (signal?.aborted || err?.name === 'AbortError') {
-      const abortErr = new Error('Aborted');
-      abortErr.name = 'AbortError';
-      throw abortErr;
-    }
-    rawRoutes = [createDirectFallbackRoute(routeSLng, routeSLat, routeELng, routeELat)];
-  }
+  const rawRoutes = await fetchFootAlternatives(routeSLng, routeSLat, routeELng, routeELat, signal);
 
   if (signal?.aborted) {
     const err = new Error('Aborted');
@@ -1437,133 +1370,126 @@ export async function fetchOSRMRoute(
   }
 
   if (!rawRoutes || rawRoutes.length === 0) {
-    rawRoutes = [createDirectFallbackRoute(routeSLng, routeSLat, routeELng, routeELat)];
+    throw new Error('Nelze nalézt pěší trasu po komunikacích. Zkuste body posunout blíže ke komunikaci.');
   }
 
-  const isFallbackRoute = Boolean(rawRoutes[0]?._isFallback);
+  // Surová nejkratší pěší trasa (OSRM foot bez bezpečnostních penalizací a obcházek)
+  const rawFastest = rawRoutes[0];
+  let fastestRoute: RouteResult | null = null;
+  try {
+    const fastestCandidate = evaluateRoute(rawFastest, safetyNodes, isNight, profiles, [routeSLat, routeSLng], [routeELat, routeELng], timeOfDay);
+    fastestRoute = candidateToRouteResult(
+      fastestCandidate,
+      'routeC',
+      'Nejrychlejší trasa',
+      'Běžná nejkratší pěší trasa bez bezpečnostních obcházek.',
+      'Trasa standardní navigace bez zohlednění kamer a bezpečných přechodů.',
+      ['[Běžná navigace]', '[Nejkratší]', '[Rychlá]']
+    );
+  } catch (fastestErr) {
+    console.warn('Evaluace fastestRoute se nezdařila:', fastestErr);
+  }
+
+  // 4. Aktivní bezpečnostní trasování přes bezpečné uzly (Safe Transit Hubs a školní koridory IPR)
+  // Pokud cesta vede bočními uličkami, odkloníme trasu na osvětlený bulvár s MKS kamerami a světelnými přechody (max 25% prodloužení)
+  const infoPointsAlongRoute: RouteInfoPoint[] = [];
 
   try {
-    // Surová nejkratší pěší trasa (OSRM foot bez bezpečnostních penalizací a obcházek)
-    const rawFastest = rawRoutes[0];
-    let fastestRoute: RouteResult | null = null;
-    try {
-      const fastestCandidate = evaluateRoute(rawFastest, safetyNodes, isNight, profiles, [routeSLat, routeSLng], [routeELat, routeELng], timeOfDay);
-      fastestRoute = candidateToRouteResult(
-        fastestCandidate,
-        'routeC',
-        'Nejrychlejší trasa',
-        'Běžná nejkratší pěší trasa bez bezpečnostních obcházek.',
-        'Trasa standardní navigace bez zohlednění kamer a bezpečných přechodů.',
-        ['[Běžná navigace]', '[Nejkratší]', '[Rychlá]']
-      );
-    } catch (fastestErr) {
-      console.warn('Evaluace fastestRoute se nezdařila:', fastestErr);
-    }
+    const transitHubs = findSafeTransitHubs(routeSLat, routeSLng, routeELat, routeELng, safetyNodes, rawFastest.distance);
+    for (const hub of transitHubs.slice(0, 1)) {
+      if (signal?.aborted) break;
 
-    // 4. Aktivní bezpečnostní trasování přes bezpečné uzly (Safe Transit Hubs a školní koridory IPR)
-    // Pokud cesta vede bočními uličkami, odkloníme trasu na osvětlený bulvár s MKS kamerami a světelnými přechody (max 25% prodloužení)
-    const infoPointsAlongRoute: RouteInfoPoint[] = [];
+      // 1. Zkontroluj úhel napojení: Bod vkládej jako via-point POUZE tehdy,
+      // pokud leží v geometrickém koridoru přímého směru chůze (úhel odklonu < 45° vůči vektoru trasy).
+      const deflection = getDeflectionAngleDeg(routeSLat, routeSLng, routeELat, routeELng, hub.coords[0], hub.coords[1]);
+      const turnAngle = getTurnAngleAtWaypointDeg(routeSLat, routeSLng, hub.coords[0], hub.coords[1], routeELat, routeELng);
 
-    if (!isFallbackRoute) {
-      try {
-        const transitHubs = findSafeTransitHubs(routeSLat, routeSLng, routeELat, routeELng, safetyNodes, rawFastest.distance);
-        for (const hub of transitHubs.slice(0, 1)) {
-          if (signal?.aborted) break;
-
-          // 1. Zkontroluj úhel napojení: Bod vkládej jako via-point POUZE tehdy,
-          // pokud leží v geometrickém koridoru přímého směru chůze (úhel odklonu < 45° vůči vektoru trasy).
-          const deflection = getDeflectionAngleDeg(routeSLat, routeSLng, routeELat, routeELng, hub.coords[0], hub.coords[1]);
-          const turnAngle = getTurnAngleAtWaypointDeg(routeSLat, routeSLng, hub.coords[0], hub.coords[1], routeELat, routeELng);
-
-          if (deflection >= 45 || turnAngle > 120) {
-            // Pokud by bod vyvolal zacházku tam a zpět, trasu veď přímo a bod označ pouze jako informační bod podél cesty
-            infoPointsAlongRoute.push({
-              lat: hub.coords[0],
-              lng: hub.coords[1],
-              name: hub.name,
-              type: 'safe_hub',
-              description: `Bezpečný bod podél cesty: ${hub.corridorName}`
-            });
-            continue;
-          }
-
-          const hubRoutes = await fetchFootRouteWithWaypoint(routeSLng, routeSLat, hub.coords[1], hub.coords[0], routeELng, routeELat, signal);
-          if (hubRoutes && hubRoutes.length > 0) {
-            const candidateHubRoute = hubRoutes[0];
-            const candidateCoords: [number, number][] = candidateHubRoute.geometry.coordinates.map(
-              ([lng, lat]: [number, number]) => [lat, lng]
-            );
-
-            // 2. ZAKAŽ jakékoliv vkládání bodů, které vyvolají otočení o více než 120° a návrat po stejné ulici zpět (backtracking / slepé rameno).
-            if (hasRouteBacktrackingSpur(candidateCoords, hub.coords)) {
-              // Trasu veď přímo a bod označ pouze jako informační bod podél cesty
-              infoPointsAlongRoute.push({
-                lat: hub.coords[0],
-                lng: hub.coords[1],
-                name: hub.name,
-                type: 'safe_hub',
-                description: `Bezpečný bod v dosahu (přímý průchod bez slepé odbočky): ${hub.corridorName}`
-              });
-              continue;
-            }
-
-            if (candidateHubRoute.distance <= rawFastest.distance * 1.25) {
-              rawRoutes.unshift(candidateHubRoute);
-              break;
-            }
-          }
-        }
-      } catch (hubErr) {
-        console.warn('Aktivní bezpečnostní trasování přes koridor selhalo, pokračuji se standardními trasami:', hubErr);
+      if (deflection >= 45 || turnAngle > 120) {
+        // Pokud by bod vyvolal zacházku tam a zpět, trasu veď přímo a bod označ pouze jako informační bod podél cesty
+        infoPointsAlongRoute.push({
+          lat: hub.coords[0],
+          lng: hub.coords[1],
+          name: hub.name,
+          type: 'safe_hub',
+          description: `Bezpečný bod podél cesty: ${hub.corridorName}`
+        });
+        continue;
       }
-    }
 
-    if (signal?.aborted) {
-      const err = new Error('Aborted');
-      err.name = 'AbortError';
-      throw err;
-    }
-
-    // 5. Child Safety Constraint & TSK uzávěrky: validace a re-routing přes světelnou křižovatku nebo obcházku výkopu
-    if (!isFallbackRoute) {
-      try {
-        const primaryRouteCoords: [number, number][] = rawRoutes[0].geometry.coordinates.map(
+      const hubRoutes = await fetchFootRouteWithWaypoint(routeSLng, routeSLat, hub.coords[1], hub.coords[0], routeELng, routeELat, signal);
+      if (hubRoutes && hubRoutes.length > 0) {
+        const candidateHubRoute = hubRoutes[0];
+        const candidateCoords: [number, number][] = candidateHubRoute.geometry.coordinates.map(
           ([lng, lat]: [number, number]) => [lat, lng]
         );
-        const safetyCheck = validateChildSafetyConstraint(primaryRouteCoords, getGlobalCrossingIndex());
-        const tramCheck = validateTramCrossingSafety(primaryRouteCoords);
-        const tskCheck = fusion.checkTSKClosures(primaryRouteCoords);
 
-        let suggestedWp = safetyCheck.suggestedWaypoint;
-        if (!tramCheck.isTramSafe && tramCheck.tramViolations.length > 0) {
-          suggestedWp = tramCheck.tramViolations[0].nearestSignalizedCrossing.coords;
-        } else if (tskCheck.hasHardClosureViolation && tskCheck.closureViolations.length > 0) {
-          const vPt = tskCheck.closureViolations[0].point;
-          suggestedWp = [vPt[0] + 0.0006, vPt[1] + 0.0006];
+        // 2. ZAKAŽ jakékoliv vkládání bodů, které vyvolají otočení o více než 120° a návrat po stejné ulici zpět (backtracking / slepé rameno).
+        if (hasRouteBacktrackingSpur(candidateCoords, hub.coords)) {
+          // Trasu veď přímo a bod označ pouze jako informační bod podél cesty
+          infoPointsAlongRoute.push({
+            lat: hub.coords[0],
+            lng: hub.coords[1],
+            name: hub.name,
+            type: 'safe_hub',
+            description: `Bezpečný bod v dosahu (přímý průchod bez slepé odbočky): ${hub.corridorName}`
+          });
+          continue;
         }
 
-        if ((!safetyCheck.isChildSafe || !tramCheck.isTramSafe || tskCheck.hasHardClosureViolation) && suggestedWp && !signal?.aborted) {
-          const wp = suggestedWp;
-          const deflection = getDeflectionAngleDeg(routeSLat, routeSLng, routeELat, routeELng, wp[0], wp[1]);
-          const turnAngle = getTurnAngleAtWaypointDeg(routeSLat, routeSLng, wp[0], wp[1], routeELat, routeELng);
-
-          if (deflection < 45 && turnAngle <= 120) {
-            const wpRoutes = await fetchFootRouteWithWaypoint(routeSLng, routeSLat, wp[1], wp[0], routeELng, routeELat, signal);
-            if (wpRoutes && wpRoutes.length > 0) {
-              const wpCoords: [number, number][] = wpRoutes[0].geometry.coordinates.map(
-                ([lng, lat]: [number, number]) => [lat, lng]
-              );
-              if (!hasRouteBacktrackingSpur(wpCoords, wp)) {
-                // Vložíme bezpečnou trasu vedenou přes světelnou křižovatku nebo obcházku výkopu jako prioritní variantu
-                rawRoutes.unshift(wpRoutes[0]);
-              }
-            }
-          }
+        if (candidateHubRoute.distance <= rawFastest.distance * 1.25) {
+          rawRoutes.unshift(candidateHubRoute);
+          break;
         }
-      } catch (safetyErr) {
-        console.warn('Child safety / TSK routing check failed, continuing with direct routes:', safetyErr);
       }
     }
+  } catch (hubErr) {
+    console.warn('Aktivní bezpečnostní trasování přes koridor selhalo, pokračuji se standardními trasami:', hubErr);
+  }
+
+  if (signal?.aborted) {
+    const err = new Error('Aborted');
+    err.name = 'AbortError';
+    throw err;
+  }
+
+  // 5. Child Safety Constraint & TSK uzávěrky: validace a re-routing přes světelnou křižovatku nebo obcházku výkopu
+  try {
+    const primaryRouteCoords: [number, number][] = rawRoutes[0].geometry.coordinates.map(
+      ([lng, lat]: [number, number]) => [lat, lng]
+    );
+    const safetyCheck = validateChildSafetyConstraint(primaryRouteCoords, getGlobalCrossingIndex());
+    const tramCheck = validateTramCrossingSafety(primaryRouteCoords);
+    const tskCheck = fusion.checkTSKClosures(primaryRouteCoords);
+
+    let suggestedWp = safetyCheck.suggestedWaypoint;
+    if (!tramCheck.isTramSafe && tramCheck.tramViolations.length > 0) {
+      suggestedWp = tramCheck.tramViolations[0].nearestSignalizedCrossing.coords;
+    } else if (tskCheck.hasHardClosureViolation && tskCheck.closureViolations.length > 0) {
+      const vPt = tskCheck.closureViolations[0].point;
+      suggestedWp = [vPt[0] + 0.0006, vPt[1] + 0.0006];
+    }
+
+    if ((!safetyCheck.isChildSafe || !tramCheck.isTramSafe || tskCheck.hasHardClosureViolation) && suggestedWp && !signal?.aborted) {
+      const wp = suggestedWp;
+      const deflection = getDeflectionAngleDeg(routeSLat, routeSLng, routeELat, routeELng, wp[0], wp[1]);
+      const turnAngle = getTurnAngleAtWaypointDeg(routeSLat, routeSLng, wp[0], wp[1], routeELat, routeELng);
+
+      if (deflection < 45 && turnAngle <= 120) {
+        const wpRoutes = await fetchFootRouteWithWaypoint(routeSLng, routeSLat, wp[1], wp[0], routeELng, routeELat, signal);
+        if (wpRoutes && wpRoutes.length > 0) {
+          const wpCoords: [number, number][] = wpRoutes[0].geometry.coordinates.map(
+            ([lng, lat]: [number, number]) => [lat, lng]
+          );
+          if (!hasRouteBacktrackingSpur(wpCoords, wp)) {
+            // Vložíme bezpečnou trasu vedenou přes světelnou křižovatku nebo obcházku výkopu jako prioritní variantu
+            rawRoutes.unshift(wpRoutes[0]);
+          }
+        }
+      }
+    }
+  } catch (safetyErr) {
+    console.warn('Child safety / TSK routing check failed, continuing with direct routes:', safetyErr);
+  }
 
     if (signal?.aborted) {
       const err = new Error('Aborted');
@@ -1727,33 +1653,6 @@ export async function fetchOSRMRoute(
     }
     routeCache.set(cacheKey, adultResult);
     return adultResult;
-  } catch (evalErr: any) {
-    if (signal?.aborted || evalErr?.name === 'AbortError') {
-      const abortErr = new Error('Aborted');
-      abortErr.name = 'AbortError';
-      throw abortErr;
-    }
-    console.warn('Chyba při výpočtu trasy ve fetchOSRMRoute, vracím garantovanou základní trasu:', evalErr);
-    const fallbackRaw = createDirectFallbackRoute(routeSLng, routeSLat, routeELng, routeELat);
-    const fallbackCandidate = evaluateRoute(fallbackRaw, safetyNodes, isNight, profiles, [routeSLat, routeSLng], [routeELat, routeELng], timeOfDay);
-    const routeA = candidateToRouteResult(
-      fallbackCandidate,
-      'routeA',
-      'Doporučená bezpečná trasa',
-      'Základní pěší trasa po komunikacích.',
-      'Trasa vygenerována s rychlou odezvou po limitu serveru.',
-      ['[Rychlá odezva]', '[Přímá spojnice]']
-    );
-    const fastestRoute = candidateToRouteResult(
-      fallbackCandidate,
-      'routeC',
-      'Nejrychlejší trasa',
-      'Běžná pěší trasa.',
-      'Přímá pěší spojnice.',
-      ['[Nejkratší]']
-    );
-    return { routeA, routeB: null, routeC: null, fastestRoute };
-  }
 }
 
 /**
